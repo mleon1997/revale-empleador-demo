@@ -1,49 +1,191 @@
-const store = globalThis.__revaleDemoStore || (globalThis.__revaleDemoStore = new Map());
+import {
+  getSql,
+  getDemoAccount,
+  createCharge,
+  getCharge,
+  confirmCharge
+} from "../lib/revale-db.js";
 
-function json(res, code, body){
-  res.status(code).setHeader("Content-Type","application/json; charset=utf-8").setHeader("Cache-Control","no-store").json(body);
-}
-function id(){
-  const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let s="RV-";
-  for(let i=0;i<5;i++) s+=chars[Math.floor(Math.random()*chars.length)];
-  return s;
-}
-function token(){
-  return Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2);
-}
-function clean(){
-  const now=Date.now();
-  for(const [k,v] of store.entries()) if(now-v.createdAt>10*60*1000) store.delete(k);
+function json(res, code, body) {
+  res
+    .status(code)
+    .setHeader("Content-Type", "application/json; charset=utf-8")
+    .setHeader("Cache-Control", "no-store")
+    .json(body);
 }
 
-export default async function handler(req,res){
-  clean();
-  const action=(req.query && req.query.action) || "";
-  if(req.method==="POST" && action==="create"){
-    const amount=Number(req.body?.amount || 0);
-    if(!Number.isFinite(amount) || amount<=0 || amount>500) return json(res,400,{error:"Monto inválido"});
-    const tx=id(), t=token();
-    const row={tx,token:t,amount:Math.round(amount*100)/100,reference:String(req.body?.reference||"").slice(0,40),status:"pending",createdAt:Date.now(),approvedAt:null};
-    store.set(tx,row);
-    return json(res,200,{tx,token:t,amount:row.amount,status:row.status,expiresAt:row.createdAt+5*60*1000});
+export default async function handler(req, res) {
+  const action = (req.query && req.query.action) || "";
+
+  try {
+    const sql = await getSql();
+
+    if (req.method === "GET" && action === "health") {
+      const [db] = await sql`
+        SELECT current_database() AS database_name, now() AS server_time
+      `;
+      const demo = await getDemoAccount(sql);
+
+      return json(res, 200, {
+        ok: true,
+        storage: "neon-postgres",
+        schema: "revale",
+        database: db?.database_name,
+        serverTime: db?.server_time,
+        demoBalance: demo?.balance ?? null
+      });
+    }
+
+    if (req.method === "GET" && action === "persons") {
+      const rows = await sql`
+        SELECT
+          c.card_number AS revale_card,
+          p.person_identification,
+          p.first_name,
+          p.last_name,
+          p.email,
+          p.mobile_phone,
+          p.company_identification
+        FROM revale.persons p
+        JOIN revale.cards c ON c.person_id = p.id
+        WHERE p.active = true AND c.active = true
+        ORDER BY p.first_name, p.last_name
+      `;
+
+      return json(res, 200, {
+        message: "RVL-000",
+        response: {
+          status: "success",
+          error_code: "RVL-000",
+          error_message: "Query completed successfully",
+          data: { persons: rows }
+        }
+      });
+    }
+
+    if (req.method === "GET" && action === "balance") {
+      const card = String(req.query?.card_number || "RV-DEMO-0001");
+      const [row] = await sql`
+        SELECT
+          card_number,
+          balance::float8 AS balance
+        FROM revale.benefit_accounts
+        WHERE card_number = ${card}
+        LIMIT 1
+      `;
+
+      if (!row) {
+        return json(res, 404, {
+          message: "RVL-005",
+          response: {
+            status: "error",
+            error_code: "RVL-005",
+            error_message: "Card not found"
+          }
+        });
+      }
+
+      return json(res, 200, {
+        message: "RVL-000",
+        response: {
+          status: "success",
+          error_code: "RVL-000",
+          error_message: "Query completed successfully",
+          data: row
+        }
+      });
+    }
+
+    if (req.method === "POST" && action === "create") {
+      const amount = Number(req.body?.amount || 0);
+      const reference = String(req.body?.reference || "").slice(0, 80);
+
+      if (!Number.isFinite(amount) || amount <= 0 || amount > 500) {
+        return json(res, 400, {
+          message: "RVL-010",
+          error: "Monto inválido"
+        });
+      }
+
+      const row = await createCharge(
+        sql,
+        Math.round(amount * 100) / 100,
+        reference
+      );
+
+      return json(res, 200, row);
+    }
+
+    if (
+      req.method === "GET" &&
+      (action === "get" || action === "status")
+    ) {
+      const tx = String(req.query?.tx || "");
+      const token = String(req.query?.token || "");
+      const row = await getCharge(sql, tx, token);
+
+      if (!row) {
+        return json(res, 404, {
+          message: "RVL-005",
+          error: "Transacción no encontrada"
+        });
+      }
+
+      return json(res, 200, row);
+    }
+
+    if (req.method === "POST" && action === "confirm") {
+      const tx = String(req.body?.tx || "");
+      const token = String(req.body?.token || "");
+      const result = await confirmCharge(sql, tx, token);
+
+      if (result.code === "not_found") {
+        return json(res, 404, {
+          message: "RVL-005",
+          error: "Transacción no encontrada"
+        });
+      }
+
+      if (result.code === "expired") {
+        return json(res, 410, {
+          message: "RVL-015",
+          error: "QR expirado"
+        });
+      }
+
+      if (result.code === "insufficient_balance") {
+        return json(res, 409, {
+          message: "RVL-007",
+          error: "Saldo insuficiente"
+        });
+      }
+
+      if (result.code !== "ok") {
+        return json(res, 409, {
+          message: "RVL-013",
+          error: "La transacción no puede confirmarse",
+          status: result.code
+        });
+      }
+
+      return json(res, 200, {
+        ok: true,
+        message: "RVL-000",
+        status: result.status,
+        balanceBefore: result.balanceBefore,
+        balanceAfter: result.balanceAfter
+      });
+    }
+
+    return json(res, 405, {
+      message: "RVL-009",
+      error: "Acción no soportada"
+    });
+  } catch (error) {
+    console.error("ReVale API error", error);
+    return json(res, 500, {
+      message: "RVL-013",
+      error: "Error interno del servicio"
+    });
   }
-  if(req.method==="GET" && (action==="get" || action==="status")){
-    const tx=String(req.query?.tx||"");
-    const t=String(req.query?.token||"");
-    const row=store.get(tx);
-    if(!row || row.token!==t) return json(res,404,{error:"Transacción no encontrada"});
-    if(Date.now()>row.createdAt+5*60*1000 && row.status==="pending") row.status="expired";
-    return json(res,200,{tx:row.tx,amount:row.amount,reference:row.reference,status:row.status,createdAt:row.createdAt,approvedAt:row.approvedAt,expiresAt:row.createdAt+5*60*1000});
-  }
-  if(req.method==="POST" && action==="confirm"){
-    const tx=String(req.body?.tx||"");
-    const t=String(req.body?.token||"");
-    const row=store.get(tx);
-    if(!row || row.token!==t) return json(res,404,{error:"Transacción no encontrada"});
-    if(Date.now()>row.createdAt+5*60*1000) return json(res,410,{error:"QR expirado"});
-    row.status="approved"; row.approvedAt=Date.now(); store.set(tx,row);
-    return json(res,200,{ok:true,status:"approved"});
-  }
-  return json(res,405,{error:"Acción no soportada"});
 }
