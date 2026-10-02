@@ -3,7 +3,10 @@ import {
   getDemoAccount,
   createCharge,
   getCharge,
-  confirmCharge
+  confirmCharge,
+  listMerchantTransactions,
+  reverseCharge,
+  matchInvoice
 } from "../lib/revale-db.js";
 
 function json(res, code, body) {
@@ -93,6 +96,74 @@ export default async function handler(req, res) {
           error_message: "Query completed successfully",
           data: row
         }
+      });
+    }
+
+    if (req.method === "GET" && action === "transactions") {
+      const rows = await listMerchantTransactions(sql, req.query?.limit || 50);
+      return json(res, 200, { ok: true, transactions: rows });
+    }
+
+    if (req.method === "POST" && action === "reverse") {
+      const tx = String(req.body?.tx || "");
+      const result = await reverseCharge(sql, tx);
+
+      if (result.code === "not_found") {
+        return json(res, 404, {
+          message: "RVL-005",
+          error: "Transacción no encontrada"
+        });
+      }
+
+      if (result.code !== "ok") {
+        return json(res, 409, {
+          message: "RVL-013",
+          error: "La transacción no puede reversarse",
+          status: result.status
+        });
+      }
+
+      return json(res, 200, {
+        message: "RVL-000",
+        response: {
+          status: "success",
+          error_code: "RVL-000",
+          error_message: "Reversal registered successfully",
+          data: {
+            external_transaction_id: result.tx,
+            transaction_type: result.transactionType,
+            amount: result.amount,
+            balance: result.newBalance
+          }
+        }
+      });
+    }
+
+    if (req.method === "POST" && action === "invoice-match") {
+      const tx = String(req.body?.tx || "");
+      const result = await matchInvoice(sql, tx);
+
+      if (result.code === "not_found") {
+        return json(res, 404, {
+          message: "RVL-005",
+          error: "Transacción no encontrada"
+        });
+      }
+
+      if (result.code !== "ok") {
+        return json(res, 409, {
+          message: "RVL-013",
+          error: "La factura no puede conciliarse",
+          transactionStatus: result.transactionStatus,
+          invoiceStatus: result.invoiceStatus
+        });
+      }
+
+      return json(res, 200, {
+        ok: true,
+        message: "RVL-000",
+        tx: result.tx,
+        invoiceStatus: result.status
       });
     }
 
