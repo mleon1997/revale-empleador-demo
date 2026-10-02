@@ -295,6 +295,41 @@ body{letter-spacing:-.005em}
   .phone{border:0}
 }
 
+
+/* LOGIN FORM */
+.login-form-card{padding:36px 36px 28px}
+.demo-dot{display:inline-flex;align-items:center;gap:7px;font-size:8px;font-weight:900;color:#4d5a54;background:#f3f6f4;padding:7px 10px;border-radius:999px}
+.demo-dot i{width:6px;height:6px;border-radius:50%;background:var(--brand)}
+.login-title-wrap{margin-bottom:28px}
+.login-title-wrap h2{font-size:32px;line-height:1.05;margin:0 0 7px;letter-spacing:-.055em;color:var(--navy)}
+.login-title-wrap p{margin:0;font-size:10px;color:#7c8782}
+.form-field{margin-top:17px}
+.form-field label{display:block;font-size:8px;font-weight:850;color:#56625d;margin-bottom:8px}
+.form-field>input,.password-wrap input{width:100%;height:48px;border:1px solid #e2e7e3;border-radius:15px;background:#fbfcfb;padding:0 14px;outline:none;color:var(--navy);font-size:11px;transition:.16s}
+.form-field>input:focus,.password-wrap:focus-within{border-color:var(--brand);box-shadow:0 0 0 4px rgba(81,200,120,.10);background:#fff}
+.field-label-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.text-link{border:0;background:transparent;padding:0;color:#4a5d53;font-size:8px;font-weight:800;cursor:pointer}
+.text-link:hover{color:var(--navy)}
+.password-wrap{height:48px;border:1px solid #e2e7e3;border-radius:15px;background:#fbfcfb;display:flex;align-items:center;transition:.16s;overflow:hidden}
+.password-wrap input{height:46px;border:0;background:transparent;box-shadow:none!important;border-radius:0}
+.password-toggle{border:0;background:transparent;color:#516158;font-size:8px;font-weight:850;padding:0 14px}
+.remember-row{display:flex;align-items:center;gap:8px;margin-top:15px;font-size:8px;color:#647169;cursor:pointer}
+.remember-row input{accent-color:var(--brand);width:14px;height:14px}
+.login-form-card .access-button{height:48px;margin-top:20px!important;font-size:10px}
+.login-divider{display:flex;align-items:center;gap:9px;margin:23px 0 17px}
+.login-divider span{height:1px;background:#edf0ed;flex:1}
+.login-divider em{font-style:normal;font-size:7px;color:#9aa39f;text-transform:uppercase;letter-spacing:.1em;font-weight:850}
+.demo-credentials{padding:13px 14px;border-radius:16px;background:var(--brand-cream);display:grid;gap:8px}
+.demo-credentials div{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.demo-credentials span{font-size:7px;color:#777f6c;text-transform:uppercase;letter-spacing:.08em;font-weight:850}
+.demo-credentials b{font-size:8px;color:var(--navy)}
+.login-footer-row{display:flex;align-items:center;justify-content:space-between;margin-top:18px;color:#9aa39f;font-size:7px}
+.login-footer-row .text-link{font-size:7px}
+@media(max-width:650px){
+  .login-form-card{padding:28px 24px}
+  .login-title-wrap h2{font-size:29px}
+}
+
 </style>
 </head>
 <body>
@@ -345,25 +380,48 @@ body{letter-spacing:-.005em}
   </div>
 
   <div class="login-right product-access">
-    <div class="login-card access-card">
+    <div class="login-card access-card login-form-card">
       <div class="access-head">
         <div class="brand-logo logo-light brand-logo-access" aria-label="ReVale"></div>
-        <span class="status ok">Demo</span>
-      </div>
-      <h2>Acceso Comercios</h2>
-      <p>Selecciona el punto de venta.</p>
-
-      <div class="merchant-login">
-        <div class="logo-block">EH</div>
-        <div><b>El Hornero</b><span>Cumbayá</span></div>
-        <div class="merchant-arrow">›</div>
+        <span class="demo-dot"><i></i> Demo</span>
       </div>
 
-      <div class="access-row"><span>Terminal</span><b>Caja 01</b></div>
-      <div class="access-row"><span>Estado</span><b class="online-text">● Activo</b></div>
+      <div class="login-title-wrap">
+        <h2>Inicia sesión</h2>
+        <p>ReVale Comercios</p>
+      </div>
 
-      <button class="btn btn-primary access-button" onclick="enterDemo()">Continuar</button>
-      <div class="pilot-note">Entorno de demostración</div>
+      <div class="form-field">
+        <label for="loginEmail">Correo electrónico</label>
+        <input id="loginEmail" type="email" autocomplete="username" value="demo@revale.app" placeholder="nombre@empresa.com"/>
+      </div>
+
+      <div class="form-field">
+        <div class="field-label-row">
+          <label for="loginPassword">Contraseña</label>
+          <button type="button" class="text-link" onclick="toast('Recuperación de contraseña disponible en producción')">¿Olvidaste tu contraseña?</button>
+        </div>
+        <div class="password-wrap">
+          <input id="loginPassword" type="password" autocomplete="current-password" value="revale-demo" placeholder="••••••••"/>
+          <button id="passwordToggle" type="button" class="password-toggle" onclick="togglePassword()">Mostrar</button>
+        </div>
+      </div>
+
+      <label class="remember-row">
+        <input id="rememberLogin" type="checkbox" checked/>
+        <span>Mantener sesión iniciada</span>
+      </label>
+
+      <button id="loginButton" class="btn btn-primary access-button" onclick="loginDemo()">Ingresar</button>
+
+      <div class="login-divider"><span></span><em>Acceso demo</em><span></span></div>
+
+      <div class="demo-credentials">
+        <div><span>Comercio</span><b>El Hornero · Cumbayá</b></div>
+        <div><span>Terminal</span><b>Caja 01</b></div>
+      </div>
+
+      <div class="login-footer-row"><span>ReVale Comercios</span><button type="button" class="text-link" onclick="toast('Soporte ReVale')">Soporte</button></div>
     </div>
   </div>
 </section>
@@ -559,6 +617,27 @@ function toast(msg){var t=q("toast");t.textContent=msg;t.classList.add("show");s
 function hideScreens(){["homeScreen","chargeScreen","approvedScreen","transactionsScreen","branchScreen"].forEach(function(x){q(x).classList.add("hidden")})}
 function nav(which){["navHome","navMov","navBranch"].forEach(function(x){q(x).classList.remove("active")});if(which)q(which).classList.add("active")}
 async function enterDemo(){q("login").classList.add("hidden");q("merchantApp").classList.remove("hidden");await showHome()}
+function togglePassword(){
+  var input=q("loginPassword"),b=q("passwordToggle");
+  var showing=input.type==="text";
+  input.type=showing?"password":"text";
+  b.textContent=showing?"Mostrar":"Ocultar";
+}
+async function loginDemo(){
+  var email=(q("loginEmail").value||"").trim().toLowerCase();
+  var password=q("loginPassword").value||"";
+  var b=q("loginButton");
+  if(!email||!password){toast("Ingresa correo y contraseña");return}
+  if(email!=="demo@revale.app"||password!=="revale-demo"){toast("Credenciales demo incorrectas");return}
+  b.disabled=true;b.textContent="Ingresando…";
+  await new Promise(function(resolve){setTimeout(resolve,420)});
+  await enterDemo();
+  b.disabled=false;b.textContent="Ingresar";
+}
+document.addEventListener("keydown",function(e){
+  var p=new URLSearchParams(location.search);
+  if(e.key==="Enter"&&p.get("employee")!=="1"&&!q("login").classList.contains("hidden")) loginDemo();
+});
 async function showHome(){hideScreens();q("homeScreen").classList.remove("hidden");q("topTitle").textContent="El Hornero · Cumbayá";nav("navHome");setDashboardDate();await loadTransactions()}
 async function showTransactions(){hideScreens();q("transactionsScreen").classList.remove("hidden");q("topTitle").textContent="Movimientos · El Hornero Cumbayá";nav("navMov");await loadTransactions()}
 function showBranch(){hideScreens();q("branchScreen").classList.remove("hidden");q("topTitle").textContent="Mi sucursal · El Hornero Cumbayá";nav("navBranch")}
