@@ -369,16 +369,27 @@ function renderTx(){
 }
 
 /* EMPLOYEE */
-var emp={tx:"",token:"",amount:0};
+var emp={tx:"",token:"",amount:0,balanceBefore:null,balanceAfter:null,currentBalance:null};
 async function loadEmployee(){
   q("login").classList.add("hidden");q("employeeView").classList.remove("hidden");
   var p=new URLSearchParams(location.search);emp.tx=p.get("tx")||"";emp.token=p.get("token")||"";
   try{
     var r=await fetch("/api/revale-demo?action=get&tx="+encodeURIComponent(emp.tx)+"&token="+encodeURIComponent(emp.token),{cache:"no-store"});var d=await r.json();
     if(!r.ok)throw new Error(d.error||"No encontramos la transacción");
-    emp.amount=d.amount;var balance=Number(d.currentBalance??0);var first=d.employee?.firstName||"Andrea";q("employeeHello").textContent="Hola, "+first;q("employeeBalance").textContent=money(balance);q("employeeAmount").textContent=money(emp.amount);q("employeeAfter").textContent="Saldo después de la compra: "+money(balance-emp.amount);
+    emp.amount=Number(d.amount||0);
+    emp.currentBalance=Number(d.currentBalance??0);
+    emp.balanceBefore=d.balanceBefore==null?emp.currentBalance:Number(d.balanceBefore);
+    emp.balanceAfter=d.balanceAfter==null?null:Number(d.balanceAfter);
+    var first=d.employee?.firstName||"Andrea";
+    q("employeeHello").textContent="Hola, "+first;
+    q("employeeBalance").textContent=money(emp.currentBalance);
+    q("employeeAmount").textContent=money(emp.amount);
+    q("employeeAfter").textContent="Saldo después de la compra: "+money(emp.currentBalance-emp.amount);
     q("employeeLoading").classList.add("hidden");q("employeePay").classList.remove("hidden");
-    if(d.status==="approved")employeeSuccess();
+    if(d.status==="approved"){
+      if(emp.balanceAfter==null)emp.balanceAfter=emp.currentBalance;
+      employeeSuccess();
+    }
   }catch(e){q("employeeLoading").classList.add("hidden");q("employeeError").classList.remove("hidden");q("employeeError").innerHTML="<b>No pudimos abrir este cobro.</b><br/>El QR pudo expirar o la conexión se interrumpió. Vuelve a generar el QR en la caja."}
 }
 async function confirmEmployee(){
@@ -386,11 +397,15 @@ async function confirmEmployee(){
   try{
     var r=await fetch("/api/revale-demo?action=confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tx:emp.tx,token:emp.token})});var d=await r.json();
     if(!r.ok)throw new Error(d.error||"No se pudo confirmar");
+    emp.balanceBefore=d.balanceBefore==null?emp.currentBalance:Number(d.balanceBefore);
+    emp.balanceAfter=d.balanceAfter==null?(emp.balanceBefore-emp.amount):Number(d.balanceAfter);
+    emp.currentBalance=emp.balanceAfter;
     employeeSuccess()
   }catch(e){b.disabled=false;b.textContent="Confirmar pago";toast(e.message||"Intenta nuevamente")}
 }
 function employeeSuccess(){
-  q("phone").innerHTML="<div class='employee-success'><div class='check'>✓</div><h2>Pago aprobado</h2><p>Tu consumo fue confirmado en El Hornero.</p><div class='receipt'><div class='rr'><span>Comercio</span><b>El Hornero</b></div><div class='rr'><span>Total</span><b>"+money(emp.amount)+"</b></div><div class='rr'><span>Transacción</span><b>"+emp.tx+"</b></div><div class='rr'><span>Factura</span><b>Pendiente</b></div></div><button class='btn btn-secondary' style='width:100%;margin-top:14px' onclick='location.href=\"/comercios/\"'>Cerrar</button></div>"
+  var remaining=emp.balanceAfter==null?emp.currentBalance:emp.balanceAfter;
+  q("phone").innerHTML="<div class='employee-success'><div class='check'>✓</div><h2>Pago aprobado</h2><p>Tu consumo fue confirmado en El Hornero.</p><div style='margin:22px 0 6px;background:#e9f8ef;border:1px solid #d7ebdf;border-radius:18px;padding:18px;text-align:center'><div style='font-size:8px;color:#6f7f77;text-transform:uppercase;letter-spacing:.12em;font-weight:850'>Saldo disponible</div><div style='font-size:38px;letter-spacing:-.05em;font-weight:900;margin-top:5px'>"+money(remaining)+"</div></div><div class='receipt'><div class='rr'><span>Comercio</span><b>El Hornero</b></div><div class='rr'><span>Total</span><b>"+money(emp.amount)+"</b></div><div class='rr'><span>Transacción</span><b>"+emp.tx+"</b></div><div class='rr'><span>Factura</span><b>Pendiente</b></div></div><button class='btn btn-secondary' style='width:100%;margin-top:14px' onclick='location.href=\"/comercios/\"'>Cerrar</button></div>"
 }
 (function init(){var p=new URLSearchParams(location.search);if(p.get("employee")==="1")loadEmployee()})();
 </script>
