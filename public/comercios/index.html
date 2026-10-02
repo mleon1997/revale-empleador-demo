@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#083d2d"/>
+<title>ReVale Comercios · Nivel 1</title>
+<meta name="description" content="ReVale Comercios — aceptación de consumos corporativos sin integración POS."/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{
+  --bg:#f4f7f5;--paper:#fff;--ink:#0a1711;--muted:#66736d;--line:#e2e9e5;
+  --green:#07583c;--green2:#083d2d;--green3:#06291f;--lime:#d9ff67;--mint:#e9f8ef;
+  --shadow:0 24px 70px rgba(7,45,32,.09);--shadow2:0 12px 34px rgba(7,45,32,.07);
+}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
+button,input{font:inherit}.hidden{display:none!important}button{cursor:pointer}
+.wordmark{font-weight:850;letter-spacing:-.06em;font-size:25px}.wordmark i{font-style:normal;color:var(--lime)}
+.btn{border:0;border-radius:14px;padding:13px 17px;font-weight:800;font-size:12px;transition:.18s ease}
+.btn:hover{transform:translateY(-1px)}.btn-primary{background:var(--green);color:#fff;box-shadow:0 10px 25px rgba(7,88,60,.16)}
+.btn-dark{background:#0b1711;color:#fff}.btn-secondary{background:#fff;color:#203028;border:1px solid var(--line)}.btn-ghost{background:transparent;color:#65736c}
+.badge{display:inline-flex;align-items:center;gap:7px;border-radius:99px;padding:7px 10px;font-size:9px;font-weight:800;letter-spacing:.04em}
+.badge:before{content:"";width:6px;height:6px;border-radius:50%;background:#32b77a}.badge-live{background:#e9f7ef;color:#215d44}
+.eyebrow{text-transform:uppercase;letter-spacing:.16em;font-size:9px;font-weight:850;color:var(--green)}
+.muted{color:var(--muted)}.mono{font-variant-numeric:tabular-nums}
+#toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);opacity:0;z-index:99;background:#0b1711;color:#fff;border-radius:13px;padding:11px 15px;font-size:10px;font-weight:800;transition:.2s}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* LOGIN */
+.login{min-height:100vh;display:grid;grid-template-columns:1.15fr .85fr;background:#fff}
+.login-brand{position:absolute;top:32px;left:40px;color:#fff}.login-left{position:relative;padding:120px 60px 54px;background:
+radial-gradient(circle at 80% 18%,rgba(217,255,103,.14),transparent 26%),
+linear-gradient(135deg,#073e2d 0%,#06281e 100%);color:#fff;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
+.login-left:after{content:"";position:absolute;width:500px;height:500px;border:1px solid rgba(255,255,255,.08);border-radius:50%;right:-210px;bottom:-230px}
+.login-copy{position:relative;z-index:2;max-width:640px}.login-copy .eyebrow{color:#bce8cf}.login-copy h1{font-size:62px;line-height:.98;letter-spacing:-.065em;margin:18px 0 20px;max-width:630px}
+.login-copy p{font-size:16px;line-height:1.65;color:#c9dbd2;max-width:540px;margin:0}
+.flow-line{margin-top:38px;display:flex;align-items:center;gap:11px;flex-wrap:wrap}.flow-chip{border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);padding:9px 12px;border-radius:99px;font-size:10px;font-weight:750}.flow-arrow{color:#81a794}
+.login-right{display:flex;align-items:center;justify-content:center;padding:44px;background:#f7f9f8}
+.login-card{width:min(430px,100%);background:#fff;border:1px solid var(--line);border-radius:28px;padding:30px;box-shadow:var(--shadow)}
+.partner{display:flex;align-items:center;gap:12px;margin:24px 0 22px;background:#f6f8f7;border:1px solid #e7ece9;border-radius:18px;padding:13px}
+.partner-logo{width:42px;height:42px;border-radius:13px;background:#111;color:#fff;display:grid;place-items:center;font-weight:900;font-size:12px}.partner b{font-size:12px}.partner span{display:block;font-size:9px;color:#78857f;margin-top:3px}
+.login-card h2{font-size:25px;letter-spacing:-.045em;margin:7px 0}.login-card>p{font-size:11px;line-height:1.5;color:#738079;margin:0}.login-card .btn{width:100%;margin-top:10px;padding:14px}
+.login-note{font-size:8px;color:#96a19b;text-align:center;margin-top:14px;line-height:1.45}
+
+/* APP */
+.app{min-height:100vh;display:grid;grid-template-columns:236px 1fr}
+.sidebar{background:#073d2d;color:#fff;padding:25px 17px;display:flex;flex-direction:column;min-height:100vh;position:sticky;top:0;height:100vh}
+.side-brand{padding:2px 10px 25px}.merchant-box{display:flex;align-items:center;gap:10px;padding:12px 10px;border:1px solid rgba(255,255,255,.10);border-radius:15px;background:rgba(255,255,255,.045);margin-bottom:22px}
+.merchant-box .partner-logo{width:34px;height:34px;border-radius:10px;font-size:10px}.merchant-box b{font-size:10px}.merchant-box span{display:block;font-size:8px;color:#a9c1b6;margin-top:3px}
+.nav{display:grid;gap:5px}.nav button{border:0;background:transparent;color:#afc4ba;text-align:left;padding:11px 12px;border-radius:11px;font-size:10px;font-weight:750}.nav button.active,.nav button:hover{background:rgba(255,255,255,.08);color:#fff}
+.nav button.active{box-shadow:inset 2px 0 var(--lime)}.side-foot{margin-top:auto;padding:17px 10px 3px;border-top:1px solid rgba(255,255,255,.10);font-size:8px;color:#9db5aa;line-height:1.5}
+.main{min-width:0}.topbar{height:70px;background:rgba(255,255,255,.88);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:8}
+.top-title{font-size:10px;font-weight:800}.top-actions{display:flex;align-items:center;gap:10px}.operator{display:flex;align-items:center;gap:8px;border-left:1px solid var(--line);padding-left:13px}.avatar{width:31px;height:31px;border-radius:50%;background:#0a1711;color:#fff;display:grid;place-items:center;font-size:9px;font-weight:850}.operator b{font-size:9px}.operator span{display:block;font-size:8px;color:#849089;margin-top:2px}
+.content{padding:32px 34px 48px;max-width:1420px;margin:0 auto}
+.page-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:24px}.page-head h1{font-size:34px;letter-spacing:-.055em;margin:8px 0 5px}.page-head p{font-size:11px;color:#728078;margin:0}
+
+/* HOME */
+.home-grid{display:grid;grid-template-columns:minmax(0,1.1fr) .9fr;gap:18px}.card{background:#fff;border:1px solid var(--line);border-radius:26px;box-shadow:var(--shadow2)}
+.cashier{padding:28px;min-height:410px;display:flex;flex-direction:column}.cashier h2{font-size:16px;letter-spacing:-.03em;margin:0}.cashier p{font-size:10px;color:#78857e;margin:6px 0 0}
+.amount-wrap{margin:auto 0;text-align:center;padding:28px 0}.amount-label{font-size:9px;text-transform:uppercase;letter-spacing:.14em;color:#7b8781;font-weight:850}.amount-line{display:flex;justify-content:center;align-items:center;gap:4px;margin-top:12px}.currency{font-size:24px;font-weight:800;color:#718078}.amount-input{border:0;outline:0;background:transparent;width:260px;text-align:center;font-size:62px;letter-spacing:-.065em;font-weight:850;color:#0c1711}.amount-input::placeholder{color:#ced6d1}
+.ref-row{display:grid;grid-template-columns:1fr auto;gap:10px}.ref-input{border:1px solid var(--line);background:#f8faf9;border-radius:13px;padding:13px 14px;font-size:10px;outline:none}.charge-btn{border:0;border-radius:13px;background:var(--green);color:#fff;padding:13px 17px;font-size:11px;font-weight:850;min-width:155px}.charge-btn:disabled{opacity:.4;cursor:not-allowed}
+.side-stack{display:grid;gap:18px}.metric{padding:22px 22px 18px}.metric-top{display:flex;justify-content:space-between;align-items:center}.metric h3{font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:#728078;margin:0}.metric strong{display:block;font-size:33px;letter-spacing:-.06em;margin:14px 0 4px}.metric span{font-size:9px;color:#7c8982}.flow-card{padding:22px}.flow-card h3{font-size:13px;margin:0 0 15px}.step-row{display:flex;align-items:flex-start;gap:11px;padding:11px 0;border-bottom:1px solid #edf1ee}.step-row:last-child{border-bottom:0}.num{width:25px;height:25px;border-radius:50%;background:#edf6f0;color:var(--green);display:grid;place-items:center;font-size:9px;font-weight:900;flex:none}.step-row b{font-size:10px}.step-row span{display:block;font-size:8px;color:#829089;margin-top:3px;line-height:1.4}
+.recent{margin-top:18px;overflow:hidden}.recent-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--line)}.recent-head h3{font-size:12px;margin:0}.table{width:100%;border-collapse:collapse}.table th{font-size:8px;text-transform:uppercase;letter-spacing:.09em;color:#8a9690;text-align:left;padding:11px 18px;background:#fafbfa}.table td{font-size:9px;padding:13px 18px;border-top:1px solid #eef2ef}.table td.amount{text-align:right;font-weight:850}.status{display:inline-flex;border-radius:99px;padding:5px 8px;font-size:8px;font-weight:850}.status.ok{background:#e8f7ee;color:#1e6d4a}.status.wait{background:#fff3d9;color:#865f14}
+
+/* QR */
+.charge-layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:18px}.qr-card{min-height:650px;padding:28px;display:flex;flex-direction:column}.progress{display:grid;grid-template-columns:repeat(3,1fr);margin-bottom:20px}.pstep{display:flex;align-items:center;gap:8px;color:#9aa59f;font-size:8px;font-weight:850;position:relative}.pstep:after{content:"";height:1px;background:#e5ebe7;position:absolute;left:27px;right:8px;top:11px}.pstep:last-child:after{display:none}.dot{width:23px;height:23px;border-radius:50%;background:#eef2ef;display:grid;place-items:center;z-index:2}.pstep.on{color:var(--green)}.pstep.on .dot{background:var(--lime);color:#18321f}
+.qr-center{margin:auto;text-align:center;display:flex;flex-direction:column;align-items:center}.qr-center h2{font-size:31px;letter-spacing:-.05em;margin:9px 0}.qr-center>p{font-size:10px;color:#748078;line-height:1.5;max-width:470px;margin:0 0 20px}.qr-shell{width:275px;height:275px;border:1px solid #dfe7e2;border-radius:26px;padding:18px;background:#fff;display:grid;place-items:center;box-shadow:0 18px 55px rgba(8,38,26,.07);position:relative}.qr-shell:before{content:"";position:absolute;inset:-7px;border:1px dashed #d7e0db;border-radius:31px}.pay-pill{margin-top:18px;background:#f0f4f1;border:1px solid #e3e9e5;border-radius:99px;padding:8px 13px;font-size:15px;font-weight:900}.txref{font-size:8px;color:#8c9791;margin-top:7px}.waiting{display:flex;align-items:center;gap:8px;font-size:9px;color:#57675f;margin-top:15px}.pulse{width:8px;height:8px;border-radius:50%;background:#2aaf73;box-shadow:0 0 0 0 rgba(42,175,115,.45);animation:pulse 1.7s infinite}@keyframes pulse{70%{box-shadow:0 0 0 8px rgba(42,175,115,0)}100%{box-shadow:0 0 0 0 rgba(42,175,115,0)}}.qr-meta{font-size:8px;color:#8c9892;margin-top:10px}
+.status-card{padding:22px}.status-card .small{font-size:8px;text-transform:uppercase;letter-spacing:.12em;color:#7d8983;font-weight:850}.status-card h3{font-size:17px;letter-spacing:-.03em;margin:10px 0 6px}.status-card p{font-size:9px;line-height:1.5;color:#7d8983;margin:0}.live-line{margin-top:18px;padding-top:15px;border-top:1px solid var(--line);display:flex;align-items:center;gap:8px;font-size:8px;font-weight:750;color:#557266}.live-line i{width:7px;height:7px;border-radius:50%;background:#2caf72}
+.demo-card{padding:20px;background:#0b1711;color:#fff;border-radius:24px}.demo-card b{font-size:10px}.demo-card p{font-size:8px;line-height:1.5;color:#a8b5ae}.demo-card .btn{width:100%;margin-top:5px;background:#18241e;color:#fff;border:1px solid #2b3831}
+
+/* APPROVED */
+.approved-grid{display:grid;grid-template-columns:.72fr 1.28fr;gap:18px}.approved-summary{background:linear-gradient(155deg,#073d2d,#06251c);color:#fff;border-radius:28px;min-height:550px;padding:32px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:var(--shadow)}
+.check{width:64px;height:64px;border-radius:50%;background:var(--lime);color:#14311f;display:grid;place-items:center;font-size:29px;font-weight:900}.approved-summary .k{font-size:9px;text-transform:uppercase;letter-spacing:.15em;color:#a8c4b6;font-weight:850;margin-top:22px}.approved-summary .big{font-size:56px;letter-spacing:-.065em;font-weight:900;margin:9px 0}.approved-summary .r{font-size:9px;color:#a5bdb2}.assurance{margin-top:27px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);border-radius:16px;padding:14px 16px;font-size:8px;color:#b9cec4;line-height:1.5;max-width:330px}.assurance b{display:block;color:#fff;font-size:9px;margin-bottom:3px}
+.invoice{padding:28px}.invoice-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.invoice-head h2{font-size:24px;letter-spacing:-.04em;margin:7px 0 5px}.invoice-head p{font-size:9px;color:#7e8a84;margin:0}.invoice-fields{margin-top:22px;border:1px solid var(--line);border-radius:18px;overflow:hidden}.field-row{display:grid;grid-template-columns:1fr 1fr}.field{padding:16px 17px;border-bottom:1px solid var(--line)}.field+.field{border-left:1px solid var(--line)}.field span,.email-field span{display:block;font-size:8px;color:#849089;margin-bottom:6px}.field strong,.email-field strong{font-size:12px}.email-field{padding:17px;background:#f6faf7;display:flex;align-items:center;justify-content:space-between;gap:12px}.copy{border:1px solid #dce5df;background:#fff;border-radius:10px;padding:8px 10px;font-size:8px;font-weight:850}
+.invoice-note{margin-top:15px;background:#f6f8f7;border-radius:14px;padding:13px 14px;font-size:8px;line-height:1.5;color:#738078}.invoice-note b{color:#26362e}
+.invoice-actions{display:flex;gap:9px;margin-top:14px}.invoice-actions .btn{flex:1}.recon{margin-top:18px;border-top:1px solid var(--line);padding-top:18px;display:flex;align-items:center;justify-content:space-between;gap:12px}.recon-left{display:flex;align-items:center;gap:10px}.recon-dot{width:31px;height:31px;border-radius:50%;background:#f1f4f2;display:grid;place-items:center;font-weight:900;color:#8b9690}.recon.match .recon-dot{background:#e5f7ed;color:#21704c}.recon b{font-size:9px}.recon span{display:block;font-size:8px;color:#87928c;margin-top:2px}
+
+/* EMPLOYEE */
+.employee{min-height:100vh;background:
+radial-gradient(circle at 80% 5%,rgba(217,255,103,.13),transparent 30%),
+#07583c;display:grid;place-items:center;padding:24px}
+.phone{width:min(410px,100%);min-height:720px;background:#f6f8f7;border-radius:36px;overflow:hidden;border:7px solid #07120d;box-shadow:0 40px 110px rgba(0,0,0,.28)}
+.phone-top{background:#07583c;color:#fff;padding:31px 23px 26px}.phone-brand{font-size:22px;font-weight:900;letter-spacing:-.055em}.hello{font-size:9px;color:#c9ddd3;margin-top:26px}.balance-label{font-size:8px;color:#b7d0c4;margin-top:10px}.balance{font-size:31px;letter-spacing:-.055em;font-weight:900;margin-top:2px}.phone-body{padding:18px}.pay-card{background:#fff;border:1px solid #e1e8e4;border-radius:22px;padding:18px;box-shadow:0 9px 28px rgba(7,45,32,.06)}
+.merchant-mini{display:flex;gap:10px;align-items:center}.merchant-mini .partner-logo{width:39px;height:39px;border-radius:12px}.merchant-mini b{font-size:11px}.merchant-mini span{display:block;font-size:8px;color:#85918b;margin-top:2px}.pay-copy{text-align:center;padding:28px 0 19px}.pay-copy .small{font-size:8px;color:#7e8984}.pay-copy .amt{font-size:41px;font-weight:900;letter-spacing:-.065em;margin-top:5px}.pay-copy .after{font-size:8px;color:#748079;margin-top:8px}.confirm{width:100%;border:0;border-radius:14px;background:var(--green);color:#fff;padding:14px;font-weight:900}.secure{text-align:center;font-size:7px;color:#8d9892;margin-top:10px}.employee-success{padding:105px 24px 28px;text-align:center}.employee-success .check{margin:0 auto}.employee-success h2{font-size:25px;letter-spacing:-.04em;margin:18px 0 6px}.employee-success p{font-size:9px;color:#7b8781;line-height:1.5}.receipt{background:#fff;border:1px solid var(--line);border-radius:18px;margin-top:22px;padding:14px;text-align:left}.rr{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid #eef2ef;font-size:8px}.rr:last-child{border-bottom:0}.rr b{text-align:right}
+.errorbox{background:#fff;border:1px solid #f1d9d5;border-radius:18px;padding:18px;color:#763d36;font-size:9px;line-height:1.5}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(5,18,12,.48);backdrop-filter:blur(6px);z-index:50;display:grid;place-items:center;padding:20px}.modal{width:min(520px,100%);background:#fff;border-radius:24px;padding:24px;box-shadow:0 30px 100px rgba(0,0,0,.2)}.modal h3{font-size:21px;letter-spacing:-.04em;margin:0 0 5px}.modal p{font-size:9px;color:#7d8983}.bigdata{display:grid;gap:8px;margin:18px 0}.bigdata div{background:#f7f9f8;border-radius:14px;padding:13px}.bigdata span{display:block;font-size:8px;color:#829088;margin-bottom:4px}.bigdata strong{font-size:14px}.modal .btn{width:100%}
+
+/* MOBILE */
+@media(max-width:900px){.login{grid-template-columns:1fr}.login-left{min-height:52vh;padding:110px 28px 44px}.login-brand{left:28px}.login-copy h1{font-size:48px}.login-right{padding:24px}.app{display:block}.sidebar{display:none}.topbar{padding:0 15px}.content{padding:22px 15px 40px}.home-grid,.charge-layout,.approved-grid{grid-template-columns:1fr}.page-head{align-items:flex-start}.page-head h1{font-size:29px}.cashier{padding:21px}.amount-input{font-size:51px;width:220px}.ref-row{grid-template-columns:1fr}.qr-card{min-height:590px;padding:20px}.side-stack{display:grid}.approved-summary{min-height:390px}.invoice{padding:20px}.field-row{grid-template-columns:1fr}.field+.field{border-left:0}.field-row .field:first-child{border-bottom:1px solid var(--line)}.email-field{align-items:flex-start;flex-direction:column}.invoice-actions{flex-direction:column}.operator span,.badge-live{display:none}}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+
+<section id="login" class="login">
+  <div class="login-left">
+    <div class="login-brand wordmark">ReVale<i>.</i></div>
+    <div class="login-copy">
+      <span class="eyebrow">ReVale Comercios · Nivel 1</span>
+      <h1>Un nuevo canal corporativo. Sin tocar tu POS.</h1>
+      <p>La caja ingresa el monto, el empleado confirma desde su celular y el restaurante factura como siempre. Sin hardware dedicado. Sin proyecto de integración.</p>
+      <div class="flow-line">
+        <span class="flow-chip">Monto</span><span class="flow-arrow">→</span>
+        <span class="flow-chip">QR</span><span class="flow-arrow">→</span>
+        <span class="flow-chip">Confirmación</span><span class="flow-arrow">→</span>
+        <span class="flow-chip">Factura</span>
+      </div>
+    </div>
+  </div>
+  <div class="login-right">
+    <div class="login-card">
+      <span class="eyebrow">Entorno piloto</span>
+      <h2>Bienvenido a ReVale</h2>
+      <p>Prueba el flujo completo desde la perspectiva del comercio.</p>
+      <div class="partner"><div class="partner-logo">EH</div><div><b>El Hornero</b><span>Piloto · Cumbayá</span></div></div>
+      <button class="btn btn-primary" onclick="enterDemo()">Entrar al portal de comercios</button>
+      <div class="login-note">Demo funcional. No procesa dinero real ni utiliza información real de empleados.</div>
+    </div>
+  </div>
+</section>
+
+<section id="merchantApp" class="app hidden">
+  <aside class="sidebar">
+    <div class="side-brand wordmark">ReVale<i>.</i></div>
+    <div class="merchant-box"><div class="partner-logo">EH</div><div><b>El Hornero</b><span>Cumbayá · Caja 01</span></div></div>
+    <nav class="nav">
+      <button id="navCobrar" class="active" onclick="showHome()">Cobrar</button>
+      <button id="navMov" onclick="showTransactions()">Movimientos</button>
+      <button onclick="toast('Disponible en la siguiente fase')">Liquidaciones</button>
+      <button onclick="toast('Disponible en la siguiente fase')">Sucursales</button>
+      <button onclick="toast('Soporte operativo ReVale')">Ayuda</button>
+    </nav>
+    <div class="side-foot">ReVale Nivel 1<br/>Aceptación sin integración POS</div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="top-title" id="topTitle">Caja ReVale · Cumbayá</div>
+      <div class="top-actions">
+        <span class="badge badge-live">Conectado</span>
+        <div class="operator"><div class="avatar">CM</div><div><b>Caja 01</b><span>Operador comercio</span></div></div>
+      </div>
+    </header>
+
+    <div id="homeScreen" class="content">
+      <div class="page-head">
+        <div><span class="eyebrow">Caja ReVale</span><h1>¿Cuánto vas a cobrar?</h1><p>Ingresa el total de la cuenta. El cliente confirma desde su celular.</p></div>
+        <button class="btn btn-secondary" onclick="showTransactions()">Ver movimientos</button>
+      </div>
+
+      <div class="home-grid">
+        <section class="card cashier">
+          <div><h2>Nueva venta</h2><p>No necesitas leer saldo ni identificar al cliente antes del QR.</p></div>
+          <div class="amount-wrap">
+            <div class="amount-label">Monto total</div>
+            <div class="amount-line"><span class="currency">$</span><input id="amountInput" class="amount-input mono" inputmode="decimal" placeholder="0.00" oninput="validateAmount()"/></div>
+          </div>
+          <div class="ref-row">
+            <input id="refInput" class="ref-input" placeholder="Mesa / ticket (opcional)"/>
+            <button id="chargeBtn" class="charge-btn" disabled onclick="startCharge()">Generar QR de cobro →</button>
+          </div>
+        </section>
+
+        <div class="side-stack">
+          <section class="card metric">
+            <div class="metric-top"><h3>Ventas ReVale hoy</h3><span class="status ok">Operativo</span></div>
+            <strong id="todayTotal">$ 0.00</strong><span id="todayCount">0 consumos aprobados</span>
+          </section>
+          <section class="card flow-card">
+            <h3>Así funciona en caja</h3>
+            <div class="step-row"><div class="num">1</div><div><b>Ingresa el monto</b><span>ReVale crea una transacción temporal.</span></div></div>
+            <div class="step-row"><div class="num">2</div><div><b>Cliente escanea</b><span>Valida saldo y confirma desde su celular.</span></div></div>
+            <div class="step-row"><div class="num">3</div><div><b>Factura como siempre</b><span>ReVale te entrega los datos para el comprobante.</span></div></div>
+          </section>
+        </div>
+      </div>
+
+      <section class="card recent">
+        <div class="recent-head"><h3>Últimos movimientos</h3><button class="btn btn-ghost" onclick="showTransactions()">Ver todos →</button></div>
+        <table class="table"><thead><tr><th>Transacción</th><th>Hora</th><th>Estado</th><th style="text-align:right">Monto</th></tr></thead><tbody id="recentRows"><tr><td colspan="4" class="muted">Todavía no hay movimientos en esta sesión.</td></tr></tbody></table>
+      </section>
+    </div>
+
+    <div id="chargeScreen" class="content hidden">
+      <div class="page-head">
+        <div><span class="eyebrow">Cobro en curso</span><h1>Esperando al cliente</h1><p>No se descuenta saldo hasta que el empleado confirme.</p></div>
+        <button class="btn btn-secondary" onclick="cancelCharge()">Cancelar</button>
+      </div>
+      <div class="charge-layout">
+        <section class="card qr-card">
+          <div class="progress">
+            <div class="pstep on"><span class="dot">1</span>Monto</div>
+            <div class="pstep on"><span class="dot">2</span>Cliente</div>
+            <div class="pstep"><span class="dot">3</span>Aprobado</div>
+          </div>
+          <div class="qr-center">
+            <span class="eyebrow">Listo para escanear</span>
+            <h2>Muestra este QR al cliente</h2>
+            <p>El empleado lo escanea con su celular. ReVale valida elegibilidad y saldo antes de autorizar el consumo.</p>
+            <div id="qr" class="qr-shell"></div>
+            <div id="chargeAmount" class="pay-pill mono">$ 0.00</div>
+            <div id="txRef" class="txref"></div>
+            <div class="waiting"><span class="pulse"></span><span id="waitingText">Esperando confirmación del empleado…</span></div>
+            <div class="qr-meta">El QR expira en <b id="timer">05:00</b></div>
+          </div>
+        </section>
+        <div class="side-stack">
+          <section class="card status-card">
+            <div class="small">Estado de la transacción</div>
+            <h3 id="statusTitle">Esperando al cliente</h3>
+            <p id="statusText">Mantén esta pantalla abierta. La aprobación aparecerá aquí automáticamente.</p>
+            <div class="live-line"><i></i><span id="connText">Conexión activa con ReVale</span></div>
+          </section>
+          <section class="demo-card">
+            <b>Entorno de demostración</b>
+            <p>El QR ya puede abrirse desde otro teléfono. Si el backend temporal pierde estado, puedes completar la demo manualmente.</p>
+            <button class="btn" onclick="manualApprove()">Simular confirmación</button>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div id="approvedScreen" class="content hidden">
+      <div class="page-head">
+        <div><span class="eyebrow">Pago aprobado</span><h1>Ahora emite la factura</h1><p>El consumo ya fue autorizado. El cliente puede retirarse.</p></div>
+        <button class="btn btn-secondary" onclick="newSale()">Nueva venta</button>
+      </div>
+      <div class="approved-grid">
+        <section class="approved-summary">
+          <div class="check">✓</div><div class="k">Cobro aprobado</div>
+          <div id="approvedAmount" class="big mono">$ 0.00</div>
+          <div id="approvedRef" class="r"></div>
+          <div class="assurance"><b>Pago asegurado por ReVale</b>El saldo del empleado ya fue reservado para esta transacción.</div>
+        </section>
+        <section class="card invoice">
+          <div class="invoice-head"><div><span class="eyebrow">Paso final</span><h2>Factura con estos datos</h2><p>No cambies tu sistema. Emite el comprobante exactamente como lo haces hoy.</p></div><span id="invoiceStatus" class="status wait">Esperando factura</span></div>
+          <div class="invoice-fields">
+            <div class="field-row"><div class="field"><span>Nombre / razón social</span><strong>Andrea Martínez</strong></div><div class="field"><span>Identificación</span><strong>1712345623</strong></div></div>
+            <div class="field-row"><div class="field"><span>Monto</span><strong id="invoiceAmount">$ 0.00</strong></div><div class="field"><span>Referencia</span><strong id="invoiceRef"></strong></div></div>
+            <div class="email-field"><div><span>Correo para comprobante</span><strong id="invoiceEmail"></strong></div><button class="copy" onclick="copyEmail()">Copiar correo</button></div>
+          </div>
+          <div class="invoice-note"><b>En tu facturador habitual:</b> usa los datos de arriba y envía la factura al correo único de la transacción. ReVale asociará el XML/PDF al consumo.</div>
+          <div class="invoice-actions"><button class="btn btn-secondary" onclick="copyAll()">Copiar todos los datos</button><button class="btn btn-primary" onclick="openDataModal()">Ver datos grandes</button></div>
+          <div id="recon" class="recon"><div class="recon-left"><div class="recon-dot">…</div><div><b id="reconTitle">Esperando comprobante electrónico</b><span id="reconText">Puedes seguir atendiendo; ReVale concilia en segundo plano.</span></div></div><button id="reconBtn" class="btn btn-secondary" onclick="matchInvoice()">Simular factura</button></div>
+        </section>
+      </div>
+    </div>
+
+    <div id="transactionsScreen" class="content hidden">
+      <div class="page-head"><div><span class="eyebrow">Trazabilidad</span><h1>Movimientos</h1><p>Cada consumo y estado documental en un solo lugar.</p></div><button class="btn btn-primary" onclick="showHome()">+ Nuevo cobro</button></div>
+      <section class="card recent"><table class="table"><thead><tr><th>Transacción</th><th>Hora</th><th>Referencia</th><th>Estado</th><th style="text-align:right">Monto</th></tr></thead><tbody id="allRows"><tr><td colspan="5" class="muted">Todavía no hay movimientos.</td></tr></tbody></table></section>
+    </div>
+  </main>
+</section>
+
+<section id="employeeView" class="employee hidden">
+  <div class="phone" id="phone">
+    <div class="phone-top">
+      <div class="phone-brand">ReVale.</div>
+      <div class="hello">Hola, Andrea</div>
+      <div class="balance-label">Saldo de alimentación</div>
+      <div class="balance mono">$ 143.20</div>
+    </div>
+    <div class="phone-body">
+      <div id="employeeLoading" class="pay-card"><div class="muted" style="font-size:9px;text-align:center;padding:26px">Cargando transacción…</div></div>
+      <div id="employeePay" class="pay-card hidden">
+        <div class="merchant-mini"><div class="partner-logo">EH</div><div><b>El Hornero</b><span>Cumbayá · Caja 01</span></div></div>
+        <div class="pay-copy"><div class="small">Estás por pagar</div><div id="employeeAmount" class="amt mono">$ 0.00</div><div id="employeeAfter" class="after"></div></div>
+        <button id="confirmBtn" class="confirm" onclick="confirmEmployee()">Confirmar pago</button>
+        <div class="secure">◉ Transacción protegida por ReVale</div>
+      </div>
+      <div id="employeeError" class="errorbox hidden"></div>
+    </div>
+  </div>
+</section>
+
+<div id="modalRoot"></div>
+
+<script>
+var state={logged:false,amount:0,reference:"",tx:"",token:"",expiresAt:0,poll:null,timer:null,invoiceMatched:false,transactions:[]};
+function q(id){return document.getElementById(id)}
+function money(n){return "$ "+Number(n||0).toFixed(2)}
+function toast(msg){var t=q("toast");t.textContent=msg;t.classList.add("show");setTimeout(function(){t.classList.remove("show")},1600)}
+function enterDemo(){state.logged=true;q("login").classList.add("hidden");q("merchantApp").classList.remove("hidden");showHome()}
+function validateAmount(){var n=Number(String(q("amountInput").value).replace(",","."));q("chargeBtn").disabled=!(n>0)}
+function hideScreens(){["homeScreen","chargeScreen","approvedScreen","transactionsScreen"].forEach(function(x){q(x).classList.add("hidden")})}
+function nav(cobrar,mov){q("navCobrar").classList.toggle("active",cobrar);q("navMov").classList.toggle("active",mov)}
+function showHome(){hideScreens();q("homeScreen").classList.remove("hidden");q("topTitle").textContent="Caja ReVale · Cumbayá";nav(true,false);renderTx()}
+function showTransactions(){hideScreens();q("transactionsScreen").classList.remove("hidden");q("topTitle").textContent="Movimientos · Cumbayá";nav(false,true);renderTx()}
+function nowTime(){return new Date().toLocaleTimeString("es-EC",{hour:"2-digit",minute:"2-digit"})}
+async function startCharge(){
+  var amount=Number(String(q("amountInput").value).replace(",","."));
+  if(!(amount>0))return;
+  state.amount=amount;state.reference=q("refInput").value.trim();state.invoiceMatched=false;
+  q("chargeBtn").disabled=true;
+  try{
+    var r=await fetch("/api/revale-demo?action=create",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({amount:amount,reference:state.reference})});
+    var d=await r.json();
+    if(!r.ok)throw new Error(d.error||"No se pudo crear");
+    state.tx=d.tx;state.token=d.token;state.expiresAt=d.expiresAt;
+  }catch(e){
+    state.tx="RV-"+Math.random().toString(36).slice(2,7).toUpperCase();state.token="demo";state.expiresAt=Date.now()+300000;
+    toast("Backend demo intermitente · puedes usar simulación");
+  }
+  hideScreens();q("chargeScreen").classList.remove("hidden");q("topTitle").textContent="Cobro en curso · Cumbayá";nav(true,false);
+  q("chargeAmount").textContent=money(state.amount);q("txRef").textContent=state.tx+(state.reference?" · "+state.reference:"");
+  makeQR();startTimer();startPoll();
+}
+function makeQR(){
+  var el=q("qr");el.innerHTML="";
+  var url=location.origin+"/comercios/?employee=1&tx="+encodeURIComponent(state.tx)+"&token="+encodeURIComponent(state.token);
+  try{new QRCode(el,{text:url,width:232,height:232,colorDark:"#08150f",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.H})}
+  catch(e){el.innerHTML="<div style='font-size:10px;color:#6d7973;padding:20px'>QR no disponible. Abre: "+url+"</div>"}
+}
+function startTimer(){
+  clearInterval(state.timer);
+  function tick(){var left=Math.max(0,state.expiresAt-Date.now()),s=Math.ceil(left/1000),m=Math.floor(s/60),ss=s%60;q("timer").textContent=String(m).padStart(2,"0")+":"+String(ss).padStart(2,"0");if(left<=0){clearInterval(state.timer);q("waitingText").textContent="QR expirado";q("statusTitle").textContent="Transacción expirada"}}
+  tick();state.timer=setInterval(tick,1000)
+}
+function startPoll(){
+  clearInterval(state.poll);var misses=0;
+  state.poll=setInterval(async function(){
+    if(state.token==="demo")return;
+    try{
+      var r=await fetch("/api/revale-demo?action=status&tx="+encodeURIComponent(state.tx)+"&token="+encodeURIComponent(state.token),{cache:"no-store"});
+      var d=await r.json();
+      if(!r.ok)throw new Error();
+      misses=0;q("connText").textContent="Conexión activa con ReVale";
+      if(d.status==="approved"){approve(false)}
+      if(d.status==="expired"){clearInterval(state.poll);q("waitingText").textContent="QR expirado";q("statusTitle").textContent="Transacción expirada"}
+    }catch(e){misses++;if(misses>2){q("connText").textContent="Reconectando…";q("statusText").textContent="La red está intermitente. ReVale seguirá intentando automáticamente."}}
+  },1000)
+}
+function manualApprove(){approve(true)}
+function approve(manual){
+  clearInterval(state.poll);clearInterval(state.timer);
+  if(state.transactions.some(function(x){return x.tx===state.tx}))return;
+  state.transactions.unshift({tx:state.tx,amount:state.amount,reference:state.reference,time:nowTime(),status:"Factura pendiente"});
+  hideScreens();q("approvedScreen").classList.remove("hidden");q("topTitle").textContent="Pago aprobado · Cumbayá";
+  q("approvedAmount").textContent=money(state.amount);q("approvedRef").textContent=state.tx+(state.reference?" · "+state.reference:"");
+  q("invoiceAmount").textContent=money(state.amount);q("invoiceRef").textContent=state.reference||state.tx;q("invoiceEmail").textContent=alias();
+  renderTx();if(manual)toast("Aprobación simulada")
+}
+function cancelCharge(){clearInterval(state.poll);clearInterval(state.timer);newSale()}
+function newSale(){state.amount=0;state.reference="";state.tx="";state.token="";state.invoiceMatched=false;q("amountInput").value="";q("refInput").value="";q("chargeBtn").disabled=true;showHome()}
+function alias(){return "factura+"+state.tx.toLowerCase()+"@revale.app"}
+function copyText(s,msg){if(navigator.clipboard)navigator.clipboard.writeText(s);toast(msg||"Copiado")}
+function copyEmail(){copyText(alias(),"Correo copiado")}
+function copyAll(){copyText("Nombre: Andrea Martínez\\nIdentificación: 1712345623\\nMonto: "+money(state.amount)+"\\nCorreo: "+alias()+"\\nReferencia: "+(state.reference||state.tx),"Datos copiados")}
+function matchInvoice(){
+  if(state.invoiceMatched)return;state.invoiceMatched=true;
+  q("invoiceStatus").className="status ok";q("invoiceStatus").textContent="Conciliada";
+  q("recon").classList.add("match");q("recon").querySelector(".recon-dot").textContent="✓";q("reconTitle").textContent="Factura recibida y conciliada";q("reconText").textContent="Transacción respaldada documentalmente.";q("reconBtn").textContent="Conciliada ✓";
+  var x=state.transactions.find(function(t){return t.tx===state.tx});if(x)x.status="Conciliada";renderTx();toast("Factura conciliada")
+}
+function openDataModal(){
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><h3>Datos para facturar</h3><p>Vista grande para reducir errores de digitación en caja.</p><div class='bigdata'><div><span>Nombre</span><strong>Andrea Martínez</strong></div><div><span>Identificación</span><strong>1712345623</strong></div><div><span>Monto</span><strong>"+money(state.amount)+"</strong></div><div><span>Correo</span><strong>"+alias()+"</strong></div></div><button class='btn btn-primary' onclick='copyAll()'>Copiar todos los datos</button></div></div>"
+}
+function closeModal(){q("modalRoot").innerHTML=""}
+function renderTx(){
+  var recent=q("recentRows"),all=q("allRows");if(!recent||!all)return;
+  if(!state.transactions.length){recent.innerHTML="<tr><td colspan='4' class='muted'>Todavía no hay movimientos en esta sesión.</td></tr>";all.innerHTML="<tr><td colspan='5' class='muted'>Todavía no hay movimientos.</td></tr>";q("todayTotal").textContent="$ 0.00";q("todayCount").textContent="0 consumos aprobados";return}
+  recent.innerHTML=state.transactions.slice(0,4).map(function(t){return "<tr><td><b>"+t.tx+"</b></td><td>"+t.time+"</td><td><span class='status "+(t.status==="Conciliada"?"ok":"wait")+"'>"+t.status+"</span></td><td class='amount'>"+money(t.amount)+"</td></tr>"}).join("");
+  all.innerHTML=state.transactions.map(function(t){return "<tr><td><b>"+t.tx+"</b></td><td>"+t.time+"</td><td>"+(t.reference||"—")+"</td><td><span class='status "+(t.status==="Conciliada"?"ok":"wait")+"'>"+t.status+"</span></td><td class='amount'>"+money(t.amount)+"</td></tr>"}).join("");
+  var total=state.transactions.reduce(function(a,t){return a+t.amount},0);q("todayTotal").textContent=money(total);q("todayCount").textContent=state.transactions.length+" consumo"+(state.transactions.length===1?"":"s")+" aprobado"+(state.transactions.length===1?"":"s")
+}
+
+/* EMPLOYEE */
+var emp={tx:"",token:"",amount:0};
+async function loadEmployee(){
+  q("login").classList.add("hidden");q("employeeView").classList.remove("hidden");
+  var p=new URLSearchParams(location.search);emp.tx=p.get("tx")||"";emp.token=p.get("token")||"";
+  try{
+    var r=await fetch("/api/revale-demo?action=get&tx="+encodeURIComponent(emp.tx)+"&token="+encodeURIComponent(emp.token),{cache:"no-store"});var d=await r.json();
+    if(!r.ok)throw new Error(d.error||"No encontramos la transacción");
+    emp.amount=d.amount;q("employeeAmount").textContent=money(emp.amount);q("employeeAfter").textContent="Saldo después de la compra: "+money(143.20-emp.amount);
+    q("employeeLoading").classList.add("hidden");q("employeePay").classList.remove("hidden");
+    if(d.status==="approved")employeeSuccess();
+  }catch(e){q("employeeLoading").classList.add("hidden");q("employeeError").classList.remove("hidden");q("employeeError").innerHTML="<b>No pudimos abrir este cobro.</b><br/>El QR pudo expirar o el backend temporal de la demo perdió estado. Vuelve a generar el QR en la caja."}
+}
+async function confirmEmployee(){
+  var b=q("confirmBtn");b.disabled=true;b.textContent="Confirmando…";
+  try{
+    var r=await fetch("/api/revale-demo?action=confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tx:emp.tx,token:emp.token})});var d=await r.json();
+    if(!r.ok)throw new Error(d.error||"No se pudo confirmar");
+    employeeSuccess()
+  }catch(e){b.disabled=false;b.textContent="Confirmar pago";toast(e.message||"Intenta nuevamente")}
+}
+function employeeSuccess(){
+  q("phone").innerHTML="<div class='employee-success'><div class='check'>✓</div><h2>Pago aprobado</h2><p>Tu consumo fue confirmado en El Hornero.</p><div class='receipt'><div class='rr'><span>Comercio</span><b>El Hornero</b></div><div class='rr'><span>Total</span><b>"+money(emp.amount)+"</b></div><div class='rr'><span>Transacción</span><b>"+emp.tx+"</b></div><div class='rr'><span>Factura</span><b>Pendiente</b></div></div><button class='btn btn-secondary' style='width:100%;margin-top:14px' onclick='location.href=\"/comercios/\"'>Cerrar</button></div>"
+}
+(function init(){var p=new URLSearchParams(location.search);if(p.get("employee")==="1")loadEmployee()})();
+</script>
+</body>
+</html>
