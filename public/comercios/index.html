@@ -330,6 +330,15 @@ body{letter-spacing:-.005em}
   .login-title-wrap h2{font-size:29px}
 }
 
+
+.settlement-grid{display:grid;grid-template-columns:.8fr 1.2fr;gap:14px}
+.settlement-hero{background:var(--navy);color:#fff;border-radius:24px;padding:28px;min-height:220px;display:flex;flex-direction:column;justify-content:flex-end}
+.settlement-label{font-size:8px;text-transform:uppercase;letter-spacing:.13em;color:rgba(255,255,255,.58);font-weight:900}
+.settlement-amount{font-size:52px;letter-spacing:-.06em;font-weight:900;margin-top:8px}
+.settlement-meta{display:flex;align-items:center;gap:9px;margin-top:20px;font-size:8px;color:rgba(255,255,255,.60)}
+.settlement-detail,.settlements-note{padding:24px;border:0;box-shadow:0 12px 38px rgba(41,41,75,.04)}
+.settlements-note{margin-top:14px}.settlements-note p{font-size:9px;color:#75817b;margin:6px 0 0}
+@media(max-width:900px){.settlement-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -433,7 +442,8 @@ body{letter-spacing:-.005em}
     <div class="nav-title">Operación</div>
     <button id="navHome" class="nav-item active" onclick="showHome()"><span class="nav-icon">⌂</span><span>Inicio</span></button>
     <button id="navMov" class="nav-item" onclick="showTransactions()"><span class="nav-icon">↕</span><span>Movimientos</span></button>
-    <button id="navBranch" class="nav-item" onclick="showBranch()"><span class="nav-icon">◎</span><span>Mi sucursal</span></button>
+    <button id="navSettlement" class="nav-item hidden" onclick="showSettlements()"><span class="nav-icon">◫</span><span>Liquidaciones</span></button>
+    <button id="navBranch" class="nav-item" onclick="showBranch()"><span class="nav-icon">◎</span><span id="branchNavLabel">Mi sucursal</span></button>
     <div class="side-spacer"></div>
     <div class="side-status"><div class="live"><i></i> ReVale operativo</div><p>Canal web · Nivel 1<br/>Sin integración POS.</p></div>
   </aside>
@@ -443,7 +453,7 @@ body{letter-spacing:-.005em}
       <div id="topTitle" class="top-title">Inicio · El Hornero Cumbayá</div>
       <div class="top-actions">
         <span class="badge badge-live">Conectado</span>
-        <div class="user-chip"><div class="avatar">01</div><div><b>Caja 01</b><span>Cumbayá</span></div></div>
+        <div class="user-chip"><div id="userAvatar" class="avatar">G</div><div><b id="userName">Gerencia</b><span id="userRoleLabel">Administrador</span></div></div>
       </div>
     </header>
 
@@ -558,6 +568,17 @@ body{letter-spacing:-.005em}
         <table class="table"><thead><tr><th>Transacción</th><th>Hora</th><th>Referencia</th><th>Estado</th><th style="text-align:right">Monto</th><th style="text-align:right">Acción</th></tr></thead>
         <tbody id="allRows"><tr><td colspan="6" class="muted">Cargando movimientos…</td></tr></tbody></table>
       </section>
+    </div>
+
+    <div id="settlementsScreen" class="content hidden">
+      <div class="product-head">
+        <div><div class="head-meta"><span>Finanzas</span><i></i><span>El Hornero</span></div><h1>Liquidaciones</h1><p>Consumos aprobados pendientes de liquidación.</p></div>
+      </div>
+      <div class="settlement-grid">
+        <section class="settlement-hero"><div class="settlement-label">Por liquidar</div><div id="pendingSettlement" class="settlement-amount mono">$ 0.00</div><div class="settlement-meta"><span class="status ok">Calculado</span><span id="settlementCount">0 transacciones</span></div></section>
+        <section class="card settlement-detail"><div class="section-title">Resumen</div><div class="detail-row"><span>Comercio</span><b>El Hornero</b></div><div class="detail-row"><span>Alcance</span><b>Todas las sucursales</b></div><div class="detail-row"><span>Estado</span><span class="status wait">Pendiente</span></div><div class="detail-row"><span>Fuente</span><b>Consumos aprobados</b></div></section>
+      </div>
+      <section class="card settlements-note"><div class="section-title">Histórico</div><p>El ciclo de liquidación bancaria se conectará en un sprint posterior.</p></section>
     </div>
 
     <div id="branchScreen" class="content hidden">
