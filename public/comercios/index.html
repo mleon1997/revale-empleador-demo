@@ -60,7 +60,7 @@ linear-gradient(135deg,#073e2d 0%,#06281e 100%);color:#fff;display:flex;flex-dir
 .amount-wrap{margin:auto 0;text-align:center;padding:28px 0}.amount-label{font-size:9px;text-transform:uppercase;letter-spacing:.14em;color:#7b8781;font-weight:850}.amount-line{display:flex;justify-content:center;align-items:center;gap:4px;margin-top:12px}.currency{font-size:24px;font-weight:800;color:#718078}.amount-input{border:0;outline:0;background:transparent;width:260px;text-align:center;font-size:62px;letter-spacing:-.065em;font-weight:850;color:#0c1711}.amount-input::placeholder{color:#ced6d1}
 .ref-row{display:grid;grid-template-columns:1fr auto;gap:10px}.ref-input{border:1px solid var(--line);background:#f8faf9;border-radius:13px;padding:13px 14px;font-size:10px;outline:none}.charge-btn{border:0;border-radius:13px;background:var(--green);color:#fff;padding:13px 17px;font-size:11px;font-weight:850;min-width:155px}.charge-btn:disabled{opacity:.4;cursor:not-allowed}
 .side-stack{display:grid;gap:18px}.metric{padding:22px 22px 18px}.metric-top{display:flex;justify-content:space-between;align-items:center}.metric h3{font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:#728078;margin:0}.metric strong{display:block;font-size:33px;letter-spacing:-.06em;margin:14px 0 4px}.metric span{font-size:9px;color:#7c8982}.flow-card{padding:22px}.flow-card h3{font-size:13px;margin:0 0 15px}.step-row{display:flex;align-items:flex-start;gap:11px;padding:11px 0;border-bottom:1px solid #edf1ee}.step-row:last-child{border-bottom:0}.num{width:25px;height:25px;border-radius:50%;background:#edf6f0;color:var(--green);display:grid;place-items:center;font-size:9px;font-weight:900;flex:none}.step-row b{font-size:10px}.step-row span{display:block;font-size:8px;color:#829089;margin-top:3px;line-height:1.4}
-.recent{margin-top:18px;overflow:hidden}.recent-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--line)}.recent-head h3{font-size:12px;margin:0}.table{width:100%;border-collapse:collapse}.table th{font-size:8px;text-transform:uppercase;letter-spacing:.09em;color:#8a9690;text-align:left;padding:11px 18px;background:#fafbfa}.table td{font-size:9px;padding:13px 18px;border-top:1px solid #eef2ef}.table td.amount{text-align:right;font-weight:850}.status{display:inline-flex;border-radius:99px;padding:5px 8px;font-size:8px;font-weight:850}.status.ok{background:#e8f7ee;color:#1e6d4a}.status.wait{background:#fff3d9;color:#865f14}
+.recent{margin-top:18px;overflow:hidden}.recent-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--line)}.recent-head h3{font-size:12px;margin:0}.table{width:100%;border-collapse:collapse}.table th{font-size:8px;text-transform:uppercase;letter-spacing:.09em;color:#8a9690;text-align:left;padding:11px 18px;background:#fafbfa}.table td{font-size:9px;padding:13px 18px;border-top:1px solid #eef2ef}.table td.amount{text-align:right;font-weight:850}.status{display:inline-flex;border-radius:99px;padding:5px 8px;font-size:8px;font-weight:850}.status.ok{background:#e8f7ee;color:#1e6d4a}.status.wait{background:#fff3d9;color:#865f14}.status.rev{background:#f4eeee;color:#7a4545}.status.neutral{background:#eef2ef;color:#647169}
 
 /* QR */
 .charge-layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:18px}.qr-card{min-height:650px;padding:28px;display:flex;flex-direction:column}.progress{display:grid;grid-template-columns:repeat(3,1fr);margin-bottom:20px}.pstep{display:flex;align-items:center;gap:8px;color:#9aa59f;font-size:8px;font-weight:850;position:relative}.pstep:after{content:"";height:1px;background:#e5ebe7;position:absolute;left:27px;right:8px;top:11px}.pstep:last-child:after{display:none}.dot{width:23px;height:23px;border-radius:50%;background:#eef2ef;display:grid;place-items:center;z-index:2}.pstep.on{color:var(--green)}.pstep.on .dot{background:var(--lime);color:#18321f}
@@ -215,9 +215,8 @@ radial-gradient(circle at 80% 5%,rgba(217,255,103,.13),transparent 30%),
             <div class="live-line"><i></i><span id="connText">Conexión activa con ReVale</span></div>
           </section>
           <section class="demo-card">
-            <b>Entorno de demostración</b>
-            <p>El QR ya puede abrirse desde otro teléfono. Si el backend temporal pierde estado, puedes completar la demo manualmente.</p>
-            <button class="btn" onclick="manualApprove()">Simular confirmación</button>
+            <b>Transacción persistente</b>
+            <p>Este cobro queda registrado en Neon. Si hay una interrupción de red, ReVale reconecta y conserva el estado del cobro.</p>
           </section>
         </div>
       </div>
@@ -244,14 +243,14 @@ radial-gradient(circle at 80% 5%,rgba(217,255,103,.13),transparent 30%),
           </div>
           <div class="invoice-note"><b>En tu facturador habitual:</b> usa los datos de arriba y envía la factura al correo único de la transacción. ReVale asociará el XML/PDF al consumo.</div>
           <div class="invoice-actions"><button class="btn btn-secondary" onclick="copyAll()">Copiar todos los datos</button><button class="btn btn-primary" onclick="openDataModal()">Ver datos grandes</button></div>
-          <div id="recon" class="recon"><div class="recon-left"><div class="recon-dot">…</div><div><b id="reconTitle">Esperando comprobante electrónico</b><span id="reconText">Puedes seguir atendiendo; ReVale concilia en segundo plano.</span></div></div><button id="reconBtn" class="btn btn-secondary" onclick="matchInvoice()">Simular factura</button></div>
+          <div id="recon" class="recon"><div class="recon-left"><div class="recon-dot">…</div><div><b id="reconTitle">Esperando comprobante electrónico</b><span id="reconText">Puedes seguir atendiendo; ReVale concilia en segundo plano.</span></div></div><button id="reconBtn" class="btn btn-secondary" onclick="matchInvoice()">Marcar factura recibida</button></div>
         </section>
       </div>
     </div>
 
     <div id="transactionsScreen" class="content hidden">
       <div class="page-head"><div><span class="eyebrow">Trazabilidad</span><h1>Movimientos</h1><p>Cada consumo y estado documental en un solo lugar.</p></div><button class="btn btn-primary" onclick="showHome()">+ Nuevo cobro</button></div>
-      <section class="card recent"><table class="table"><thead><tr><th>Transacción</th><th>Hora</th><th>Referencia</th><th>Estado</th><th style="text-align:right">Monto</th></tr></thead><tbody id="allRows"><tr><td colspan="5" class="muted">Todavía no hay movimientos.</td></tr></tbody></table></section>
+      <section class="card recent"><table class="table"><thead><tr><th>Transacción</th><th>Hora</th><th>Referencia</th><th>Estado</th><th style="text-align:right">Monto</th><th style="text-align:right">Acción</th></tr></thead><tbody id="allRows"><tr><td colspan="6" class="muted">Cargando movimientos…</td></tr></tbody></table></section>
     </div>
   </main>
 </section>
@@ -288,8 +287,8 @@ function enterDemo(){state.logged=true;q("login").classList.add("hidden");q("mer
 function validateAmount(){var n=Number(String(q("amountInput").value).replace(",","."));q("chargeBtn").disabled=!(n>0)}
 function hideScreens(){["homeScreen","chargeScreen","approvedScreen","transactionsScreen"].forEach(function(x){q(x).classList.add("hidden")})}
 function nav(cobrar,mov){q("navCobrar").classList.toggle("active",cobrar);q("navMov").classList.toggle("active",mov)}
-function showHome(){hideScreens();q("homeScreen").classList.remove("hidden");q("topTitle").textContent="Caja ReVale · Cumbayá";nav(true,false);renderTx()}
-function showTransactions(){hideScreens();q("transactionsScreen").classList.remove("hidden");q("topTitle").textContent="Movimientos · Cumbayá";nav(false,true);renderTx()}
+async function showHome(){hideScreens();q("homeScreen").classList.remove("hidden");q("topTitle").textContent="Caja ReVale · Cumbayá";nav(true,false);await loadTransactions()}
+async function showTransactions(){hideScreens();q("transactionsScreen").classList.remove("hidden");q("topTitle").textContent="Movimientos · Cumbayá";nav(false,true);await loadTransactions()}
 function nowTime(){return new Date().toLocaleTimeString("es-EC",{hour:"2-digit",minute:"2-digit"})}
 async function startCharge(){
   var amount=Number(String(q("amountInput").value).replace(",","."));
@@ -302,8 +301,9 @@ async function startCharge(){
     if(!r.ok)throw new Error(d.error||"No se pudo crear");
     state.tx=d.tx;state.token=d.token;state.expiresAt=d.expiresAt;
   }catch(e){
-    state.tx="RV-"+Math.random().toString(36).slice(2,7).toUpperCase();state.token="demo";state.expiresAt=Date.now()+300000;
-    toast("Backend demo intermitente · puedes usar simulación");
+    q("chargeBtn").disabled=false;
+    toast(e.message||"No pudimos iniciar el cobro");
+    return;
   }
   hideScreens();q("chargeScreen").classList.remove("hidden");q("topTitle").textContent="Cobro en curso · Cumbayá";nav(true,false);
   q("chargeAmount").textContent=money(state.amount);q("txRef").textContent=state.tx+(state.reference?" · "+state.reference:"");
@@ -323,26 +323,22 @@ function startTimer(){
 function startPoll(){
   clearInterval(state.poll);var misses=0;
   state.poll=setInterval(async function(){
-    if(state.token==="demo")return;
     try{
       var r=await fetch("/api/revale-demo?action=status&tx="+encodeURIComponent(state.tx)+"&token="+encodeURIComponent(state.token),{cache:"no-store"});
       var d=await r.json();
       if(!r.ok)throw new Error();
       misses=0;q("connText").textContent="Conexión activa con ReVale";
-      if(d.status==="approved"){approve(false)}
+      if(d.status==="approved"){approve()}
       if(d.status==="expired"){clearInterval(state.poll);q("waitingText").textContent="QR expirado";q("statusTitle").textContent="Transacción expirada"}
     }catch(e){misses++;if(misses>2){q("connText").textContent="Reconectando…";q("statusText").textContent="La red está intermitente. ReVale seguirá intentando automáticamente."}}
   },1000)
 }
-function manualApprove(){approve(true)}
-function approve(manual){
+async function approve(){
   clearInterval(state.poll);clearInterval(state.timer);
-  if(state.transactions.some(function(x){return x.tx===state.tx}))return;
-  state.transactions.unshift({tx:state.tx,amount:state.amount,reference:state.reference,time:nowTime(),status:"Factura pendiente"});
   hideScreens();q("approvedScreen").classList.remove("hidden");q("topTitle").textContent="Pago aprobado · Cumbayá";
   q("approvedAmount").textContent=money(state.amount);q("approvedRef").textContent=state.tx+(state.reference?" · "+state.reference:"");
   q("invoiceAmount").textContent=money(state.amount);q("invoiceRef").textContent=state.reference||state.tx;q("invoiceEmail").textContent=alias();
-  renderTx();if(manual)toast("Aprobación simulada")
+  await loadTransactions();
 }
 function cancelCharge(){clearInterval(state.poll);clearInterval(state.timer);newSale()}
 function newSale(){state.amount=0;state.reference="";state.tx="";state.token="";state.invoiceMatched=false;q("amountInput").value="";q("refInput").value="";q("chargeBtn").disabled=true;showHome()}
@@ -350,22 +346,89 @@ function alias(){return "factura+"+state.tx.toLowerCase()+"@revale.app"}
 function copyText(s,msg){if(navigator.clipboard)navigator.clipboard.writeText(s);toast(msg||"Copiado")}
 function copyEmail(){copyText(alias(),"Correo copiado")}
 function copyAll(){copyText("Nombre: Andrea Martínez\\nIdentificación: 1712345623\\nMonto: "+money(state.amount)+"\\nCorreo: "+alias()+"\\nReferencia: "+(state.reference||state.tx),"Datos copiados")}
-function matchInvoice(){
-  if(state.invoiceMatched)return;state.invoiceMatched=true;
-  q("invoiceStatus").className="status ok";q("invoiceStatus").textContent="Conciliada";
-  q("recon").classList.add("match");q("recon").querySelector(".recon-dot").textContent="✓";q("reconTitle").textContent="Factura recibida y conciliada";q("reconText").textContent="Transacción respaldada documentalmente.";q("reconBtn").textContent="Conciliada ✓";
-  var x=state.transactions.find(function(t){return t.tx===state.tx});if(x)x.status="Conciliada";renderTx();toast("Factura conciliada")
+async function matchInvoice(){
+  if(state.invoiceMatched)return;
+  var b=q("reconBtn");b.disabled=true;b.textContent="Conciliando…";
+  try{
+    var r=await fetch("/api/revale-demo?action=invoice-match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tx:state.tx})});
+    var d=await r.json();
+    if(!r.ok)throw new Error(d.error||"No se pudo conciliar");
+    state.invoiceMatched=true;
+    q("invoiceStatus").className="status ok";q("invoiceStatus").textContent="Conciliada";
+    q("recon").classList.add("match");q("recon").querySelector(".recon-dot").textContent="✓";q("reconTitle").textContent="Factura recibida y conciliada";q("reconText").textContent="Transacción respaldada documentalmente.";q("reconBtn").textContent="Conciliada ✓";
+    await loadTransactions();toast("Factura conciliada");
+  }catch(e){b.disabled=false;b.textContent="Marcar factura recibida";toast(e.message||"No se pudo conciliar")}
 }
 function openDataModal(){
   q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><h3>Datos para facturar</h3><p>Vista grande para reducir errores de digitación en caja.</p><div class='bigdata'><div><span>Nombre</span><strong>Andrea Martínez</strong></div><div><span>Identificación</span><strong>1712345623</strong></div><div><span>Monto</span><strong>"+money(state.amount)+"</strong></div><div><span>Correo</span><strong>"+alias()+"</strong></div></div><button class='btn btn-primary' onclick='copyAll()'>Copiar todos los datos</button></div></div>"
 }
 function closeModal(){q("modalRoot").innerHTML=""}
+async function loadTransactions(){
+  try{
+    var r=await fetch("/api/revale-demo?action=transactions&limit=50",{cache:"no-store"});
+    var d=await r.json();
+    if(!r.ok)throw new Error(d.error||"No se pudieron cargar movimientos");
+    state.transactions=(d.transactions||[]).map(function(t){
+      return {
+        tx:t.id,
+        amount:Number(t.amount||0),
+        reference:t.reference||"",
+        status:t.status,
+        invoiceStatus:t.invoice_status||null,
+        createdAt:t.created_at,
+        approvedAt:t.approved_at,
+        reversedAt:t.reversed_at
+      }
+    });
+    renderTx();
+  }catch(e){
+    toast(e.message||"No se pudieron cargar movimientos");
+  }
+}
+function displayStatus(t){
+  if(t.status==="reversed")return {text:"Reversada",cls:"rev"};
+  if(t.status==="expired")return {text:"Expirada",cls:"neutral"};
+  if(t.status==="declined")return {text:"Rechazada",cls:"rev"};
+  if(t.status==="pending")return {text:"Pendiente",cls:"neutral"};
+  if(t.status==="approved"&&t.invoiceStatus==="matched")return {text:"Conciliada",cls:"ok"};
+  if(t.status==="approved")return {text:"Factura pendiente",cls:"wait"};
+  return {text:t.status||"—",cls:"neutral"};
+}
+function txTime(t){
+  if(!t.createdAt)return "—";
+  try{return new Date(t.createdAt).toLocaleTimeString("es-EC",{hour:"2-digit",minute:"2-digit"})}catch(e){return "—"}
+}
 function renderTx(){
   var recent=q("recentRows"),all=q("allRows");if(!recent||!all)return;
-  if(!state.transactions.length){recent.innerHTML="<tr><td colspan='4' class='muted'>Todavía no hay movimientos en esta sesión.</td></tr>";all.innerHTML="<tr><td colspan='5' class='muted'>Todavía no hay movimientos.</td></tr>";q("todayTotal").textContent="$ 0.00";q("todayCount").textContent="0 consumos aprobados";return}
-  recent.innerHTML=state.transactions.slice(0,4).map(function(t){return "<tr><td><b>"+t.tx+"</b></td><td>"+t.time+"</td><td><span class='status "+(t.status==="Conciliada"?"ok":"wait")+"'>"+t.status+"</span></td><td class='amount'>"+money(t.amount)+"</td></tr>"}).join("");
-  all.innerHTML=state.transactions.map(function(t){return "<tr><td><b>"+t.tx+"</b></td><td>"+t.time+"</td><td>"+(t.reference||"—")+"</td><td><span class='status "+(t.status==="Conciliada"?"ok":"wait")+"'>"+t.status+"</span></td><td class='amount'>"+money(t.amount)+"</td></tr>"}).join("");
-  var total=state.transactions.reduce(function(a,t){return a+t.amount},0);q("todayTotal").textContent=money(total);q("todayCount").textContent=state.transactions.length+" consumo"+(state.transactions.length===1?"":"s")+" aprobado"+(state.transactions.length===1?"":"s")
+  if(!state.transactions.length){
+    recent.innerHTML="<tr><td colspan='4' class='muted'>Todavía no hay movimientos.</td></tr>";
+    all.innerHTML="<tr><td colspan='6' class='muted'>Todavía no hay movimientos.</td></tr>";
+    q("todayTotal").textContent="$ 0.00";q("todayCount").textContent="0 consumos aprobados";return
+  }
+  recent.innerHTML=state.transactions.slice(0,4).map(function(t){
+    var s=displayStatus(t);
+    return "<tr><td><b>"+t.tx+"</b></td><td>"+txTime(t)+"</td><td><span class='status "+s.cls+"'>"+s.text+"</span></td><td class='amount'>"+money(t.amount)+"</td></tr>"
+  }).join("");
+  all.innerHTML=state.transactions.map(function(t){
+    var s=displayStatus(t);
+    var action=t.status==="approved"?"<button class='copy' onclick='openReverseModal(\""+t.tx+"\","+t.amount+")'>Anular</button>":"—";
+    return "<tr><td><b>"+t.tx+"</b></td><td>"+txTime(t)+"</td><td>"+(t.reference||"—")+"</td><td><span class='status "+s.cls+"'>"+s.text+"</span></td><td class='amount'>"+money(t.amount)+"</td><td style='text-align:right'>"+action+"</td></tr>"
+  }).join("");
+  var approved=state.transactions.filter(function(t){return t.status==="approved"});
+  var total=approved.reduce(function(a,t){return a+t.amount},0);
+  q("todayTotal").textContent=money(total);q("todayCount").textContent=approved.length+" consumo"+(approved.length===1?"":"s")+" aprobado"+(approved.length===1?"":"s")
+}
+function openReverseModal(tx,amount){
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><span class='eyebrow'>Anulación</span><h3>¿Reversar "+tx+"?</h3><p>ReVale devolverá "+money(amount)+" al saldo del empleado y registrará el reverso tipo 05. Esta acción queda auditada.</p><div class='invoice-actions'><button class='btn btn-secondary' onclick='closeModal()'>Cancelar</button><button id='reverseConfirmBtn' class='btn btn-primary' onclick='confirmReverse(\""+tx+"\")'>Confirmar reverso</button></div></div></div>"
+}
+async function confirmReverse(tx){
+  var b=q("reverseConfirmBtn");if(b){b.disabled=true;b.textContent="Reversando…"}
+  try{
+    var r=await fetch("/api/revale-demo?action=reverse",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tx:tx})});
+    var d=await r.json();
+    if(!r.ok)throw new Error(d.error||"No se pudo reversar");
+    closeModal();await loadTransactions();toast("Reverso registrado · saldo restituido");
+  }catch(e){if(b){b.disabled=false;b.textContent="Confirmar reverso"}toast(e.message||"No se pudo reversar")}
 }
 
 /* EMPLOYEE */
