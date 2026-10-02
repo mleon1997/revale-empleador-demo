@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <meta name="theme-color" content="#0c3b2c"/>
 <title>ReVale Comercios</title>
-<meta name="description" content="ReVale Comercios — un nuevo canal corporativo para restaurantes, sin cambiar su POS."/>
+<meta name="description" content="ReVale Comercios"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{
@@ -138,45 +138,104 @@ button,input{font:inherit}.hidden{display:none!important}button{cursor:pointer}
 
 @media(max-width:1050px){.login{grid-template-columns:1fr}.login-left{min-height:620px}.login-right{padding:34px}.app{grid-template-columns:76px 1fr}.sidebar{padding:22px 11px}.side-brand .wordmark{font-size:0}.side-brand .wordmark:before{content:"R.";font-size:20px}.merchant-box>div:last-child,.nav-item span:last-child,.nav-title,.side-status p{display:none}.merchant-box{justify-content:center;padding:9px}.nav-item{justify-content:center}.home-grid,.charge-layout,.approved-grid,.branch-grid{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:650px){.login-left{display:none}.login-right{min-height:100vh;padding:20px}.app{display:block}.sidebar{display:none}.topbar{height:60px;padding:0 16px}.content{padding:20px 14px}.page-head h1{font-size:30px}.hero-banner{grid-template-columns:1fr}.hero-side{display:none}.hero-copy{padding:23px}.hero-copy h2{font-size:28px}.kpis{grid-template-columns:1fr 1fr}.kpi{padding:15px}.success-steps{grid-template-columns:1fr}.employee{padding:0;background:#f8faf8;display:block}.phone{width:100%;min-height:100vh;border:0;border-radius:0;box-shadow:none}.phone-top{padding-top:calc(35px + env(safe-area-inset-top))}.employee-success{padding-top:95px}.table th:nth-child(3),.table td:nth-child(3){display:none}}
+
+/* PRODUCT-LED PREMIUM PASS */
+.product-login{grid-template-columns:1.08fr .92fr}
+.product-visual{padding:40px 52px;background:
+  radial-gradient(circle at 72% 22%,rgba(216,246,107,.12),transparent 25%),
+  linear-gradient(145deg,#0c4432,#08291f)}
+.visual-stage{position:relative;width:min(720px,92%);margin:auto;z-index:2}
+.visual-window{background:#f7f9f8;border:1px solid rgba(255,255,255,.13);border-radius:24px;overflow:hidden;box-shadow:0 40px 100px rgba(0,0,0,.24);transform:perspective(1100px) rotateY(-4deg) rotateX(1.5deg)}
+.visual-top{height:38px;background:#fff;border-bottom:1px solid #e6ebe8;display:flex;align-items:center;padding:0 14px;color:#87938d;font-size:8px}
+.visual-dots{display:flex;gap:5px;margin-right:12px}.visual-dots i{width:6px;height:6px;border-radius:50%;background:#dfe4e1}
+.visual-body{display:grid;grid-template-columns:58px 1fr;min-height:410px;background:#f4f7f5}
+.visual-side{background:#0d3d2e;padding:15px 10px}.mini-logo{color:#fff;font-size:14px;font-weight:900;text-align:center;margin-bottom:26px}.visual-nav{height:30px;border-radius:8px;background:rgba(255,255,255,.05);margin:7px 0}.visual-nav.on{background:rgba(255,255,255,.11)}
+.visual-main{padding:24px}.visual-title{display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:900;color:#16251e}.visual-title em{font-style:normal;font-size:7px;color:#2d8a5e;background:#e9f5ed;padding:5px 8px;border-radius:99px}
+.visual-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:18px}.visual-kpis div{background:#fff;border:1px solid #e6ebe8;border-radius:12px;padding:13px}.visual-kpis span{display:block;font-size:6px;text-transform:uppercase;letter-spacing:.1em;color:#8a9690;font-weight:800}.visual-kpis b{display:block;font-size:16px;margin-top:6px;letter-spacing:-.04em}
+.visual-pay{margin-top:10px;background:#fff;border:1px solid #e6ebe8;border-radius:14px;padding:16px;display:grid;grid-template-columns:1fr auto;align-items:end}.visual-pay span{font-size:7px;color:#8a9690;grid-column:1}.visual-pay strong{font-size:30px;letter-spacing:-.06em;margin-top:8px}.visual-pay button{grid-column:2;grid-row:1/3;border:0;background:#0b5b40;color:#fff;border-radius:10px;padding:10px 12px;font-size:7px;font-weight:900}
+.visual-row{margin-top:8px;background:#fff;border:1px solid #e6ebe8;border-radius:11px;padding:10px;display:grid;grid-template-columns:8px 1fr auto auto;gap:9px;align-items:center;font-size:7px}.visual-row i{width:7px;height:7px;border-radius:50%;background:#39b87b}.visual-row em{font-style:normal;color:#668077}.visual-row b{font-size:8px}
+.visual-float{position:absolute;right:-32px;bottom:-24px;background:#fff;border-radius:17px;padding:15px 18px;box-shadow:0 20px 50px rgba(0,0,0,.16);min-width:155px;color:#102019}.visual-float span{display:block;font-size:7px;text-transform:uppercase;letter-spacing:.11em;color:#6e7b75;font-weight:900}.visual-float b{display:block;font-size:24px;letter-spacing:-.05em;margin-top:5px}.visual-float small{font-size:7px;color:#2d8a5e}
+.product-access{background:#f4f6f4}.access-card{box-shadow:0 20px 60px rgba(9,48,34,.07);border-radius:24px}.access-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:30px}.access-mark{width:38px;height:38px;border-radius:12px;background:#0c3b2c;color:#fff;display:grid;place-items:center;font-weight:900}.access-card h2{font-size:30px;margin-bottom:5px}.access-card>p{font-size:10px}.merchant-login{position:relative;margin:24px 0 10px;background:#fafcfb}.merchant-arrow{margin-left:auto;font-size:22px;color:#9aa59f}.access-row{display:flex;justify-content:space-between;align-items:center;padding:12px 2px;border-bottom:1px solid #edf1ef;font-size:9px}.access-row span{color:#7c8982}.online-text{color:#2c8059}.access-button{margin-top:22px!important}
+
+.product-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;margin-bottom:22px}.product-head h1{font-size:34px;letter-spacing:-.052em;margin:5px 0 4px}.product-head p{font-size:10px;color:#7b8781;margin:0}.head-meta{display:flex;align-items:center;gap:7px;font-size:8px;color:#7b8781;font-weight:800}.head-meta i{width:3px;height:3px;border-radius:50%;background:#a5afa9}
+.premium-kpis{gap:10px}.premium-kpis .card{border-radius:18px;box-shadow:none}.health-kpi .service-state{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:16px;font-weight:900;letter-spacing:-.03em}.health-kpi .service-state i{width:8px;height:8px;border-radius:50%;background:#32b879;box-shadow:0 0 0 5px rgba(50,184,121,.10)}
+.operations-grid{display:grid;grid-template-columns:.86fr 1.14fr;gap:14px}.premium-charge,.premium-recent{border-radius:20px;box-shadow:none}.premium-recent{margin-top:0;padding-top:0}.panel-head{display:flex;justify-content:space-between;align-items:flex-start}.panel-head h3{margin:5px 0 0}.subtle-chip{font-size:7px;padding:6px 8px;border:1px solid #e3e9e5;border-radius:99px;color:#738079;background:#fafcfb}
+.compact-table th{padding-top:8px}.compact-table td{padding-top:12px;padding-bottom:12px}
+.transaction-meta{padding:10px 20px;border-radius:20px;box-shadow:none}
+.approval-layout{display:grid;grid-template-columns:.75fr 1.25fr;gap:14px}.premium-approval{box-shadow:none;border-radius:22px}.approval-top{display:flex;justify-content:space-between;align-items:flex-start}.approved-summary-label{font-size:8px;color:#b9d3c6;text-transform:uppercase;letter-spacing:.12em;font-weight:900;margin-top:32px}.receipt-card{padding:24px;border-radius:20px;box-shadow:none}.receipt-title,.section-title{font-size:12px;font-weight:900;margin-bottom:10px}.receipt-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.premium-branch .card{box-shadow:none;border-radius:20px}
+@media(max-width:1050px){.operations-grid,.approval-layout{grid-template-columns:1fr}.visual-stage{width:95%}}
+@media(max-width:650px){.product-login{display:block}.product-visual{display:none}.product-access{min-height:100vh;padding:20px}.product-head{align-items:flex-start}.premium-kpis{grid-template-columns:1fr 1fr}.operations-grid{grid-template-columns:1fr}.product-head h1{font-size:30px}}
+
 </style>
 </head>
 <body>
 <div id="toast"></div>
 
-<section id="login" class="login">
-  <div class="login-left">
+<section id="login" class="login product-login">
+  <div class="login-left product-visual">
     <div class="wordmark">ReVale<b>.</b></div>
-    <div class="hero">
-      <span class="eyebrow">ReVale Comercios</span>
-      <h1>Un nuevo canal corporativo para tu restaurante.</h1>
-      <p>Acepta consumos financiados por empresas sin cambiar tu POS. ReVale valida al empleado, autoriza el saldo y confirma el cobro en segundos.</p>
-      <div class="value-row">
-        <span class="value-pill">Sin integración POS</span>
-        <span class="value-pill">Sin hardware obligatorio</span>
-        <span class="value-pill">Autorización en tiempo real</span>
+
+    <div class="visual-stage">
+      <div class="visual-window">
+        <div class="visual-top">
+          <div class="visual-dots"><i></i><i></i><i></i></div>
+          <span>comercios.revale.app</span>
+        </div>
+        <div class="visual-body">
+          <div class="visual-side">
+            <div class="mini-logo">R.</div>
+            <div class="visual-nav on"></div>
+            <div class="visual-nav"></div>
+            <div class="visual-nav"></div>
+          </div>
+          <div class="visual-main">
+            <div class="visual-title"><span>Resumen</span><em>● Online</em></div>
+            <div class="visual-kpis">
+              <div><span>Ventas</span><b>$ 128.20</b></div>
+              <div><span>Transacciones</span><b>2</b></div>
+              <div><span>Ticket prom.</span><b>$ 64.10</b></div>
+            </div>
+            <div class="visual-pay">
+              <span>Nuevo cobro</span>
+              <strong>$ 24.50</strong>
+              <button>Generar QR</button>
+            </div>
+            <div class="visual-row"><i></i><span>RV-6LBPL</span><em>Aprobada</em><b>$ 5.00</b></div>
+            <div class="visual-row"><i></i><span>RV-ZAHBE</span><em>Reversada</em><b>$ 10.00</b></div>
+          </div>
+        </div>
       </div>
-      <div class="flow-preview">
-        <div class="flow-card"><span>1</span><b>El cajero ingresa el monto</b><small>Desde cualquier navegador con internet.</small></div>
-        <div class="flow-card"><span>2</span><b>El empleado confirma</b><small>Escanea el QR y autoriza desde su teléfono.</small></div>
-        <div class="flow-card"><span>3</span><b>La caja recibe aprobación</b><small>ReVale descuenta saldo y registra el consumo.</small></div>
+      <div class="visual-float">
+        <span>Pago aprobado</span>
+        <b>$ 24.50</b>
+        <small>Saldo actualizado</small>
       </div>
     </div>
-    <div class="login-foot">ReVale · Beneficios corporativos convertidos en ventas reales.</div>
+
+    <div class="login-foot">ReVale Comercios</div>
   </div>
-  <div class="login-right">
-    <div class="login-card">
-      <span class="eyebrow">Portal de comercios</span>
-      <h2>Bienvenido a ReVale.</h2>
-      <p>Una experiencia diseñada para que tu equipo de caja pueda operar sin cambiar sus procesos.</p>
+
+  <div class="login-right product-access">
+    <div class="login-card access-card">
+      <div class="access-head">
+        <div class="access-mark">R.</div>
+        <span class="status ok">Demo</span>
+      </div>
+      <h2>Acceso Comercios</h2>
+      <p>Selecciona el punto de venta.</p>
+
       <div class="merchant-login">
         <div class="logo-block">EH</div>
-        <div><b>El Hornero</b><span>Cumbayá · Caja 01</span></div>
+        <div><b>El Hornero</b><span>Cumbayá</span></div>
+        <div class="merchant-arrow">›</div>
       </div>
-      <div class="login-feature"><div class="mini-check">✓</div><div><b>Saldo validado antes del consumo</b><span>El restaurante recibe una aprobación clara antes de cerrar la venta.</span></div></div>
-      <div class="login-feature"><div class="mini-check">✓</div><div><b>Operación independiente del POS</b><span>Funciona como una nueva forma de pago, sin integración obligatoria.</span></div></div>
-      <div class="login-feature"><div class="mini-check">✓</div><div><b>Trazabilidad y reversos</b><span>Cada transacción queda registrada y puede anularse de forma controlada.</span></div></div>
-      <button class="btn btn-primary" onclick="enterDemo()">Entrar al portal</button>
-      <div class="pilot-note">Vista piloto · El Hornero</div>
+
+      <div class="access-row"><span>Terminal</span><b>Caja 01</b></div>
+      <div class="access-row"><span>Estado</span><b class="online-text">● Activo</b></div>
+
+      <button class="btn btn-primary access-button" onclick="enterDemo()">Continuar</button>
+      <div class="pilot-note">Entorno de demostración</div>
     </div>
   </div>
 </section>
@@ -203,55 +262,41 @@ button,input{font:inherit}.hidden{display:none!important}button{cursor:pointer}
     </header>
 
     <div id="homeScreen" class="content">
-      <div class="page-head">
-        <div><span class="eyebrow">ReVale Comercios</span><h1>Buenas ventas.</h1><p>Recibe consumos corporativos con una experiencia simple para caja y cliente.</p></div>
+      <div class="product-head">
+        <div>
+          <div class="head-meta"><span>El Hornero</span><i></i><span>Cumbayá</span></div>
+          <h1>Resumen</h1>
+          <p id="dashboardDate">—</p>
+        </div>
+        <button class="btn btn-primary" onclick="q('amountInput').focus();window.scrollTo({top:220,behavior:'smooth'})">+ Nuevo cobro</button>
       </div>
 
-      <section class="hero-banner">
-        <div class="hero-copy">
-          <span class="eyebrow">Nuevo canal corporativo</span>
-          <h2>Más clientes empresariales. La misma operación de siempre.</h2>
-          <p>ReVale funciona como una forma de pago adicional: el cajero ingresa el monto, el empleado confirma y el consumo queda autorizado.</p>
-        </div>
-        <div class="hero-side">
-          <div class="hero-flow">
-            <div class="hero-step"><span>1</span><div><b>Ingresa el monto</b><small>Sin tocar tu POS.</small></div></div>
-            <div class="hero-step"><span>2</span><div><b>Muestra el QR</b><small>El empleado confirma.</small></div></div>
-            <div class="hero-step"><span>3</span><div><b>Recibe aprobación</b><small>ReVale registra el consumo.</small></div></div>
+      <div class="kpis premium-kpis">
+        <div class="card kpi"><div class="k">Ventas netas</div><div id="todayTotal" class="v mono">$ 0.00</div><div class="s">Aprobadas vigentes</div></div>
+        <div class="card kpi"><div class="k">Transacciones</div><div id="todayCountValue" class="v mono">0</div><div id="todayCount" class="s">0 aprobadas</div></div>
+        <div class="card kpi"><div class="k">Ticket promedio</div><div id="avgTicket" class="v mono">$ 0.00</div><div class="s">Promedio aprobado</div></div>
+        <div class="card kpi health-kpi"><div class="k">Servicio</div><div class="service-state"><i></i><span>Operativo</span></div><div class="s">Actualizado en tiempo real</div></div>
+      </div>
+
+      <div class="operations-grid">
+        <section class="card charge-card premium-charge">
+          <div class="panel-head">
+            <div><span class="eyebrow">Cobro</span><h3>Nueva transacción</h3></div>
+            <span class="subtle-chip">Caja 01</span>
           </div>
-        </div>
-      </section>
-
-      <div class="kpis">
-        <div class="card kpi"><div class="k">Ventas aprobadas</div><div id="todayTotal" class="v mono">$ 0.00</div><div class="s">Consumos registrados</div></div>
-        <div class="card kpi"><div class="k">Transacciones</div><div id="todayCountValue" class="v mono">0</div><div id="todayCount" class="s">0 consumos aprobados</div></div>
-        <div class="card kpi"><div class="k">Ticket promedio</div><div id="avgTicket" class="v mono">$ 0.00</div><div class="s">Sobre consumos aprobados</div></div>
-        <div class="card kpi"><div class="k">Integración</div><div class="v" style="font-size:20px">Nivel 1</div><div class="s">Web · sin POS</div></div>
-      </div>
-
-      <div class="home-grid">
-        <section class="card charge-card">
-          <span class="eyebrow">Nuevo cobro</span>
-          <h3>¿Cuánto va a pagar con ReVale?</h3>
-          <p>Ingresa únicamente el monto que se cobrará con el beneficio corporativo.</p>
           <div class="amount-box"><div class="amount-label">Monto</div><div class="amount-line"><span class="currency">$</span><input id="amountInput" class="amount-input mono" inputmode="decimal" placeholder="0.00" oninput="validateAmount()"/></div></div>
-          <input id="refInput" class="ref-input" placeholder="Referencia / mesa / ticket (opcional)" maxlength="80"/>
-          <button id="chargeBtn" class="btn btn-primary" disabled onclick="startCharge()">Generar QR de cobro →</button>
+          <input id="refInput" class="ref-input" placeholder="Referencia opcional" maxlength="80"/>
+          <button id="chargeBtn" class="btn btn-primary" disabled onclick="startCharge()">Continuar</button>
         </section>
-        <section class="card flow-panel">
-          <span class="eyebrow">Diseñado para caja</span>
-          <h3>Un flujo que se entiende en segundos.</h3>
-          <p>ReVale no obliga al restaurante a reemplazar herramientas ni aprender un sistema complejo.</p>
-          <div class="step-row"><div class="num">1</div><div><b>Monto</b><span>El cajero escribe el valor a cobrar.</span></div></div>
-          <div class="step-row"><div class="num">2</div><div><b>Cliente</b><span>El empleado escanea, revisa su saldo y confirma.</span></div></div>
-          <div class="step-row"><div class="num">3</div><div><b>Aprobado</b><span>La caja recibe confirmación automática.</span></div></div>
+
+        <section class="card recent premium-recent">
+          <div class="recent-head">
+            <div><span class="eyebrow">Actividad</span><h3>Últimos movimientos</h3></div>
+            <button class="btn btn-ghost" onclick="showTransactions()">Ver todos</button>
+          </div>
+          <table class="table compact-table"><thead><tr><th>Transacción</th><th>Hora</th><th>Estado</th><th style="text-align:right">Monto</th></tr></thead><tbody id="recentRows"><tr><td colspan="4" class="muted">Cargando movimientos…</td></tr></tbody></table>
         </section>
       </div>
-
-      <section class="card recent">
-        <div class="recent-head"><h3>Últimos movimientos</h3><button class="btn btn-ghost" onclick="showTransactions()">Ver todos →</button></div>
-        <table class="table"><thead><tr><th>Transacción</th><th>Hora</th><th>Estado</th><th style="text-align:right">Monto</th></tr></thead><tbody id="recentRows"><tr><td colspan="4" class="muted">Cargando movimientos…</td></tr></tbody></table>
-      </section>
     </div>
 
     <div id="chargeScreen" class="content hidden">
@@ -280,33 +325,40 @@ button,input{font:inherit}.hidden{display:none!important}button{cursor:pointer}
             <p id="statusText">Mantén esta pantalla abierta. La aprobación aparecerá automáticamente.</p>
             <div class="live-line"><i></i><span id="connText">Conexión activa con ReVale</span></div>
           </section>
-          <section class="info-card"><b>Sin integración POS</b><p>Este flujo funciona de forma independiente. Para el restaurante, ReVale puede operar como una forma de pago adicional.</p></section>
+          <section class="card transaction-meta">
+            <div class="detail-row"><span>Comercio</span><b>El Hornero</b></div>
+            <div class="detail-row"><span>Sucursal</span><b>Cumbayá</b></div>
+            <div class="detail-row"><span>Terminal</span><b>Caja 01</b></div>
+          </section>
         </div>
       </div>
     </div>
 
     <div id="approvedScreen" class="content hidden">
-      <div class="page-head">
-        <div><span class="eyebrow">Consumo autorizado</span><h1>Cobro aprobado.</h1><p>El saldo del empleado fue descontado y la transacción quedó registrada.</p></div>
+      <div class="product-head">
+        <div>
+          <div class="head-meta"><span>El Hornero</span><i></i><span>Cumbayá</span></div>
+          <h1>Transacción aprobada</h1>
+          <p>La operación quedó registrada.</p>
+        </div>
         <button class="btn btn-primary" onclick="newSale()">+ Nueva venta</button>
       </div>
-      <div class="approved-grid">
-        <section class="approved-summary">
-          <div class="check">✓</div><div class="k">ReVale aprobado</div>
+
+      <div class="approval-layout">
+        <section class="approved-summary premium-approval">
+          <div class="approval-top"><div class="check">✓</div><span class="status ok">Aprobada</span></div>
+          <div class="approved-summary-label">Monto</div>
           <div id="approvedAmount" class="big mono">$ 0.00</div>
           <div id="approvedRef" class="r"></div>
-          <div class="assurance"><b>Consumo registrado en ReVale</b>La autorización, el débito y la trazabilidad de la transacción ya quedaron guardados.</div>
         </section>
-        <section class="card next-card">
-          <span class="eyebrow">Listo</span>
-          <h2>La caja puede continuar.</h2>
-          <p>El cliente ya recibió la confirmación en su teléfono. ReVale conserva el movimiento para consulta y, si fuera necesario, permite reversarlo de forma controlada.</p>
-          <div class="success-steps">
-            <div class="success-step"><span>Empleado</span><b>Saldo actualizado</b></div>
-            <div class="success-step"><span>Comercio</span><b>Venta aprobada</b></div>
-            <div class="success-step"><span>ReVale</span><b>Movimiento auditado</b></div>
-          </div>
-          <div class="next-actions"><button class="btn btn-primary" onclick="newSale()">Nueva venta</button><button class="btn btn-secondary" onclick="showTransactions()">Ver movimientos</button></div>
+
+        <section class="card receipt-card">
+          <div class="receipt-title">Detalle</div>
+          <div class="detail-row"><span>Comercio</span><b>El Hornero</b></div>
+          <div class="detail-row"><span>Sucursal</span><b>Cumbayá</b></div>
+          <div class="detail-row"><span>Terminal</span><b>Caja 01</b></div>
+          <div class="detail-row"><span>Estado</span><span class="status ok">Aprobada</span></div>
+          <div class="receipt-actions"><button class="btn btn-secondary" onclick="showTransactions()">Movimientos</button><button class="btn btn-primary" onclick="newSale()">Nuevo cobro</button></div>
         </section>
       </div>
     </div>
@@ -323,19 +375,25 @@ button,input{font:inherit}.hidden{display:none!important}button{cursor:pointer}
     </div>
 
     <div id="branchScreen" class="content hidden">
-      <div class="page-head"><div><span class="eyebrow">Mi sucursal</span><h1>El Hornero · Cumbayá.</h1><p>Configuración operativa del punto de venta dentro de ReVale.</p></div></div>
-      <div class="branch-grid">
+      <div class="product-head">
+        <div><div class="head-meta"><span>Configuración</span></div><h1>Mi sucursal</h1><p>El Hornero · Cumbayá</p></div>
+      </div>
+
+      <div class="branch-grid premium-branch">
         <section class="card branch-card">
-          <span class="eyebrow">Configuración</span><h3>Punto de venta</h3>
+          <div class="section-title">Punto de venta</div>
           <div class="detail-row"><span>Comercio</span><b>El Hornero</b></div>
           <div class="detail-row"><span>Sucursal</span><b>Cumbayá</b></div>
           <div class="detail-row"><span>Terminal</span><b>Caja 01</b></div>
           <div class="detail-row"><span>Estado</span><span class="status ok">Activo</span></div>
         </section>
-        <section class="level-box">
-          <span class="eyebrow">Integración</span><h3>Nivel 1 · Web</h3>
-          <p>La opción más liviana para empezar con ReVale. El comercio acepta consumos corporativos desde un navegador sin integrar su POS.</p>
-          <div class="level-tags"><span>Browser + internet</span><span>QR dinámico</span><span>Saldo en tiempo real</span><span>Reversos</span><span>Trazabilidad</span></div>
+
+        <section class="card branch-card">
+          <div class="section-title">Conexión</div>
+          <div class="detail-row"><span>Canal</span><b>Web</b></div>
+          <div class="detail-row"><span>Base de datos</span><b>Conectada</b></div>
+          <div class="detail-row"><span>Autorización</span><b>Tiempo real</b></div>
+          <div class="detail-row"><span>Reversos</span><b>Habilitados</b></div>
         </section>
       </div>
     </div>
@@ -373,11 +431,12 @@ function toast(msg){var t=q("toast");t.textContent=msg;t.classList.add("show");s
 function hideScreens(){["homeScreen","chargeScreen","approvedScreen","transactionsScreen","branchScreen"].forEach(function(x){q(x).classList.add("hidden")})}
 function nav(which){["navHome","navMov","navBranch"].forEach(function(x){q(x).classList.remove("active")});if(which)q(which).classList.add("active")}
 async function enterDemo(){q("login").classList.add("hidden");q("merchantApp").classList.remove("hidden");await showHome()}
-async function showHome(){hideScreens();q("homeScreen").classList.remove("hidden");q("topTitle").textContent="Inicio · El Hornero Cumbayá";nav("navHome");await loadTransactions()}
+async function showHome(){hideScreens();q("homeScreen").classList.remove("hidden");q("topTitle").textContent="El Hornero · Cumbayá";nav("navHome");setDashboardDate();await loadTransactions()}
 async function showTransactions(){hideScreens();q("transactionsScreen").classList.remove("hidden");q("topTitle").textContent="Movimientos · El Hornero Cumbayá";nav("navMov");await loadTransactions()}
 function showBranch(){hideScreens();q("branchScreen").classList.remove("hidden");q("topTitle").textContent="Mi sucursal · El Hornero Cumbayá";nav("navBranch")}
 function validateAmount(){var n=Number(String(q("amountInput").value).replace(",","."));q("chargeBtn").disabled=!(n>0)}
 function nowTime(){return new Date().toLocaleTimeString("es-EC",{hour:"2-digit",minute:"2-digit"})}
+function setDashboardDate(){var el=q("dashboardDate");if(!el)return;try{el.textContent=new Date().toLocaleDateString("es-EC",{weekday:"long",day:"numeric",month:"long"}).replace(/^./,function(x){return x.toUpperCase()})}catch(e){el.textContent=""}}
 
 async function startCharge(){
   var amount=Number(String(q("amountInput").value).replace(",","."));
@@ -462,7 +521,7 @@ function renderTx(){
   }).join("");
   var approved=state.transactions.filter(function(t){return t.status==="approved"});
   var total=approved.reduce(function(a,t){return a+t.amount},0),avg=approved.length?total/approved.length:0;
-  q("todayTotal").textContent=money(total);q("todayCountValue").textContent=approved.length;q("todayCount").textContent=approved.length+" consumo"+(approved.length===1?"":"s")+" aprobado"+(approved.length===1?"":"s");q("avgTicket").textContent=money(avg)
+  q("todayTotal").textContent=money(total);q("todayCountValue").textContent=approved.length;q("todayCount").textContent=approved.length+" aprobada"+(approved.length===1?"":"s");q("avgTicket").textContent=money(avg)
 }
 function openReverseModal(tx,amount){
   q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><span class='eyebrow'>Anulación</span><h3>¿Reversar "+tx+"?</h3><p>ReVale devolverá "+money(amount)+" al saldo del empleado y dejará el reverso registrado en la trazabilidad.</p><div class='modal-actions'><button class='btn btn-secondary' onclick='closeModal()'>Cancelar</button><button id='reverseConfirmBtn' class='btn btn-primary' onclick='confirmReverse(\""+tx+"\")'>Confirmar reverso</button></div></div></div>"
