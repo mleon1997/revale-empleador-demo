@@ -375,7 +375,7 @@ async function loadEmployee(){
   try{
     var r=await fetch("/api/revale-demo?action=get&tx="+encodeURIComponent(emp.tx)+"&token="+encodeURIComponent(emp.token),{cache:"no-store"});var d=await r.json();
     if(!r.ok)throw new Error(d.error||"No encontramos la transacción");
-    emp.amount=d.amount;q("employeeAmount").textContent=money(emp.amount);q("employeeAfter").textContent="Saldo después de la compra: "+money(143.20-emp.amount);
+    emp.amount=d.amount;var balance=Number(d.currentBalance??0);var first=d.employee?.firstName||"Andrea";q("employeeHello").textContent="Hola, "+first;q("employeeBalance").textContent=money(balance);q("employeeAmount").textContent=money(emp.amount);q("employeeAfter").textContent="Saldo después de la compra: "+money(balance-emp.amount);
     q("employeeLoading").classList.add("hidden");q("employeePay").classList.remove("hidden");
     if(d.status==="approved")employeeSuccess();
   }catch(e){q("employeeLoading").classList.add("hidden");q("employeeError").classList.remove("hidden");q("employeeError").innerHTML="<b>No pudimos abrir este cobro.</b><br/>El QR pudo expirar o el backend temporal de la demo perdió estado. Vuelve a generar el QR en la caja."}
