@@ -631,13 +631,13 @@ body{letter-spacing:-.005em}
 <div id="modalRoot"></div>
 
 <script>
-var state={amount:0,reference:"",tx:"",token:"",expiresAt:0,poll:null,timer:null,transactions:[]};
+var state={amount:0,reference:"",tx:"",token:"",expiresAt:0,poll:null,timer:null,transactions:[],role:"admin",userName:"Gerencia"};
 function q(id){return document.getElementById(id)}
 function money(n){return "$ "+Number(n||0).toFixed(2)}
 function toast(msg){var t=q("toast");t.textContent=msg;t.classList.add("show");setTimeout(function(){t.classList.remove("show")},1800)}
-function hideScreens(){["homeScreen","chargeScreen","approvedScreen","transactionsScreen","branchScreen"].forEach(function(x){q(x).classList.add("hidden")})}
-function nav(which){["navHome","navMov","navBranch"].forEach(function(x){q(x).classList.remove("active")});if(which)q(which).classList.add("active")}
-async function enterDemo(){q("login").classList.add("hidden");q("merchantApp").classList.remove("hidden");await showHome()}
+function hideScreens(){["homeScreen","chargeScreen","approvedScreen","transactionsScreen","settlementsScreen","branchScreen"].forEach(function(x){q(x).classList.add("hidden")})}
+function nav(which){["navHome","navMov","navSettlement","navBranch"].forEach(function(x){if(q(x))q(x).classList.remove("active")});if(which&&q(which))q(which).classList.add("active")}
+async function enterDemo(){q("login").classList.add("hidden");q("merchantApp").classList.remove("hidden");applyRole();await showHome()}
 function togglePassword(){
   var input=q("loginPassword"),b=q("passwordToggle");
   var showing=input.type==="text";
@@ -659,9 +659,17 @@ document.addEventListener("keydown",function(e){
   var p=new URLSearchParams(location.search);
   if(e.key==="Enter"&&p.get("employee")!=="1"&&!q("login").classList.contains("hidden")) loginDemo();
 });
-async function showHome(){hideScreens();q("homeScreen").classList.remove("hidden");q("topTitle").textContent="El Hornero · Cumbayá";nav("navHome");setDashboardDate();await loadTransactions()}
+async function showHome(){hideScreens();q("homeScreen").classList.remove("hidden");q("topTitle").textContent=state.role==="admin"?"El Hornero · Gerencia":"El Hornero · Cumbayá";nav("navHome");setDashboardDate();await loadTransactions()}
 async function showTransactions(){hideScreens();q("transactionsScreen").classList.remove("hidden");q("topTitle").textContent="Movimientos · El Hornero Cumbayá";nav("navMov");await loadTransactions()}
-function showBranch(){hideScreens();q("branchScreen").classList.remove("hidden");q("topTitle").textContent="Mi sucursal · El Hornero Cumbayá";nav("navBranch")}
+function showBranch(){hideScreens();q("branchScreen").classList.remove("hidden");q("topTitle").textContent=state.role==="admin"?"Sucursales · El Hornero":"Mi sucursal · El Hornero Cumbayá";nav("navBranch")}
+function showSettlements(){if(state.role!=="admin"){toast("Acceso restringido a gerencia");return}hideScreens();q("settlementsScreen").classList.remove("hidden");q("topTitle").textContent="Liquidaciones · El Hornero";nav("navSettlement");loadTransactions()}
+function applyRole(){
+  q("userName").textContent=state.userName;
+  q("userAvatar").textContent=state.role==="cashier"?"01":state.role==="supervisor"?"S":"G";
+  q("userRoleLabel").textContent=state.role==="cashier"?"Caja · Cumbayá":state.role==="supervisor"?"Supervisor · Cumbayá":"Gerencia · Todas las sucursales";
+  q("branchNavLabel").textContent=state.role==="admin"?"Sucursales":"Mi sucursal";
+  if(state.role==="admin")q("navSettlement").classList.remove("hidden");else q("navSettlement").classList.add("hidden");
+}
 function validateAmount(){var n=Number(String(q("amountInput").value).replace(",","."));q("chargeBtn").disabled=!(n>0)}
 function nowTime(){return new Date().toLocaleTimeString("es-EC",{hour:"2-digit",minute:"2-digit"})}
 function setDashboardDate(){var el=q("dashboardDate");if(!el)return;try{el.textContent=new Date().toLocaleDateString("es-EC",{weekday:"long",day:"numeric",month:"long"}).replace(/^./,function(x){return x.toUpperCase()})}catch(e){el.textContent=""}}
@@ -744,14 +752,15 @@ function renderTx(){
   }
   recent.innerHTML=state.transactions.slice(0,4).map(function(t){var s=displayStatus(t);return"<tr><td><b>"+t.tx+"</b></td><td>"+txTime(t)+"</td><td><span class='status "+s.cls+"'>"+s.text+"</span></td><td class='amount'>"+money(t.amount)+"</td></tr>"}).join("");
   all.innerHTML=state.transactions.map(function(t){
-    var s=displayStatus(t);var action=t.status==="approved"?"<button class='btn btn-ghost' style='padding:6px 8px;font-size:8px' onclick='openReverseModal(\""+t.tx+"\","+t.amount+")'>Anular</button>":"—";
+    var s=displayStatus(t);var canReverse=(state.role==="supervisor"||state.role==="admin");var action=(t.status==="approved"&&canReverse)?"<button class='btn btn-ghost' style='padding:6px 8px;font-size:8px' onclick='openReverseModal(\""+t.tx+"\","+t.amount+")'>Anular</button>":"—";
     return"<tr><td><b>"+t.tx+"</b></td><td>"+txTime(t)+"</td><td>"+(t.reference||"—")+"</td><td><span class='status "+s.cls+"'>"+s.text+"</span></td><td class='amount'>"+money(t.amount)+"</td><td style='text-align:right'>"+action+"</td></tr>"
   }).join("");
   var approved=state.transactions.filter(function(t){return t.status==="approved"});
   var total=approved.reduce(function(a,t){return a+t.amount},0),avg=approved.length?total/approved.length:0;
-  q("todayTotal").textContent=money(total);q("todayCountValue").textContent=approved.length;q("todayCount").textContent=approved.length+" aprobada"+(approved.length===1?"":"s");q("avgTicket").textContent=money(avg)
+  q("todayTotal").textContent=money(total);q("todayCountValue").textContent=approved.length;q("todayCount").textContent=approved.length+" aprobada"+(approved.length===1?"":"s");q("avgTicket").textContent=money(avg);if(q("pendingSettlement"))q("pendingSettlement").textContent=money(total);if(q("settlementCount"))q("settlementCount").textContent=approved.length+" transacción"+(approved.length===1?"":"es")
 }
 function openReverseModal(tx,amount){
+  if(state.role==="cashier"){toast("Requiere autorización de supervisor");return}
   q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><span class='eyebrow'>Anulación</span><h3>¿Reversar "+tx+"?</h3><p>ReVale devolverá "+money(amount)+" al saldo del empleado y dejará el reverso registrado en la trazabilidad.</p><div class='modal-actions'><button class='btn btn-secondary' onclick='closeModal()'>Cancelar</button><button id='reverseConfirmBtn' class='btn btn-primary' onclick='confirmReverse(\""+tx+"\")'>Confirmar reverso</button></div></div></div>"
 }
 async function confirmReverse(tx){
