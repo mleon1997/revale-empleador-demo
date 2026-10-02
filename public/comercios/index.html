@@ -413,7 +413,7 @@ body{letter-spacing:-.005em}
 
       <div class="form-field">
         <label for="loginEmail">Correo electrónico</label>
-        <input id="loginEmail" type="email" autocomplete="username" value="demo@revale.app" placeholder="nombre@empresa.com"/>
+        <input id="loginEmail" type="email" autocomplete="username" value="gerencia@demo.revale.app" placeholder="nombre@empresa.com"/>
       </div>
 
       <div class="form-field">
@@ -422,7 +422,7 @@ body{letter-spacing:-.005em}
           <button type="button" class="text-link" onclick="toast('Recuperación de contraseña disponible en producción')">¿Olvidaste tu contraseña?</button>
         </div>
         <div class="password-wrap">
-          <input id="loginPassword" type="password" autocomplete="current-password" value="revale-demo" placeholder="••••••••"/>
+          <input id="loginPassword" type="password" autocomplete="current-password" value="gerencia-demo" placeholder="••••••••"/>
           <button id="passwordToggle" type="button" class="password-toggle" onclick="togglePassword()">Mostrar</button>
         </div>
       </div>
@@ -659,14 +659,32 @@ function togglePassword(){
   input.type=showing?"password":"text";
   b.textContent=showing?"Mostrar":"Ocultar";
 }
+function fillDemoRole(role){
+  var map={
+    cashier:["caja@demo.revale.app","caja-demo","Caja 01"],
+    supervisor:["supervisor@demo.revale.app","supervisor-demo","Supervisor"],
+    admin:["gerencia@demo.revale.app","gerencia-demo","Gerencia"]
+  };
+  var v=map[role];state.role=role;state.userName=v[2];
+  q("loginEmail").value=v[0];q("loginPassword").value=v[1];
+  document.querySelectorAll(".role-demo-actions button").forEach(function(b){b.classList.remove("active")});
+  var idx=role==="cashier"?0:role==="supervisor"?1:2,bs=document.querySelectorAll(".role-demo-actions button");
+  if(bs[idx])bs[idx].classList.add("active");
+}
 async function loginDemo(){
   var email=(q("loginEmail").value||"").trim().toLowerCase();
   var password=q("loginPassword").value||"";
-  var b=q("loginButton");
+  var users={
+    "caja@demo.revale.app":["caja-demo","cashier","Caja 01"],
+    "supervisor@demo.revale.app":["supervisor-demo","supervisor","Supervisor"],
+    "gerencia@demo.revale.app":["gerencia-demo","admin","Gerencia"]
+  };
+  var u=users[email],b=q("loginButton");
   if(!email||!password){toast("Ingresa correo y contraseña");return}
-  if(email!=="demo@revale.app"||password!=="revale-demo"){toast("Credenciales demo incorrectas");return}
+  if(!u||u[0]!==password){toast("Credenciales demo incorrectas");return}
+  state.role=u[1];state.userName=u[2];
   b.disabled=true;b.textContent="Ingresando…";
-  await new Promise(function(resolve){setTimeout(resolve,420)});
+  await new Promise(function(resolve){setTimeout(resolve,320)});
   await enterDemo();
   b.disabled=false;b.textContent="Ingresar";
 }
