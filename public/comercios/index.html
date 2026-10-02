@@ -88,6 +88,7 @@ radial-gradient(circle at 80% 5%,rgba(217,255,103,.13),transparent 30%),
 .modal-bg{position:fixed;inset:0;background:rgba(5,18,12,.48);backdrop-filter:blur(6px);z-index:50;display:grid;place-items:center;padding:20px}.modal{width:min(520px,100%);background:#fff;border-radius:24px;padding:24px;box-shadow:0 30px 100px rgba(0,0,0,.2)}.modal h3{font-size:21px;letter-spacing:-.04em;margin:0 0 5px}.modal p{font-size:9px;color:#7d8983}.bigdata{display:grid;gap:8px;margin:18px 0}.bigdata div{background:#f7f9f8;border-radius:14px;padding:13px}.bigdata span{display:block;font-size:8px;color:#829088;margin-bottom:4px}.bigdata strong{font-size:14px}.modal .btn{width:100%}
 
 /* MOBILE */
+@media(max-width:600px){.employee{padding:0;background:#f6f8f7}.phone{width:100%;min-height:100vh;border:0;border-radius:0;box-shadow:none}.phone-top{padding-top:calc(28px + env(safe-area-inset-top))}.employee-success{padding-top:110px}}
 @media(max-width:900px){.login{grid-template-columns:1fr}.login-left{min-height:52vh;padding:110px 28px 44px}.login-brand{left:28px}.login-copy h1{font-size:48px}.login-right{padding:24px}.app{display:block}.sidebar{display:none}.topbar{padding:0 15px}.content{padding:22px 15px 40px}.home-grid,.charge-layout,.approved-grid{grid-template-columns:1fr}.page-head{align-items:flex-start}.page-head h1{font-size:29px}.cashier{padding:21px}.amount-input{font-size:51px;width:220px}.ref-row{grid-template-columns:1fr}.qr-card{min-height:590px;padding:20px}.side-stack{display:grid}.approved-summary{min-height:390px}.invoice{padding:20px}.field-row{grid-template-columns:1fr}.field+.field{border-left:0}.field-row .field:first-child{border-bottom:1px solid var(--line)}.email-field{align-items:flex-start;flex-direction:column}.invoice-actions{flex-direction:column}.operator span,.badge-live{display:none}}
 </style>
 </head>
@@ -259,9 +260,9 @@ radial-gradient(circle at 80% 5%,rgba(217,255,103,.13),transparent 30%),
   <div class="phone" id="phone">
     <div class="phone-top">
       <div class="phone-brand">ReVale.</div>
-      <div class="hello">Hola, Andrea</div>
+      <div id="employeeHello" class="hello">Hola</div>
       <div class="balance-label">Saldo de alimentación</div>
-      <div class="balance mono">$ 143.20</div>
+      <div id="employeeBalance" class="balance mono">$ 0.00</div>
     </div>
     <div class="phone-body">
       <div id="employeeLoading" class="pay-card"><div class="muted" style="font-size:9px;text-align:center;padding:26px">Cargando transacción…</div></div>
@@ -378,7 +379,7 @@ async function loadEmployee(){
     emp.amount=d.amount;var balance=Number(d.currentBalance??0);var first=d.employee?.firstName||"Andrea";q("employeeHello").textContent="Hola, "+first;q("employeeBalance").textContent=money(balance);q("employeeAmount").textContent=money(emp.amount);q("employeeAfter").textContent="Saldo después de la compra: "+money(balance-emp.amount);
     q("employeeLoading").classList.add("hidden");q("employeePay").classList.remove("hidden");
     if(d.status==="approved")employeeSuccess();
-  }catch(e){q("employeeLoading").classList.add("hidden");q("employeeError").classList.remove("hidden");q("employeeError").innerHTML="<b>No pudimos abrir este cobro.</b><br/>El QR pudo expirar o el backend temporal de la demo perdió estado. Vuelve a generar el QR en la caja."}
+  }catch(e){q("employeeLoading").classList.add("hidden");q("employeeError").classList.remove("hidden");q("employeeError").innerHTML="<b>No pudimos abrir este cobro.</b><br/>El QR pudo expirar o la conexión se interrumpió. Vuelve a generar el QR en la caja."}
 }
 async function confirmEmployee(){
   var b=q("confirmBtn");b.disabled=true;b.textContent="Confirmando…";
