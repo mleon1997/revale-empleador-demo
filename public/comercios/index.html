@@ -1442,7 +1442,17 @@ document.addEventListener("keydown",function(e){
 });
 async function showHome(){hideScreens();q("homeScreen").classList.remove("hidden");q("topTitle").textContent=state.role==="admin"?merchantName()+" · Gerencia":merchantName()+" · "+locationName()+" · "+terminalName();nav("navHome");setDashboardDate();await loadTransactions();if(state.role!=="admin")setTimeout(function(){q("amountInput").focus()},80)}
 async function showTransactions(){hideScreens();q("transactionsScreen").classList.remove("hidden");q("topTitle").textContent="Movimientos · "+merchantName()+" · "+locationName();nav("navMov");await loadTransactions()}
-function showBranch(){hideScreens();q("branchScreen").classList.remove("hidden");q("topTitle").textContent=state.role==="admin"?"Sucursales · "+merchantName():"Mi sucursal · "+merchantName()+" · "+locationName();nav("navBranch")}
+async function showBranch(){
+  hideScreens();q("branchScreen").classList.remove("hidden");nav("navBranch");
+  var admin=state.role==="admin";
+  q("topTitle").textContent=admin?"Sucursales · "+merchantName():"Mi sucursal · "+merchantName()+" · "+locationName();
+  q("branchPageTitle").textContent=admin?"Sucursales.":"Mi sucursal.";
+  q("branchPageSubtitle").textContent=admin?"Rendimiento y estado operativo por local.":merchantName()+" · "+locationName();
+  q("branchManagerView").classList.toggle("hidden",!admin);
+  q("branchOperatorView").classList.toggle("hidden",admin);
+  await loadTransactions();
+  renderBranches()
+}
 function showSettlements(){if(state.role!=="admin"){toast("Acceso restringido a gerencia");return}hideScreens();q("settlementsScreen").classList.remove("hidden");q("topTitle").textContent="Liquidaciones · "+merchantName();nav("navSettlement");loadTransactions()}
 function applyRole(){
   document.body.classList.remove("role-cashier","role-supervisor","role-admin");
@@ -1631,6 +1641,56 @@ function settlementPeriodLabel(start,next){
     var b=end.toLocaleDateString("es-EC",{day:"numeric",month:"short"}).replace(".","");
     return a+" – "+b
   }catch(e){return "Semana en curso"}
+}
+function merchantLocations(){
+  var base=(state.merchant?.locations||[]).map(function(x){return{id:x.id,name:x.name,slug:x.slug,terminal:x.terminal||"Caja 01"}});
+  var seen={};base.forEach(function(x){seen[x.id]=true});
+  state.transactions.forEach(function(t){
+    if(t.locationId&&!seen[t.locationId]){base.push({id:t.locationId,name:t.locationName||"Sucursal",slug:"",terminal:"Caja 01"});seen[t.locationId]=true}
+  });
+  return base
+}
+function branchWeekStats(locationId){
+  var start=startOfSettlementWeek(),next=nextSettlementMonday(),gross=0,adjustments=0,count=0;
+  state.transactions.forEach(function(t){
+    if(locationId&&t.locationId!==locationId)return;
+    var approvedAt=t.approvedAt||((t.status==="approved"||t.status==="reversed")?t.createdAt:null);
+    if(sameSettlementWeek(approvedAt,start,next)){gross+=Number(t.amount||0);count++}
+    if(sameSettlementWeek(t.reversedAt,start,next))adjustments+=Number(t.amount||0)
+  });
+  var net=Math.round((gross-adjustments)*100)/100,avg=count?gross/count:0;
+  return{gross:gross,adjustments:adjustments,net:net,count:count,avg:avg}
+}
+function renderBranches(){
+  var admin=state.role==="admin";
+  if(admin){
+    var locations=merchantLocations(),all=branchWeekStats(null);
+    q("branchCountKpi").textContent=locations.length;
+    q("branchWeekSalesKpi").textContent=money(all.net);
+    q("branchWeekTxKpi").textContent=all.count;
+    q("branchAvgTicketKpi").textContent=money(all.avg);
+    q("branchDirectoryMeta").textContent=locations.length+" sucursal"+(locations.length===1?"":"es")+" activa"+(locations.length===1?"":"s");
+    q("branchRows").innerHTML=locations.length?locations.map(function(loc){
+      var s=branchWeekStats(loc.id);
+      return"<tr><td><div class='branch-name-cell'><div class='branch-dot'>◎</div><div><b>"+safeText(loc.name)+"</b><span>"+safeText(merchantName())+"</span></div></div></td><td><span class='status ok'>Operativa</span></td><td><b>"+money(s.net)+"</b></td><td>"+s.count+"</td><td>"+money(s.avg)+"</td><td>"+safeText(loc.terminal||"Caja 01")+"</td><td><button class='branch-view-btn' onclick='openBranchDetail(\""+safeText(loc.id)+"\")'>Ver sucursal</button></td></tr>"
+    }).join(""):"<tr><td colspan='7' class='muted'>No hay sucursales configuradas.</td></tr>";
+  }else{
+    var s=branchWeekStats(state.location?.id||"");
+    q("branchTerminalValue").textContent=terminalName();
+    q("operatorBranchSales").textContent=money(s.net);
+    q("operatorBranchTx").textContent=s.count;
+    q("operatorBranchAvg").textContent=money(s.avg)
+  }
+}
+function openBranchDetail(locationId){
+  var loc=merchantLocations().find(function(x){return x.id===locationId});if(!loc)return;
+  var s=branchWeekStats(locationId);
+  var recent=state.transactions.filter(function(t){return t.locationId===locationId}).slice(0,5);
+  var activity=recent.length?recent.map(function(t){
+    var st=displayStatus(t);
+    return"<div class='rr'><span>"+safeText(t.tx)+" · "+txDateTime(t)+"</span><b>"+money(t.amount)+" · "+st.text+"</b></div>"
+  }).join(""):"<div class='muted'>Sin movimientos recientes.</div>";
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><span class='eyebrow'>Sucursal</span><h3>"+safeText(loc.name)+"</h3><p>"+safeText(merchantName())+" · "+safeText(loc.terminal||"Caja 01")+"</p><div class='branch-detail-grid'><div class='branch-detail-stat'><span>Ventas semana</span><b>"+money(s.net)+"</b></div><div class='branch-detail-stat'><span>Transacciones</span><b>"+s.count+"</b></div><div class='branch-detail-stat'><span>Ticket prom.</span><b>"+money(s.avg)+"</b></div></div><div class='section-title' style='margin-top:20px'>Actividad reciente</div><div class='receipt'>"+activity+"</div><div class='modal-actions'><button class='btn btn-secondary' onclick='closeModal()'>Cerrar</button></div></div></div>"
 }
 function sameSettlementWeek(value,start,next){
   if(!value)return false;var d=new Date(value);return d>=start&&d<next
