@@ -1568,7 +1568,15 @@ document.addEventListener("keydown",function(e){
     if(e.key==="Escape"&&!q("chargeScreen").classList.contains("hidden")){e.preventDefault();cancelCharge()}
   }
 });
-async function showHome(){hideScreens();q("homeScreen").classList.remove("hidden");q("topTitle").textContent=state.role==="admin"?merchantName()+" · Gerencia":merchantName()+" · "+locationName()+" · "+terminalName();nav("navHome");setDashboardDate();await loadTransactions();if(state.role!=="admin")setTimeout(function(){q("amountInput").focus()},80)}
+async function showHome(){
+  hideScreens();q("homeScreen").classList.remove("hidden");
+  q("topTitle").textContent=state.role==="admin"?merchantName()+" · Gerencia":merchantName()+" · "+locationName()+" · "+terminalName();
+  nav("navHome");setDashboardDate();await loadTransactions();
+  if(state.role==="admin"){
+    await Promise.all([loadBranchRequests(),loadMerchantUsers()]);
+    renderManagerDashboard()
+  }else setTimeout(function(){q("amountInput").focus()},80)
+}
 async function showTransactions(){hideScreens();q("transactionsScreen").classList.remove("hidden");q("topTitle").textContent="Movimientos · "+merchantName()+" · "+locationName();nav("navMov");await loadTransactions()}
 async function showBranch(){
   hideScreens();q("branchScreen").classList.remove("hidden");nav("navBranch");
@@ -1677,6 +1685,7 @@ function nowTime(){return new Date().toLocaleTimeString("es-EC",{hour:"2-digit",
 function setDashboardDate(){var el=q("dashboardDate");if(!el)return;try{el.textContent=new Date().toLocaleDateString("es-EC",{weekday:"long",day:"numeric",month:"long"}).replace(/^./,function(x){return x.toUpperCase()})}catch(e){el.textContent=""}}
 
 async function startCharge(){
+  if(state.role==="admin"){toast("Los cobros se realizan desde Caja o Supervisor");return}
   var amount=Number(String(q("amountInput").value).replace(",","."));
   if(!(amount>0))return;
   state.amount=amount;state.reference=q("refInput").value.trim();q("chargeBtn").disabled=true;
@@ -1871,6 +1880,38 @@ function merchantLocations(){
     if(t.locationId&&!seen[t.locationId]){base.push({id:t.locationId,name:t.locationName||"Sucursal",slug:"",terminal:"Caja 01"});seen[t.locationId]=true}
   });
   return base
+}
+function renderManagerDashboard(){
+  if(state.role!=="admin")return;
+  var start=startOfSettlementWeek(),stats=settlementStats(start),avg=stats.count?stats.gross/stats.count:0;
+  q("todayTotal").textContent=money(stats.base);
+  q("todayCountValue").textContent=stats.count;
+  q("todayCount").textContent=stats.count+" procesada"+(stats.count===1?"":"s");
+  q("avgTicket").textContent=money(avg);
+  q("managerNextSettlement").textContent=money(stats.net);
+  q("managerNextSettlementDate").textContent=settlementDateLabel(stats.next);
+
+  var locations=merchantLocations(),total=locations.reduce(function(sum,loc){return sum+Math.max(0,branchWeekStats(loc.id).net)},0);
+  locations.sort(function(a,b){return branchWeekStats(b.id).net-branchWeekStats(a.id).net});
+  q("managerBranchRows").innerHTML=locations.length?locations.map(function(loc){
+    var s=branchWeekStats(loc.id),share=total>0?Math.max(0,s.net)/total*100:0;
+    return"<tr><td><div class='manager-branch-name'><i></i><b>"+safeText(loc.name)+"</b></div></td><td><b>"+money(s.net)+"</b></td><td>"+s.count+"</td><td>"+money(s.avg)+"</td><td><span class='share-bar'><i style='width:"+Math.min(100,share).toFixed(1)+"%'></i></span><span class='share-value'>"+share.toFixed(0)+"%</span></td></tr>"
+  }).join(""):"<tr><td colspan='5' class='muted'>No hay sucursales configuradas.</td></tr>";
+
+  var recent=(state.transactions||[]).slice(0,6);
+  q("managerRecentRows").innerHTML=recent.length?recent.map(function(t){
+    var st=displayStatus(t);
+    return"<tr><td><button class='tx-link' onclick='openTransactionDetail(\""+safeText(t.tx)+"\")'>"+safeText(t.tx)+"</button></td><td>"+safeText(t.locationName||"—")+"</td><td>"+txTime(t)+"</td><td><span class='status "+st.cls+"'>"+st.text+"</span></td><td class='amount'>"+money(t.amount)+"</td></tr>"
+  }).join(""):"<tr><td colspan='5' class='muted'>Todavía no hay movimientos.</td></tr>";
+
+  var branchPending=(state.branchRequests||[]).filter(function(r){return r.status==="pending"}).length;
+  var userPending=(state.merchantUsers||[]).filter(function(u){return u.invite_status==="pending"}).length;
+  var alerts=[];
+  alerts.push("<div class='manager-alert info'><span>◫</span><div><b>Próxima liquidación · "+settlementDateLabel(stats.next)+"</b><small>"+money(stats.net)+" netos estimados después de fee e IVA.</small></div><button onclick='showSettlements()'>Ver</button></div>");
+  if(branchPending)alerts.push("<div class='manager-alert warn'><span>"+branchPending+"</span><div><b>"+branchPending+" solicitud"+(branchPending===1?"":"es")+" de sucursal</b><small>Pendiente"+(branchPending===1?"":"s")+" de revisión por ReVale.</small></div><button onclick='showBranch()'>Ver</button></div>");
+  if(userPending)alerts.push("<div class='manager-alert warn'><span>"+userPending+"</span><div><b>"+userPending+" invitación"+(userPending===1?"":"es")+" pendiente"+(userPending===1?"":"s")+"</b><small>Usuarios creados que todavía no completan su acceso.</small></div><button onclick='showUsers()'>Ver</button></div>");
+  if(!branchPending&&!userPending)alerts.push("<div class='manager-alert neutral'><span>✓</span><div><b>Todo al día</b><small>No hay solicitudes ni accesos pendientes de atención.</small></div></div>");
+  q("managerAlerts").innerHTML=alerts.join("")
 }
 function branchWeekStats(locationId){
   var start=startOfSettlementWeek(),next=nextSettlementMonday(),gross=0,adjustments=0,count=0;
