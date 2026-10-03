@@ -1238,26 +1238,58 @@ body.role-supervisor .receipt-card{border-radius:26px}
     </div>
 
     <div id="branchScreen" class="content hidden">
-      <div class="product-head">
-        <div><div class="head-meta"><span>Configuración</span></div><h1>Mi sucursal</h1><p><span class="merchant-context-text">El Hornero · Cumbayá</span></p></div>
+      <div class="page-head">
+        <div>
+          <span class="eyebrow">Operación</span>
+          <h1 id="branchPageTitle">Sucursales.</h1>
+          <p id="branchPageSubtitle">Rendimiento y estado operativo por local.</p>
+        </div>
       </div>
 
-      <div class="branch-grid premium-branch">
-        <section class="card branch-card">
-          <div class="section-title">Punto de venta</div>
-          <div class="detail-row"><span>Comercio</span><b class="merchant-name-text">El Hornero</b></div>
-          <div class="detail-row"><span>Sucursal</span><b class="merchant-location-text">Cumbayá</b></div>
-          <div class="detail-row"><span>Terminal</span><b>Caja 01</b></div>
-          <div class="detail-row"><span>Estado</span><span class="status ok">Activo</span></div>
-        </section>
+      <div id="branchManagerView" class="hidden">
+        <div class="branch-kpi-grid">
+          <section class="card branch-kpi"><span>Sucursales</span><b id="branchCountKpi">0</b><small>activas en ReVale</small></section>
+          <section class="card branch-kpi"><span>Ventas semana</span><b id="branchWeekSalesKpi">$ 0.00</b><small>netas de reversos</small></section>
+          <section class="card branch-kpi"><span>Transacciones</span><b id="branchWeekTxKpi">0</b><small>aprobadas esta semana</small></section>
+          <section class="card branch-kpi"><span>Ticket promedio</span><b id="branchAvgTicketKpi">$ 0.00</b><small>sobre consumos aprobados</small></section>
+        </div>
 
-        <section class="card branch-card">
-          <div class="section-title">Conexión</div>
-          <div class="detail-row"><span>Canal</span><b>Web</b></div>
-          <div class="detail-row"><span>Base de datos</span><b>Conectada</b></div>
-          <div class="detail-row"><span>Autorización</span><b>Tiempo real</b></div>
-          <div class="detail-row"><span>Reversos</span><b>Habilitados</b></div>
+        <section class="card branch-directory">
+          <div class="section-head-inline">
+            <div><span class="eyebrow">Red del comercio</span><div class="section-title">Sucursales</div></div>
+            <span id="branchDirectoryMeta" class="muted microcopy">—</span>
+          </div>
+          <div class="branch-table-wrap">
+            <table class="table branch-table">
+              <thead><tr><th>Sucursal</th><th>Estado</th><th>Ventas semana</th><th>Transacciones</th><th>Ticket prom.</th><th>Terminal</th><th></th></tr></thead>
+              <tbody id="branchRows"><tr><td colspan="7" class="muted">Cargando sucursales…</td></tr></tbody>
+            </table>
+          </div>
         </section>
+      </div>
+
+      <div id="branchOperatorView" class="hidden">
+        <div class="branch-grid premium-branch">
+          <section class="card branch-card branch-identity-card">
+            <div class="section-title">Punto de venta</div>
+            <div class="branch-location-hero">
+              <div class="branch-location-icon">◎</div>
+              <div><span class="merchant-name-text">El Hornero</span><b class="merchant-location-text">Cumbayá</b></div>
+              <span class="status ok">Operativa</span>
+            </div>
+            <div class="detail-row"><span>Terminal</span><b id="branchTerminalValue">Caja 01</b></div>
+            <div class="detail-row"><span>Canal</span><b>ReVale Web</b></div>
+            <div class="detail-row"><span>Autorización</span><b>Tiempo real</b></div>
+          </section>
+
+          <section class="card branch-card">
+            <div class="section-title">Esta semana</div>
+            <div class="branch-operator-metric"><span>Ventas netas</span><b id="operatorBranchSales">$ 0.00</b></div>
+            <div class="branch-operator-metric"><span>Transacciones aprobadas</span><b id="operatorBranchTx">0</b></div>
+            <div class="branch-operator-metric"><span>Ticket promedio</span><b id="operatorBranchAvg">$ 0.00</b></div>
+            <div class="branch-operator-foot"><i></i><span>Conectada a ReVale</span></div>
+          </section>
+        </div>
       </div>
     </div>
   </main>
