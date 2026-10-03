@@ -83,7 +83,7 @@ button,input{font:inherit}.hidden{display:none!important}button{cursor:pointer}
 .top-title{font-size:11px;font-weight:850}.top-actions{display:flex;align-items:center;gap:10px}
 .user-chip{display:flex;align-items:center;gap:9px;padding:7px 10px;border:1px solid var(--line);border-radius:12px;background:#fff}
 .avatar{width:28px;height:28px;border-radius:9px;background:#e9f3ed;color:var(--green);display:grid;place-items:center;font-size:9px;font-weight:900}
-.user-chip b{font-size:9px}.user-chip span{display:block;font-size:7px;color:#85918b;margin-top:2px}
+.user-chip b{font-size:9px}.user-chip span{display:block;font-size:7px;color:#85918b;margin-top:2px}.logout-btn{border:1px solid var(--line);background:#fff;color:#5f6d66;border-radius:12px;padding:10px 12px;font-size:8px;font-weight:850}.logout-btn:hover{background:#f4f7f5;color:var(--ink)}
 .content{padding:31px;max-width:1340px;margin:0 auto}
 .page-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:24px}
 .page-head h1{font-size:36px;letter-spacing:-.052em;margin:7px 0 7px}.page-head p{font-size:11px;color:#74817b;line-height:1.5;margin:0}
@@ -963,7 +963,7 @@ body.role-supervisor .receipt-card{border-radius:26px}
       <div id="topTitle" class="top-title">Inicio · El Hornero Cumbayá</div>
       <div class="top-actions">
         <span class="badge badge-live">Conectado</span>
-        <div class="user-chip"><div id="userAvatar" class="avatar">G</div><div><b id="userName">Gerencia</b><span id="userRoleLabel">Administrador</span></div></div>
+        <div class="user-chip"><div id="userAvatar" class="avatar">G</div><div><b id="userName">Gerencia</b><span id="userRoleLabel">Administrador</span></div></div><button class="logout-btn" type="button" onclick="logoutDemo()">Cerrar sesión</button>
       </div>
     </header>
 
@@ -1226,7 +1226,7 @@ function applyMerchantConfig(){
 }
 function hideScreens(){["homeScreen","chargeScreen","approvedScreen","transactionsScreen","settlementsScreen","branchScreen"].forEach(function(x){q(x).classList.add("hidden")})}
 function nav(which){["navHome","navMov","navSettlement","navBranch"].forEach(function(x){if(q(x))q(x).classList.remove("active")});if(which&&q(which))q(which).classList.add("active")}
-async function enterDemo(){q("login").classList.add("hidden");q("merchantApp").classList.remove("hidden");applyRole();await showHome()}
+async function enterDemo(){q("login").classList.add("hidden");q("merchantApp").classList.remove("hidden");applyRole();await showHome()}function logoutDemo(){clearInterval(state.poll);clearInterval(state.timer);q("merchantApp").classList.add("hidden");q("login").classList.remove("hidden");q("loginEmail").value="";q("loginPassword").value="";q("loginButton").disabled=false;q("loginButton").textContent="Ingresar";setTimeout(function(){q("loginEmail").focus()},60)}
 function togglePassword(){
   var input=q("loginPassword"),b=q("passwordToggle");
   var showing=input.type==="text";
