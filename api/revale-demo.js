@@ -568,12 +568,55 @@ export default async function handler(req, res) {
       const reference = String(req.body?.reference || "").slice(0, 80);
       const merchantId = String(req.body?.merchant_id || "merchant_el_hornero");
       const locationId = String(req.body?.location_id || "location_el_hornero_cumbaya");
+      const idempotencyKey = String(
+        req.headers?.["x-idempotency-key"] || req.body?.idempotency_key || ""
+      ).trim().slice(0, 180);
 
       if (!Number.isFinite(amount) || amount <= 0 || amount > 500) {
         return json(res, 400, {
           message: "RVL-010",
           error: "Monto inválido"
         });
+      }
+
+      const scope = "charge:create:" + merchantId;
+      if (idempotencyKey) {
+        const [existing] = await sql`
+          SELECT response_code, response_body, locked_until
+          FROM revale.idempotency_keys
+          WHERE scope=${scope} AND idempotency_key=${idempotencyKey}
+          LIMIT 1
+        `;
+        if (existing?.response_body) {
+          return json(res, Number(existing.response_code || 200), existing.response_body);
+        }
+
+        const [lock] = await sql`
+          INSERT INTO revale.idempotency_keys (
+            scope, idempotency_key, locked_until, expires_at
+          )
+          VALUES (
+            ${scope}, ${idempotencyKey}, now() + interval '30 seconds', now() + interval '24 hours'
+          )
+          ON CONFLICT (scope, idempotency_key) DO NOTHING
+          RETURNING id
+        `;
+
+        if (!lock) {
+          const [retry] = await sql`
+            SELECT response_code, response_body
+            FROM revale.idempotency_keys
+            WHERE scope=${scope} AND idempotency_key=${idempotencyKey}
+            LIMIT 1
+          `;
+          if (retry?.response_body) {
+            return json(res, Number(retry.response_code || 200), retry.response_body);
+          }
+          return json(res, 409, {
+            message: "RVL-016",
+            error: "Este cobro ya se está procesando. Intenta nuevamente en unos segundos."
+          });
+        }
       }
 
       const row = await createCharge(
@@ -583,6 +626,17 @@ export default async function handler(req, res) {
         merchantId,
         locationId
       );
+
+      if (idempotencyKey) {
+        await sql`
+          UPDATE revale.idempotency_keys
+          SET
+            response_code=200,
+            response_body=${JSON.stringify(row)}::jsonb,
+            locked_until=NULL
+          WHERE scope=${scope} AND idempotency_key=${idempotencyKey}
+        `;
+      }
 
       return json(res, 200, row);
     }
