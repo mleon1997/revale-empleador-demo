@@ -105,6 +105,103 @@ export default async function handler(req, res) {
       return json(res, 200, { ok: true, request: row });
     }
 
+    if (req.method === "GET" && action === "merchant-users") {
+      const merchantId = String(req.query?.merchant_id || "merchant_el_hornero");
+      const rows = await sql`
+        SELECT
+          mu.id,
+          mu.merchant_id,
+          mu.location_id,
+          mu.display_name,
+          mu.email,
+          mu.role,
+          mu.active,
+          mu.invite_status,
+          mu.created_at,
+          mu.updated_at,
+          mu.last_login_at,
+          ml.name AS location_name
+        FROM revale.merchant_users mu
+        LEFT JOIN revale.merchant_locations ml ON ml.id = mu.location_id
+        WHERE mu.merchant_id = ${merchantId}
+        ORDER BY
+          CASE mu.role WHEN 'admin' THEN 1 WHEN 'supervisor' THEN 2 ELSE 3 END,
+          mu.display_name
+      `;
+      return json(res, 200, { ok: true, users: rows });
+    }
+
+    if (req.method === "POST" && action === "invite-user") {
+      const merchantId = String(req.body?.merchant_id || "merchant_el_hornero");
+      const displayName = String(req.body?.display_name || "").trim().slice(0, 120);
+      const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 180);
+      const role = String(req.body?.role || "cashier");
+      const locationId = req.body?.location_id ? String(req.body.location_id) : null;
+      if (!displayName) return json(res, 400, { ok: false, error: "Ingresa el nombre del usuario" });
+      if (!email || !email.includes("@")) return json(res, 400, { ok: false, error: "Ingresa un correo válido" });
+      if (!["cashier","supervisor","admin"].includes(role)) return json(res, 400, { ok: false, error: "Rol inválido" });
+      if (role !== "admin" && !locationId) return json(res, 400, { ok: false, error: "Selecciona una sucursal" });
+
+      const userId = "merchant_user_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8);
+      try {
+        const [row] = await sql`
+          INSERT INTO revale.merchant_users (
+            id, merchant_id, location_id, display_name, email, role, active, invite_status, updated_at
+          )
+          VALUES (
+            ${userId}, ${merchantId}, ${role === "admin" ? null : locationId}, ${displayName}, ${email}, ${role}, true, 'pending', now()
+          )
+          RETURNING id, merchant_id, location_id, display_name, email, role, active, invite_status, created_at, updated_at
+        `;
+        return json(res, 200, { ok: true, user: row });
+      } catch (error) {
+        if (String(error?.message || "").toLowerCase().includes("merchant_users_email_unique")) {
+          return json(res, 409, { ok: false, error: "Ese correo ya tiene acceso a ReVale" });
+        }
+        throw error;
+      }
+    }
+
+    if (req.method === "POST" && action === "update-user") {
+      const merchantId = String(req.body?.merchant_id || "merchant_el_hornero");
+      const userId = String(req.body?.user_id || "");
+      const active = typeof req.body?.active === "boolean" ? req.body.active : null;
+      const role = req.body?.role ? String(req.body.role) : null;
+      const locationId = Object.prototype.hasOwnProperty.call(req.body || {}, "location_id")
+        ? (req.body.location_id ? String(req.body.location_id) : null)
+        : undefined;
+      if (!userId) return json(res, 400, { ok: false, error: "Usuario inválido" });
+      if (role && !["cashier","supervisor","admin"].includes(role)) return json(res, 400, { ok: false, error: "Rol inválido" });
+
+      const [existing] = await sql`
+        SELECT id, role, location_id, active
+        FROM revale.merchant_users
+        WHERE id = ${userId} AND merchant_id = ${merchantId}
+        LIMIT 1
+      `;
+      if (!existing) return json(res, 404, { ok: false, error: "Usuario no encontrado" });
+
+      const nextRole = role || existing.role;
+      const nextLocation = nextRole === "admin"
+        ? null
+        : (locationId === undefined ? existing.location_id : locationId);
+      if (nextRole !== "admin" && !nextLocation) {
+        return json(res, 400, { ok: false, error: "Caja y Supervisor requieren una sucursal" });
+      }
+
+      const [row] = await sql`
+        UPDATE revale.merchant_users
+        SET
+          role = ${nextRole},
+          location_id = ${nextLocation},
+          active = COALESCE(${active}, active),
+          updated_at = now()
+        WHERE id = ${userId} AND merchant_id = ${merchantId}
+        RETURNING id, merchant_id, location_id, display_name, email, role, active, invite_status, created_at, updated_at
+      `;
+      return json(res, 200, { ok: true, user: row });
+    }
+
     if (req.method === "GET" && action === "health") {
       const [db] = await sql`
         SELECT current_database() AS database_name, now() AS server_time
