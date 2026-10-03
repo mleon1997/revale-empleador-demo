@@ -202,6 +202,66 @@ export default async function handler(req, res) {
       return json(res, 200, { ok: true, user: row });
     }
 
+    if (req.method === "GET" && action === "bank-account") {
+      const merchantId = String(req.query?.merchant_id || "merchant_el_hornero");
+      const [verified] = await sql`
+        SELECT id, merchant_id, bank_name, account_type, account_number, holder_name, holder_identification, status, requested_by, verified_by, verified_at, created_at, updated_at
+        FROM revale.merchant_bank_accounts
+        WHERE merchant_id = ${merchantId} AND status = 'verified'
+        ORDER BY verified_at DESC NULLS LAST, created_at DESC
+        LIMIT 1
+      `;
+      const [request] = await sql`
+        SELECT id, merchant_id, bank_name, account_type, account_number, holder_name, holder_identification, requested_by, status, reviewed_by, reviewed_at, rejection_reason, created_at, updated_at
+        FROM revale.merchant_bank_account_requests
+        WHERE merchant_id = ${merchantId}
+        ORDER BY created_at DESC
+        LIMIT 1
+      `;
+      const mask = (value) => {
+        const s = String(value || "");
+        if (!s) return null;
+        return "•••• " + s.slice(-4);
+      };
+      return json(res, 200, {
+        ok: true,
+        verified: verified ? { ...verified, account_number_masked: mask(verified.account_number), account_number: undefined } : null,
+        request: request ? { ...request, account_number_masked: mask(request.account_number), account_number: undefined } : null
+      });
+    }
+
+    if (req.method === "POST" && action === "request-bank-account") {
+      const merchantId = String(req.body?.merchant_id || "merchant_el_hornero");
+      const bankName = String(req.body?.bank_name || "").trim().slice(0, 120);
+      const accountType = String(req.body?.account_type || "").trim().slice(0, 60);
+      const accountNumber = String(req.body?.account_number || "").replace(/\s+/g, "").slice(0, 60);
+      const holderName = String(req.body?.holder_name || "").trim().slice(0, 160);
+      const holderIdentification = String(req.body?.holder_identification || "").replace(/\s+/g, "").slice(0, 40);
+      const requestedBy = String(req.body?.requested_by || "Gerencia").trim().slice(0, 120);
+      if (!bankName || !accountType || !accountNumber || !holderName || !holderIdentification) {
+        return json(res, 400, { ok: false, error: "Completa todos los datos bancarios" });
+      }
+
+      const [pending] = await sql`
+        SELECT id
+        FROM revale.merchant_bank_account_requests
+        WHERE merchant_id = ${merchantId} AND status='pending'
+        LIMIT 1
+      `;
+      if (pending) return json(res, 409, { ok: false, error: "Ya existe una cuenta pendiente de verificación" });
+
+      const [row] = await sql`
+        INSERT INTO revale.merchant_bank_account_requests (
+          merchant_id, bank_name, account_type, account_number, holder_name, holder_identification, requested_by
+        )
+        VALUES (
+          ${merchantId}, ${bankName}, ${accountType}, ${accountNumber}, ${holderName}, ${holderIdentification}, ${requestedBy}
+        )
+        RETURNING id, merchant_id, bank_name, account_type, holder_name, holder_identification, requested_by, status, created_at
+      `;
+      return json(res, 200, { ok: true, request: row });
+    }
+
     if (req.method === "GET" && action === "health") {
       const [db] = await sql`
         SELECT current_database() AS database_name, now() AS server_time
