@@ -1180,7 +1180,7 @@ document.addEventListener("keydown",function(e){
     if(e.key==="Escape"&&!q("chargeScreen").classList.contains("hidden")){e.preventDefault();cancelCharge()}
   }
 });
-async function showHome(){hideScreens();q("homeScreen").classList.remove("hidden");q("topTitle").textContent=state.role==="admin"?"El Hornero · Gerencia":"<span class="merchant-context-text">El Hornero · Cumbayá</span> · Caja 01";nav("navHome");setDashboardDate();await loadTransactions();if(state.role!=="admin")setTimeout(function(){q("amountInput").focus()},80)}
+async function showHome(){hideScreens();q("homeScreen").classList.remove("hidden");q("topTitle").textContent=state.role==="admin"?merchantName()+" · Gerencia":merchantName()+" · "+locationName()+" · "+terminalName();nav("navHome");setDashboardDate();await loadTransactions();if(state.role!=="admin")setTimeout(function(){q("amountInput").focus()},80)}
 async function showTransactions(){hideScreens();q("transactionsScreen").classList.remove("hidden");q("topTitle").textContent="Movimientos · "+merchantName()+" · "+locationName();nav("navMov");await loadTransactions()}
 function showBranch(){hideScreens();q("branchScreen").classList.remove("hidden");q("topTitle").textContent=state.role==="admin"?"Sucursales · "+merchantName():"Mi sucursal · "+merchantName()+" · "+locationName();nav("navBranch")}
 function showSettlements(){if(state.role!=="admin"){toast("Acceso restringido a gerencia");return}hideScreens();q("settlementsScreen").classList.remove("hidden");q("topTitle").textContent="Liquidaciones · "+merchantName();nav("navSettlement");loadTransactions()}
@@ -1327,7 +1327,7 @@ async function confirmEmployee(){
 }
 function employeeSuccess(){
   var remaining=emp.balanceAfter==null?emp.currentBalance:emp.balanceAfter;
-  q("phone").innerHTML="<div class='employee-success'><div class='brand-logo logo-light success-brand' aria-label='ReVale'></div><div class='check'>✓</div><h2>Pago aprobado</h2><p>Tu consumo fue confirmado en "+merchantName()+".</p><div class='balance-success'><span>Saldo disponible</span><b>"+money(remaining)+"</b></div><div class='receipt'><div class='rr'><span>Comercio</span><b class="merchant-name-text">El Hornero</b></div><div class='rr'><span>Total</span><b>"+money(emp.amount)+"</b></div><div class='rr'><span>Transacción</span><b>"+emp.tx+"</b></div><div class='rr'><span>Estado</span><b>Aprobado</b></div></div></div>"
+  q("phone").innerHTML="<div class='employee-success'><div class='brand-logo logo-light success-brand' aria-label='ReVale'></div><div class='check'>✓</div><h2>Pago aprobado</h2><p>Tu consumo fue confirmado en "+merchantName()+".</p><div class='balance-success'><span>Saldo disponible</span><b>"+money(remaining)+"</b></div><div class='receipt'><div class='rr'><span>Comercio</span><b>"+merchantName()+"</b></div><div class='rr'><span>Total</span><b>"+money(emp.amount)+"</b></div><div class='rr'><span>Transacción</span><b>"+emp.tx+"</b></div><div class='rr'><span>Estado</span><b>Aprobado</b></div></div></div>"
 }
 (function init(){var p=new URLSearchParams(location.search);if(p.get("employee")==="1")loadEmployee();else loadMerchantConfig()})();
 </script>
