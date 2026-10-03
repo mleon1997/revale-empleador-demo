@@ -811,6 +811,52 @@ body.role-supervisor .receipt-card{border-radius:26px}
 .weekly-policy-steps small{display:block;font-size:8px;color:#7b8781;line-height:1.45}
 @media(max-width:900px){.weekly-policy-steps{grid-template-columns:1fr}}
 
+
+/* MERCHANT RECONCILIATION */
+.page-actions{display:flex;align-items:center;gap:10px}
+.movement-toolbar{display:grid;grid-template-columns:minmax(240px,1.5fr) .8fr .8fr .9fr auto;gap:10px;align-items:center;padding:14px;margin-bottom:14px}
+.movement-search{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;border-radius:13px;padding:0 12px;height:42px}
+.movement-search span{font-size:15px;color:#8a9690}
+.movement-search input{border:0;outline:0;width:100%;font-size:9px;color:var(--ink);background:transparent}
+.movement-toolbar select{height:42px;border:1px solid var(--line);border-radius:13px;background:#fff;padding:0 11px;font-size:8px;font-weight:750;color:#55625c;outline:0}
+.movement-summary{padding:0 10px;min-width:115px;text-align:right}
+.movement-summary span{display:block;font-size:7px;text-transform:uppercase;letter-spacing:.10em;color:#95a099;font-weight:850}
+.movement-summary b{display:block;font-size:11px;color:var(--navy);margin-top:4px}
+.movements-table-card{overflow:auto}
+.tx-link{border:0;background:transparent;padding:0;color:var(--navy);font-size:9px;font-weight:900;text-decoration:underline;text-decoration-color:#dce4df;text-underline-offset:3px}
+.tx-actions{display:flex;justify-content:flex-end;gap:6px}
+.tx-view-btn{padding:6px 8px!important;font-size:8px!important}
+.admin-only-filter.hidden{display:none!important}
+
+.finance-lower-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(250px,.65fr);gap:18px;margin-top:18px}
+.settlement-history-card{padding:0;overflow:hidden}
+.section-head-inline{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:22px 24px 16px}
+.microcopy{font-size:8px}
+.settlement-history-wrap{overflow:auto}
+.settlement-history-table td,.settlement-history-table th{white-space:nowrap}
+.history-detail-btn{border:0;background:transparent;color:var(--green);font-size:8px;font-weight:900;padding:4px}
+.bank-card{padding:22px 24px;position:relative;overflow:hidden}
+.bank-card:after{content:"";position:absolute;width:130px;height:130px;border-radius:50%;background:#eef8f1;right:-50px;top:-50px;z-index:0}
+.bank-card>*{position:relative;z-index:1}
+.bank-card-head{display:flex;align-items:center;justify-content:space-between}
+.bank-icon{width:44px;height:44px;border-radius:14px;background:#eef8f1;color:var(--green);display:grid;place-items:center;font-size:20px;margin-top:24px}
+.bank-card h3{font-size:16px;letter-spacing:-.03em;margin:14px 0 6px;color:var(--navy)}
+.bank-card p{font-size:9px;color:#75817b;line-height:1.5;margin:0}
+.bank-empty-state{display:flex;align-items:center;justify-content:space-between;border-top:1px solid #edf1ee;border-bottom:1px solid #edf1ee;padding:14px 0;margin-top:18px;font-size:9px}
+.bank-empty-state span{color:#7e8a84}.bank-empty-state b{color:#8b6b24}
+.bank-action{width:100%;margin-top:14px}
+@media(max-width:1100px){
+  .movement-toolbar{grid-template-columns:1fr 1fr 1fr}
+  .movement-search{grid-column:1/-1}
+  .movement-summary{text-align:left}
+  .finance-lower-grid{grid-template-columns:1fr}
+}
+@media(max-width:720px){
+  .page-actions{width:100%;justify-content:flex-end}
+  .movement-toolbar{grid-template-columns:1fr}
+  .movement-search{grid-column:auto}
+}
+
 </style>
 </head>
 <body>
