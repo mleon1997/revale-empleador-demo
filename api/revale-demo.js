@@ -78,6 +78,33 @@ export default async function handler(req, res) {
       return json(res, 200, { ok: true, merchant: config });
     }
 
+    if (req.method === "GET" && action === "branch-requests") {
+      const merchantId = String(req.query?.merchant_id || "merchant_el_hornero");
+      const rows = await sql`
+        SELECT id, merchant_id, requested_by, name, address, requested_terminals, status, created_at, reviewed_at
+        FROM revale.merchant_location_requests
+        WHERE merchant_id = ${merchantId}
+        ORDER BY created_at DESC
+        LIMIT 50
+      `;
+      return json(res, 200, { ok: true, requests: rows });
+    }
+
+    if (req.method === "POST" && action === "request-branch") {
+      const merchantId = String(req.body?.merchant_id || "merchant_el_hornero");
+      const requestedBy = String(req.body?.requested_by || "Gerencia").slice(0, 120);
+      const name = String(req.body?.name || "").trim().slice(0, 120);
+      const address = String(req.body?.address || "").trim().slice(0, 240);
+      const requestedTerminals = Math.max(1, Math.min(Number(req.body?.requested_terminals || 1), 50));
+      if (!name) return json(res, 400, { ok: false, error: "Ingresa el nombre de la sucursal" });
+      const [row] = await sql`
+        INSERT INTO revale.merchant_location_requests (merchant_id, requested_by, name, address, requested_terminals)
+        VALUES (${merchantId}, ${requestedBy}, ${name}, ${address || null}, ${requestedTerminals})
+        RETURNING id, merchant_id, requested_by, name, address, requested_terminals, status, created_at
+      `;
+      return json(res, 200, { ok: true, request: row });
+    }
+
     if (req.method === "GET" && action === "health") {
       const [db] = await sql`
         SELECT current_database() AS database_name, now() AS server_time
