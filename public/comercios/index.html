@@ -891,6 +891,21 @@ body.role-supervisor .receipt-card{border-radius:26px}
 
 
 .form-stack{display:grid;gap:12px;margin-top:18px}.form-stack label{font-size:8px;font-weight:850;color:#59665f;display:grid;gap:6px}.modal-input{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:10px;outline:0;background:#fff;color:var(--ink)}.modal-input:focus{border-color:#b8d8c4;box-shadow:0 0 0 3px rgba(81,200,120,.10)}.branch-pending-row td{background:#fbfaf4}.branch-pending-row .branch-dot{background:#fff4d8;color:#946b16}
+
+/* USERS & ROLES */
+.user-role-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:16px}
+.user-role-kpi{padding:20px 22px}.user-role-kpi span{display:block;font-size:7px;text-transform:uppercase;letter-spacing:.11em;color:#8c9892;font-weight:900}
+.user-role-kpi b{display:block;font-size:25px;letter-spacing:-.045em;color:var(--navy);margin-top:10px}.user-role-kpi small{display:block;font-size:8px;color:#89948f;margin-top:5px}
+.users-directory{padding:0;overflow:hidden}.users-table-wrap{overflow:auto}.users-table td,.users-table th{white-space:nowrap}
+.user-cell{display:flex;align-items:center;gap:10px}.user-avatar-small{width:32px;height:32px;border-radius:10px;background:#eef8f1;color:var(--green);display:grid;place-items:center;font-size:9px;font-weight:900}
+.user-cell b{display:block;font-size:9px;color:var(--ink)}.user-cell span{display:block;font-size:7px;color:#89958f;margin-top:2px}
+.role-pill{display:inline-flex;border-radius:999px;padding:6px 9px;font-size:7px;font-weight:900}
+.role-pill.cashier{background:#eef8f1;color:#2f7950}.role-pill.supervisor{background:#eef5fb;color:#366b8e}.role-pill.admin{background:#f5effb;color:#74528c}
+.user-actions{display:flex;justify-content:flex-end;gap:6px}.user-action-btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:7px 9px;font-size:7px;font-weight:850;color:#5d6963}.user-action-btn:hover{background:#f5f7f5}
+.role-explainer-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px}.role-explainer{padding:20px}.role-explainer b{display:block;font-size:11px;color:var(--navy);margin:9px 0 5px}.role-explainer p{font-size:8px;color:#7d8983;line-height:1.5;margin:0}
+.role-dot{display:block;width:10px;height:10px;border-radius:50%}.role-dot.cashier{background:#51c878}.role-dot.supervisor{background:#6ca8cf}.role-dot.admin{background:#a382be}
+@media(max-width:950px){.user-role-kpis{grid-template-columns:repeat(2,1fr)}}@media(max-width:680px){.user-role-kpis,.role-explainer-grid{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
@@ -1034,6 +1049,7 @@ body.role-supervisor .receipt-card{border-radius:26px}
     <div id="financeNavTitle" class="nav-title hidden">Finanzas</div>
     <button id="navSettlement" class="nav-item hidden" onclick="showSettlements()"><span class="nav-icon">◫</span><span>Liquidaciones</span></button>
     <button id="navBranch" class="nav-item" onclick="showBranch()"><span class="nav-icon">◎</span><span id="branchNavLabel">Mi sucursal</span></button>
+    <button id="navUsers" class="nav-item hidden" onclick="showUsers()"><span class="nav-icon">◉</span><span>Usuarios y roles</span></button>
     <div class="side-spacer"></div>
     <div class="side-status"><div class="live"><i></i> ReVale operativo</div><p>Canal web · Nivel 1<br/>Sin integración POS.</p></div>
   </aside>
@@ -1327,6 +1343,42 @@ body.role-supervisor .receipt-card{border-radius:26px}
         </div>
       </div>
     </div>
+  <div id="usersScreen" class="content hidden">
+      <div class="page-head">
+        <div>
+          <span class="eyebrow">Accesos</span>
+          <h1>Usuarios y roles.</h1>
+          <p>Administra quién puede cobrar, supervisar y ver la información financiera del comercio.</p>
+        </div>
+        <button class="btn btn-primary" type="button" onclick="openInviteUser()">+ Invitar usuario</button>
+      </div>
+
+      <div class="user-role-kpis">
+        <section class="card user-role-kpi"><span>Usuarios activos</span><b id="usersActiveKpi">0</b><small>con acceso al comercio</small></section>
+        <section class="card user-role-kpi"><span>Cajas</span><b id="usersCashierKpi">0</b><small>acceso operativo</small></section>
+        <section class="card user-role-kpi"><span>Supervisores</span><b id="usersSupervisorKpi">0</b><small>pueden reversar</small></section>
+        <section class="card user-role-kpi"><span>Gerencia</span><b id="usersAdminKpi">0</b><small>acceso completo</small></section>
+      </div>
+
+      <section class="card users-directory">
+        <div class="section-head-inline">
+          <div><span class="eyebrow">Equipo</span><div class="section-title">Accesos del comercio</div></div>
+          <span id="usersDirectoryMeta" class="muted microcopy">—</span>
+        </div>
+        <div class="users-table-wrap">
+          <table class="table users-table">
+            <thead><tr><th>Usuario</th><th>Rol</th><th>Sucursal</th><th>Estado</th><th>Invitación</th><th></th></tr></thead>
+            <tbody id="usersRows"><tr><td colspan="6" class="muted">Cargando usuarios…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="role-explainer-grid">
+        <section class="card role-explainer"><span class="role-dot cashier"></span><b>Caja</b><p>Cobra con ReVale y consulta los movimientos de su sucursal.</p></section>
+        <section class="card role-explainer"><span class="role-dot supervisor"></span><b>Supervisor</b><p>Incluye cobros, movimientos y autorización de reversos.</p></section>
+        <section class="card role-explainer"><span class="role-dot admin"></span><b>Gerencia</b><p>Ve todas las sucursales, liquidaciones y administra accesos.</p></section>
+      </div>
+    </div>
   </main>
 </section>
 
@@ -1390,8 +1442,8 @@ function applyMerchantConfig(){
   if(q("employeeMerchantName"))q("employeeMerchantName").textContent=name;
   if(q("employeeMerchantLocation"))q("employeeMerchantLocation").textContent=loc+" · "+terminalName();
 }
-function hideScreens(){["homeScreen","chargeScreen","approvedScreen","transactionsScreen","settlementsScreen","branchScreen"].forEach(function(x){q(x).classList.add("hidden")})}
-function nav(which){["navHome","navMov","navSettlement","navBranch"].forEach(function(x){if(q(x))q(x).classList.remove("active")});if(which&&q(which))q(which).classList.add("active")}
+function hideScreens(){["homeScreen","chargeScreen","approvedScreen","transactionsScreen","settlementsScreen","branchScreen","usersScreen"].forEach(function(x){q(x).classList.add("hidden")})}
+function nav(which){["navHome","navMov","navSettlement","navBranch","navUsers"].forEach(function(x){if(q(x))q(x).classList.remove("active")});if(which&&q(which))q(which).classList.add("active")}
 async function enterDemo(){q("login").classList.add("hidden");q("merchantApp").classList.remove("hidden");applyRole();await showHome()}function logoutDemo(){clearInterval(state.poll);clearInterval(state.timer);q("merchantApp").classList.add("hidden");q("login").classList.remove("hidden");q("loginEmail").value="";q("loginPassword").value="";q("loginButton").disabled=false;q("loginButton").textContent="Ingresar";setTimeout(function(){q("loginEmail").focus()},60)}
 function togglePassword(){
   var input=q("loginPassword"),b=q("passwordToggle");
@@ -1466,7 +1518,7 @@ function applyRole(){
   q("userAvatar").textContent=state.role==="cashier"?"01":state.role==="supervisor"?"S":"G";
   q("userRoleLabel").textContent=state.role==="cashier"?"Caja · "+locationName():state.role==="supervisor"?"Supervisor · "+locationName():"Gerencia · Todas las sucursales";
   q("branchNavLabel").textContent=state.role==="admin"?"Sucursales":"Mi sucursal";
-  if(state.role==="admin"){q("navSettlement").classList.remove("hidden");q("financeNavTitle").classList.remove("hidden")}else{q("navSettlement").classList.add("hidden");q("financeNavTitle").classList.add("hidden")};
+  if(state.role==="admin"){q("navSettlement").classList.remove("hidden");q("financeNavTitle").classList.remove("hidden");q("navUsers").classList.remove("hidden")}else{q("navSettlement").classList.add("hidden");q("financeNavTitle").classList.add("hidden");q("navUsers").classList.add("hidden")};
   if(q("txLocationFilter"))q("txLocationFilter").classList.toggle("hidden",state.role!=="admin");
   if(q("exportTxBtn"))q("exportTxBtn").classList.toggle("hidden",state.role==="cashier");
   var terminalMode=state.role==="cashier"||state.role==="supervisor";
