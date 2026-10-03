@@ -1,15 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "alias": ["comercios.revale.app"],
   "rewrites": [
     {
       "source": "/",
-      "has": [
-        {
-          "type": "host",
-          "value": "comercios.revale.app"
-        }
-      ],
       "destination": "/comercios/"
     }
   ]
