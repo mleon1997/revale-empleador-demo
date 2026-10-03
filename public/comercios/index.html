@@ -889,6 +889,8 @@ body.role-supervisor .receipt-card{border-radius:26px}
 @media(max-width:1050px){.branch-kpi-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:650px){.branch-kpi-grid{grid-template-columns:1fr}.branch-detail-grid{grid-template-columns:1fr}}
 
+
+.form-stack{display:grid;gap:12px;margin-top:18px}.form-stack label{font-size:8px;font-weight:850;color:#59665f;display:grid;gap:6px}.modal-input{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:10px;outline:0;background:#fff;color:var(--ink)}.modal-input:focus{border-color:#b8d8c4;box-shadow:0 0 0 3px rgba(81,200,120,.10)}.branch-pending-row td{background:#fbfaf4}.branch-pending-row .branch-dot{background:#fff4d8;color:#946b16}
 </style>
 </head>
 <body>
@@ -1276,6 +1278,7 @@ body.role-supervisor .receipt-card{border-radius:26px}
           <h1 id="branchPageTitle">Sucursales.</h1>
           <p id="branchPageSubtitle">Rendimiento y estado operativo por local.</p>
         </div>
+        <button id="requestBranchBtn" class="btn btn-primary hidden" type="button" onclick="openBranchRequest()">+ Solicitar nueva sucursal</button>
       </div>
 
       <div id="branchManagerView" class="hidden">
@@ -1450,7 +1453,9 @@ async function showBranch(){
   q("branchPageSubtitle").textContent=admin?"Rendimiento y estado operativo por local.":merchantName()+" · "+locationName();
   q("branchManagerView").classList.toggle("hidden",!admin);
   q("branchOperatorView").classList.toggle("hidden",admin);
+  q("requestBranchBtn").classList.toggle("hidden",!admin);
   await loadTransactions();
+  if(admin)await loadBranchRequests();
   renderBranches()
 }
 function showSettlements(){if(state.role!=="admin"){toast("Acceso restringido a gerencia");return}hideScreens();q("settlementsScreen").classList.remove("hidden");q("topTitle").textContent="Liquidaciones · "+merchantName();nav("navSettlement");loadTransactions()}
@@ -1642,6 +1647,26 @@ function settlementPeriodLabel(start,next){
     return a+" – "+b
   }catch(e){return "Semana en curso"}
 }
+async function loadBranchRequests(){
+  try{
+    var r=await fetch("/api/revale-demo?action=branch-requests&merchant_id="+encodeURIComponent(state.merchant?.id||"merchant_el_hornero"),{cache:"no-store"});
+    var d=await r.json();state.branchRequests=(r.ok&&d.requests)?d.requests:[]
+  }catch(e){state.branchRequests=[]}
+}
+function openBranchRequest(){
+  if(state.role!=="admin"){toast("Acceso restringido a gerencia");return}
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><span class='eyebrow'>Nueva sucursal</span><h3>Solicitar activación</h3><p>ReVale revisará la información y habilitará el nuevo punto operativo.</p><div class='form-stack'><label>Nombre de la sucursal<input id='branchRequestName' class='modal-input' placeholder='Ej. Plaza Foch'/></label><label>Dirección<input id='branchRequestAddress' class='modal-input' placeholder='Dirección o referencia'/></label><label>Número de cajas<input id='branchRequestTerminals' class='modal-input' type='number' min='1' max='50' value='1'/></label></div><div class='modal-actions'><button class='btn btn-secondary' onclick='closeModal()'>Cancelar</button><button id='branchRequestSubmit' class='btn btn-primary' onclick='submitBranchRequest()'>Enviar solicitud</button></div></div></div>"
+}
+async function submitBranchRequest(){
+  var name=(q("branchRequestName")?.value||"").trim(),address=(q("branchRequestAddress")?.value||"").trim(),terminals=Number(q("branchRequestTerminals")?.value||1),b=q("branchRequestSubmit");
+  if(!name){toast("Ingresa el nombre de la sucursal");return}
+  if(b){b.disabled=true;b.textContent="Enviando…"}
+  try{
+    var r=await fetch("/api/revale-demo?action=request-branch",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({merchant_id:state.merchant?.id,requested_by:state.userName,name:name,address:address,requested_terminals:terminals})});
+    var d=await r.json();if(!r.ok)throw new Error(d.error||"No se pudo enviar la solicitud");
+    closeModal();await loadBranchRequests();renderBranches();toast("Solicitud enviada a ReVale")
+  }catch(e){if(b){b.disabled=false;b.textContent="Enviar solicitud"}toast(e.message||"No se pudo enviar la solicitud")}
+}
 function merchantLocations(){
   var base=(state.merchant?.locations||[]).map(function(x){return{id:x.id,name:x.name,slug:x.slug,terminal:x.terminal||"Caja 01"}});
   var seen={};base.forEach(function(x){seen[x.id]=true});
@@ -1670,10 +1695,14 @@ function renderBranches(){
     q("branchWeekTxKpi").textContent=all.count;
     q("branchAvgTicketKpi").textContent=money(all.avg);
     q("branchDirectoryMeta").textContent=locations.length+" sucursal"+(locations.length===1?"":"es")+" activa"+(locations.length===1?"":"s");
-    q("branchRows").innerHTML=locations.length?locations.map(function(loc){
+    var activeRows=locations.map(function(loc){
       var s=branchWeekStats(loc.id);
       return"<tr><td><div class='branch-name-cell'><div class='branch-dot'>◎</div><div><b>"+safeText(loc.name)+"</b><span>"+safeText(merchantName())+"</span></div></div></td><td><span class='status ok'>Operativa</span></td><td><b>"+money(s.net)+"</b></td><td>"+s.count+"</td><td>"+money(s.avg)+"</td><td>"+safeText(loc.terminal||"Caja 01")+"</td><td><button class='branch-view-btn' onclick='openBranchDetail(\""+safeText(loc.id)+"\")'>Ver sucursal</button></td></tr>"
-    }).join(""):"<tr><td colspan='7' class='muted'>No hay sucursales configuradas.</td></tr>";
+    });
+    var pending=(state.branchRequests||[]).filter(function(r){return r.status==="pending"}).map(function(r){
+      return"<tr class='branch-pending-row'><td><div class='branch-name-cell'><div class='branch-dot'>+</div><div><b>"+safeText(r.name)+"</b><span>"+safeText(r.address||"Solicitud nueva")+"</span></div></div></td><td><span class='status wait'>Pendiente</span></td><td>—</td><td>—</td><td>—</td><td>"+Number(r.requested_terminals||1)+" caja"+(Number(r.requested_terminals||1)===1?"":"s")+"</td><td><span class='muted'>En revisión</span></td></tr>"
+    });
+    q("branchRows").innerHTML=(activeRows.concat(pending).join(""))||"<tr><td colspan='7' class='muted'>No hay sucursales configuradas.</td></tr>";
   }else{
     var s=branchWeekStats(state.location?.id||"");
     q("branchTerminalValue").textContent=terminalName();
