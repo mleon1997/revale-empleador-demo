@@ -262,6 +262,30 @@ export default async function handler(req, res) {
       return json(res, 200, { ok: true, request: row });
     }
 
+    if (req.method === "GET" && action === "merchant-terms") {
+      const merchantId = String(req.query?.merchant_id || "merchant_el_hornero");
+      const [row] = await sql`
+        SELECT
+          id,
+          merchant_id,
+          discount_rate::float8 AS discount_rate,
+          tax_rate::float8 AS tax_rate,
+          settlement_frequency,
+          settlement_weekday,
+          effective_from,
+          effective_until
+        FROM revale.merchant_terms
+        WHERE merchant_id = ${merchantId}
+          AND active = true
+          AND effective_from <= CURRENT_DATE
+          AND (effective_until IS NULL OR effective_until >= CURRENT_DATE)
+        ORDER BY effective_from DESC, id DESC
+        LIMIT 1
+      `;
+      if (!row) return json(res, 404, { ok: false, error: "Condiciones comerciales no configuradas" });
+      return json(res, 200, { ok: true, terms: row });
+    }
+
     if (req.method === "GET" && action === "health") {
       const [db] = await sql`
         SELECT current_database() AS database_name, now() AS server_time
