@@ -857,6 +857,38 @@ body.role-supervisor .receipt-card{border-radius:26px}
   .movement-search{grid-column:auto}
 }
 
+
+/* BRANCH OPERATIONS */
+.branch-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:16px}
+.branch-kpi{padding:20px 22px}
+.branch-kpi span{display:block;font-size:7px;text-transform:uppercase;letter-spacing:.11em;color:#8d9993;font-weight:900}
+.branch-kpi b{display:block;margin-top:10px;font-size:25px;letter-spacing:-.045em;color:var(--navy)}
+.branch-kpi small{display:block;margin-top:5px;font-size:8px;color:#89948f}
+.branch-directory{padding:0;overflow:hidden}
+.branch-table-wrap{overflow:auto}
+.branch-table td,.branch-table th{white-space:nowrap}
+.branch-name-cell{display:flex;align-items:center;gap:10px}
+.branch-dot{width:28px;height:28px;border-radius:9px;background:#eef8f1;color:var(--green);display:grid;place-items:center;font-size:12px;font-weight:900}
+.branch-name-cell b{display:block;font-size:9px;color:var(--ink)}
+.branch-name-cell span{display:block;font-size:7px;color:#8b9690;margin-top:2px}
+.branch-view-btn{border:0;background:transparent;color:var(--green);font-size:8px;font-weight:900;padding:6px}
+.branch-location-hero{display:flex;align-items:center;gap:12px;padding:16px 0 18px;border-bottom:1px solid #edf1ee;margin-bottom:2px}
+.branch-location-icon{width:42px;height:42px;border-radius:14px;background:#edf7f0;color:var(--green);display:grid;place-items:center;font-size:18px}
+.branch-location-hero>div:nth-child(2){flex:1}
+.branch-location-hero span{display:block;font-size:8px;color:#7a8781}
+.branch-location-hero b{display:block;font-size:16px;color:var(--navy);margin-top:3px}
+.branch-operator-metric{display:flex;align-items:flex-end;justify-content:space-between;padding:15px 0;border-bottom:1px solid #edf1ee}
+.branch-operator-metric span{font-size:9px;color:#7b8781}
+.branch-operator-metric b{font-size:18px;color:var(--navy);letter-spacing:-.03em}
+.branch-operator-foot{display:flex;align-items:center;gap:8px;padding-top:17px;font-size:8px;color:#6f7e77;font-weight:800}
+.branch-operator-foot i{width:8px;height:8px;border-radius:50%;background:#33c17e;box-shadow:0 0 0 4px rgba(51,193,126,.11)}
+.branch-detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}
+.branch-detail-stat{background:#f6f8f6;border:1px solid #e9eeeb;border-radius:14px;padding:12px}
+.branch-detail-stat span{display:block;font-size:7px;color:#849089;text-transform:uppercase;letter-spacing:.08em}
+.branch-detail-stat b{display:block;font-size:14px;color:var(--navy);margin-top:5px}
+@media(max-width:1050px){.branch-kpi-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:650px){.branch-kpi-grid{grid-template-columns:1fr}.branch-detail-grid{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
@@ -1238,26 +1270,58 @@ body.role-supervisor .receipt-card{border-radius:26px}
     </div>
 
     <div id="branchScreen" class="content hidden">
-      <div class="product-head">
-        <div><div class="head-meta"><span>Configuración</span></div><h1>Mi sucursal</h1><p><span class="merchant-context-text">El Hornero · Cumbayá</span></p></div>
+      <div class="page-head">
+        <div>
+          <span class="eyebrow">Operación</span>
+          <h1 id="branchPageTitle">Sucursales.</h1>
+          <p id="branchPageSubtitle">Rendimiento y estado operativo por local.</p>
+        </div>
       </div>
 
-      <div class="branch-grid premium-branch">
-        <section class="card branch-card">
-          <div class="section-title">Punto de venta</div>
-          <div class="detail-row"><span>Comercio</span><b class="merchant-name-text">El Hornero</b></div>
-          <div class="detail-row"><span>Sucursal</span><b class="merchant-location-text">Cumbayá</b></div>
-          <div class="detail-row"><span>Terminal</span><b>Caja 01</b></div>
-          <div class="detail-row"><span>Estado</span><span class="status ok">Activo</span></div>
-        </section>
+      <div id="branchManagerView" class="hidden">
+        <div class="branch-kpi-grid">
+          <section class="card branch-kpi"><span>Sucursales</span><b id="branchCountKpi">0</b><small>activas en ReVale</small></section>
+          <section class="card branch-kpi"><span>Ventas semana</span><b id="branchWeekSalesKpi">$ 0.00</b><small>netas de reversos</small></section>
+          <section class="card branch-kpi"><span>Transacciones</span><b id="branchWeekTxKpi">0</b><small>aprobadas esta semana</small></section>
+          <section class="card branch-kpi"><span>Ticket promedio</span><b id="branchAvgTicketKpi">$ 0.00</b><small>sobre consumos aprobados</small></section>
+        </div>
 
-        <section class="card branch-card">
-          <div class="section-title">Conexión</div>
-          <div class="detail-row"><span>Canal</span><b>Web</b></div>
-          <div class="detail-row"><span>Base de datos</span><b>Conectada</b></div>
-          <div class="detail-row"><span>Autorización</span><b>Tiempo real</b></div>
-          <div class="detail-row"><span>Reversos</span><b>Habilitados</b></div>
+        <section class="card branch-directory">
+          <div class="section-head-inline">
+            <div><span class="eyebrow">Red del comercio</span><div class="section-title">Sucursales</div></div>
+            <span id="branchDirectoryMeta" class="muted microcopy">—</span>
+          </div>
+          <div class="branch-table-wrap">
+            <table class="table branch-table">
+              <thead><tr><th>Sucursal</th><th>Estado</th><th>Ventas semana</th><th>Transacciones</th><th>Ticket prom.</th><th>Terminal</th><th></th></tr></thead>
+              <tbody id="branchRows"><tr><td colspan="7" class="muted">Cargando sucursales…</td></tr></tbody>
+            </table>
+          </div>
         </section>
+      </div>
+
+      <div id="branchOperatorView" class="hidden">
+        <div class="branch-grid premium-branch">
+          <section class="card branch-card branch-identity-card">
+            <div class="section-title">Punto de venta</div>
+            <div class="branch-location-hero">
+              <div class="branch-location-icon">◎</div>
+              <div><span class="merchant-name-text">El Hornero</span><b class="merchant-location-text">Cumbayá</b></div>
+              <span class="status ok">Operativa</span>
+            </div>
+            <div class="detail-row"><span>Terminal</span><b id="branchTerminalValue">Caja 01</b></div>
+            <div class="detail-row"><span>Canal</span><b>ReVale Web</b></div>
+            <div class="detail-row"><span>Autorización</span><b>Tiempo real</b></div>
+          </section>
+
+          <section class="card branch-card">
+            <div class="section-title">Esta semana</div>
+            <div class="branch-operator-metric"><span>Ventas netas</span><b id="operatorBranchSales">$ 0.00</b></div>
+            <div class="branch-operator-metric"><span>Transacciones aprobadas</span><b id="operatorBranchTx">0</b></div>
+            <div class="branch-operator-metric"><span>Ticket promedio</span><b id="operatorBranchAvg">$ 0.00</b></div>
+            <div class="branch-operator-foot"><i></i><span>Conectada a ReVale</span></div>
+          </section>
+        </div>
       </div>
     </div>
   </main>
@@ -1378,7 +1442,17 @@ document.addEventListener("keydown",function(e){
 });
 async function showHome(){hideScreens();q("homeScreen").classList.remove("hidden");q("topTitle").textContent=state.role==="admin"?merchantName()+" · Gerencia":merchantName()+" · "+locationName()+" · "+terminalName();nav("navHome");setDashboardDate();await loadTransactions();if(state.role!=="admin")setTimeout(function(){q("amountInput").focus()},80)}
 async function showTransactions(){hideScreens();q("transactionsScreen").classList.remove("hidden");q("topTitle").textContent="Movimientos · "+merchantName()+" · "+locationName();nav("navMov");await loadTransactions()}
-function showBranch(){hideScreens();q("branchScreen").classList.remove("hidden");q("topTitle").textContent=state.role==="admin"?"Sucursales · "+merchantName():"Mi sucursal · "+merchantName()+" · "+locationName();nav("navBranch")}
+async function showBranch(){
+  hideScreens();q("branchScreen").classList.remove("hidden");nav("navBranch");
+  var admin=state.role==="admin";
+  q("topTitle").textContent=admin?"Sucursales · "+merchantName():"Mi sucursal · "+merchantName()+" · "+locationName();
+  q("branchPageTitle").textContent=admin?"Sucursales.":"Mi sucursal.";
+  q("branchPageSubtitle").textContent=admin?"Rendimiento y estado operativo por local.":merchantName()+" · "+locationName();
+  q("branchManagerView").classList.toggle("hidden",!admin);
+  q("branchOperatorView").classList.toggle("hidden",admin);
+  await loadTransactions();
+  renderBranches()
+}
 function showSettlements(){if(state.role!=="admin"){toast("Acceso restringido a gerencia");return}hideScreens();q("settlementsScreen").classList.remove("hidden");q("topTitle").textContent="Liquidaciones · "+merchantName();nav("navSettlement");loadTransactions()}
 function applyRole(){
   document.body.classList.remove("role-cashier","role-supervisor","role-admin");
@@ -1567,6 +1641,56 @@ function settlementPeriodLabel(start,next){
     var b=end.toLocaleDateString("es-EC",{day:"numeric",month:"short"}).replace(".","");
     return a+" – "+b
   }catch(e){return "Semana en curso"}
+}
+function merchantLocations(){
+  var base=(state.merchant?.locations||[]).map(function(x){return{id:x.id,name:x.name,slug:x.slug,terminal:x.terminal||"Caja 01"}});
+  var seen={};base.forEach(function(x){seen[x.id]=true});
+  state.transactions.forEach(function(t){
+    if(t.locationId&&!seen[t.locationId]){base.push({id:t.locationId,name:t.locationName||"Sucursal",slug:"",terminal:"Caja 01"});seen[t.locationId]=true}
+  });
+  return base
+}
+function branchWeekStats(locationId){
+  var start=startOfSettlementWeek(),next=nextSettlementMonday(),gross=0,adjustments=0,count=0;
+  state.transactions.forEach(function(t){
+    if(locationId&&t.locationId!==locationId)return;
+    var approvedAt=t.approvedAt||((t.status==="approved"||t.status==="reversed")?t.createdAt:null);
+    if(sameSettlementWeek(approvedAt,start,next)){gross+=Number(t.amount||0);count++}
+    if(sameSettlementWeek(t.reversedAt,start,next))adjustments+=Number(t.amount||0)
+  });
+  var net=Math.round((gross-adjustments)*100)/100,avg=count?gross/count:0;
+  return{gross:gross,adjustments:adjustments,net:net,count:count,avg:avg}
+}
+function renderBranches(){
+  var admin=state.role==="admin";
+  if(admin){
+    var locations=merchantLocations(),all=branchWeekStats(null);
+    q("branchCountKpi").textContent=locations.length;
+    q("branchWeekSalesKpi").textContent=money(all.net);
+    q("branchWeekTxKpi").textContent=all.count;
+    q("branchAvgTicketKpi").textContent=money(all.avg);
+    q("branchDirectoryMeta").textContent=locations.length+" sucursal"+(locations.length===1?"":"es")+" activa"+(locations.length===1?"":"s");
+    q("branchRows").innerHTML=locations.length?locations.map(function(loc){
+      var s=branchWeekStats(loc.id);
+      return"<tr><td><div class='branch-name-cell'><div class='branch-dot'>◎</div><div><b>"+safeText(loc.name)+"</b><span>"+safeText(merchantName())+"</span></div></div></td><td><span class='status ok'>Operativa</span></td><td><b>"+money(s.net)+"</b></td><td>"+s.count+"</td><td>"+money(s.avg)+"</td><td>"+safeText(loc.terminal||"Caja 01")+"</td><td><button class='branch-view-btn' onclick='openBranchDetail(\""+safeText(loc.id)+"\")'>Ver sucursal</button></td></tr>"
+    }).join(""):"<tr><td colspan='7' class='muted'>No hay sucursales configuradas.</td></tr>";
+  }else{
+    var s=branchWeekStats(state.location?.id||"");
+    q("branchTerminalValue").textContent=terminalName();
+    q("operatorBranchSales").textContent=money(s.net);
+    q("operatorBranchTx").textContent=s.count;
+    q("operatorBranchAvg").textContent=money(s.avg)
+  }
+}
+function openBranchDetail(locationId){
+  var loc=merchantLocations().find(function(x){return x.id===locationId});if(!loc)return;
+  var s=branchWeekStats(locationId);
+  var recent=state.transactions.filter(function(t){return t.locationId===locationId}).slice(0,5);
+  var activity=recent.length?recent.map(function(t){
+    var st=displayStatus(t);
+    return"<div class='rr'><span>"+safeText(t.tx)+" · "+txDateTime(t)+"</span><b>"+money(t.amount)+" · "+st.text+"</b></div>"
+  }).join(""):"<div class='muted'>Sin movimientos recientes.</div>";
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><span class='eyebrow'>Sucursal</span><h3>"+safeText(loc.name)+"</h3><p>"+safeText(merchantName())+" · "+safeText(loc.terminal||"Caja 01")+"</p><div class='branch-detail-grid'><div class='branch-detail-stat'><span>Ventas semana</span><b>"+money(s.net)+"</b></div><div class='branch-detail-stat'><span>Transacciones</span><b>"+s.count+"</b></div><div class='branch-detail-stat'><span>Ticket prom.</span><b>"+money(s.avg)+"</b></div></div><div class='section-title' style='margin-top:20px'>Actividad reciente</div><div class='receipt'>"+activity+"</div><div class='modal-actions'><button class='btn btn-secondary' onclick='closeModal()'>Cerrar</button></div></div></div>"
 }
 function sameSettlementWeek(value,start,next){
   if(!value)return false;var d=new Date(value);return d>=start&&d<next
