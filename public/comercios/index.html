@@ -939,6 +939,18 @@ body.role-admin .operations-grid{display:none!important}
 .settlement-kpi .v{color:var(--green)}
 @media(max-width:1000px){body.role-admin .manager-executive{grid-template-columns:1fr}.executive-activity{grid-column:auto}}
 
+
+/* REVERSAL CONTROL */
+.reversal-queue{margin-bottom:14px;padding-bottom:8px;overflow:hidden}
+.reversal-request-list{display:grid;gap:8px;padding:0 16px 12px}
+.reversal-request{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;border:1px solid #ebe9df;background:#fffdf7;border-radius:15px;padding:13px 14px}
+.reversal-request b{font-size:9px;color:var(--navy)}
+.reversal-request small{display:block;font-size:7px;color:#7d8983;line-height:1.45;margin-top:3px}
+.reversal-request-actions{display:flex;gap:6px}
+.reversal-request-actions button{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 10px;font-size:7px;font-weight:900}
+.reversal-request-actions .approve{background:var(--green);color:#fff;border-color:var(--green)}
+.reversal-reason-chip{display:inline-flex;margin-top:7px;border-radius:999px;background:#fff3d9;color:#805d19;padding:5px 8px;font-size:7px;font-weight:900}
+
 </style>
 </head>
 <body>
@@ -1283,6 +1295,14 @@ body.role-admin .operations-grid{display:none!important}
         <div class="movement-summary"><span>Resultado</span><b id="filteredTxSummary">—</b></div>
       </section>
 
+      <section id="reversalQueue" class="card reversal-queue hidden">
+        <div class="section-head-inline">
+          <div><span class="eyebrow">Control operativo</span><div class="section-title">Solicitudes de reverso</div></div>
+          <span id="reversalQueueMeta" class="muted microcopy">0 pendientes</span>
+        </div>
+        <div id="reversalRequestRows" class="reversal-request-list"><div class="muted">No hay solicitudes pendientes.</div></div>
+      </section>
+
       <section class="card recent movements-table-card">
         <table class="table"><thead><tr><th>Transacción</th><th>Fecha / hora</th><th>Sucursal</th><th>Referencia</th><th>Estado</th><th style="text-align:right">Monto</th><th style="text-align:right">Acción</th></tr></thead>
         <tbody id="allRows"><tr><td colspan="7" class="muted">Cargando movimientos…</td></tr></tbody></table>
@@ -1577,7 +1597,11 @@ async function showHome(){
     renderManagerDashboard()
   }else setTimeout(function(){q("amountInput").focus()},80)
 }
-async function showTransactions(){hideScreens();q("transactionsScreen").classList.remove("hidden");q("topTitle").textContent="Movimientos · "+merchantName()+" · "+locationName();nav("navMov");await loadTransactions()}
+async function showTransactions(){
+  hideScreens();q("transactionsScreen").classList.remove("hidden");
+  q("topTitle").textContent=state.role==="admin"?"Movimientos · "+merchantName(): "Movimientos · "+merchantName()+" · "+locationName();
+  nav("navMov");await Promise.all([loadTransactions(),loadReversalRequests()])
+}
 async function showBranch(){
   hideScreens();q("branchScreen").classList.remove("hidden");nav("navBranch");
   var admin=state.role==="admin";
@@ -1817,6 +1841,7 @@ function renderMovementRows(){
   all.innerHTML=rows.map(function(t){
     var s=displayStatus(t),canReverse=(state.role==="supervisor"||state.role==="admin");
     var buttons="<button class='btn btn-ghost tx-view-btn' onclick='openTransactionDetail(\""+t.tx+"\")'>Ver</button>";
+    if(t.status==="approved"&&state.role==="cashier")buttons+="<button class='btn btn-ghost tx-view-btn' onclick='openReversalRequestModal(\""+t.tx+"\","+t.amount+")'>Solicitar reverso</button>";
     if(t.status==="approved"&&canReverse)buttons+="<button class='btn btn-ghost tx-view-btn' onclick='openReverseModal(\""+t.tx+"\","+t.amount+")'>Anular</button>";
     return"<tr><td><button class='tx-link' onclick='openTransactionDetail(\""+t.tx+"\")'>"+safeText(t.tx)+"</button></td><td>"+txDateTime(t)+"</td><td>"+safeText(t.locationName||"—")+"</td><td>"+safeText(t.reference||"—")+"</td><td><span class='status "+s.cls+"'>"+s.text+"</span></td><td class='amount'>"+money(t.amount)+"</td><td><div class='tx-actions'>"+buttons+"</div></td></tr>"
   }).join("")
@@ -2030,17 +2055,56 @@ function renderTx(){
   var total=approved.reduce(function(a,t){return a+t.amount},0),avg=approved.length?total/approved.length:0;
   q("todayTotal").textContent=money(total);q("todayCountValue").textContent=approved.length;q("todayCount").textContent=approved.length+" aprobada"+(approved.length===1?"":"s");q("avgTicket").textContent=money(avg);updateWeeklySettlement()
 }
+function reversalReasonOptions(){
+  return "<option value='Error de monto'>Error de monto</option><option value='Cobro duplicado'>Cobro duplicado</option><option value='Cliente desistió'>Cliente desistió</option><option value='Otro'>Otro</option>"
+}
+function openReversalRequestModal(tx,amount){
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><span class='eyebrow'>Solicitud de reverso</span><h3>"+safeText(tx)+" · "+money(amount)+"</h3><p>La solicitud quedará pendiente de autorización de un Supervisor.</p><div class='form-stack'><label>Motivo<select id='requestReverseReason' class='modal-input'>"+reversalReasonOptions()+"</select></label><label>Observación<textarea id='requestReverseNote' class='modal-input' rows='3' placeholder='Detalle opcional'></textarea></label></div><div class='modal-actions'><button class='btn btn-secondary' onclick='closeModal()'>Cancelar</button><button id='requestReverseBtn' class='btn btn-primary' onclick='submitReversalRequest(\""+tx+"\")'>Enviar solicitud</button></div></div></div>"
+}
+async function submitReversalRequest(tx){
+  var b=q("requestReverseBtn"),reason=q("requestReverseReason")?.value||"Otro",note=(q("requestReverseNote")?.value||"").trim();
+  if(b){b.disabled=true;b.textContent="Enviando…"}
+  try{
+    var r=await fetch("/api/revale-demo?action=request-reversal",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tx:tx,merchant_id:state.merchant?.id,location_id:state.location?.id,requested_by:state.userName,reason:reason,note:note})});
+    var d=await r.json();if(!r.ok)throw new Error(d.error||"No se pudo enviar la solicitud");
+    closeModal();toast("Solicitud enviada al Supervisor");await loadReversalRequests()
+  }catch(e){if(b){b.disabled=false;b.textContent="Enviar solicitud"}toast(e.message||"No se pudo enviar la solicitud")}
+}
 function openReverseModal(tx,amount){
-  if(state.role==="cashier"){toast("Requiere autorización de supervisor");return}
-  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><span class='eyebrow'>Anulación</span><h3>¿Reversar "+tx+"?</h3><p>ReVale devolverá "+money(amount)+" al saldo del empleado y dejará el reverso registrado en la trazabilidad.</p><div class='modal-actions'><button class='btn btn-secondary' onclick='closeModal()'>Cancelar</button><button id='reverseConfirmBtn' class='btn btn-primary' onclick='confirmReverse(\""+tx+"\")'>Confirmar reverso</button></div></div></div>"
+  if(state.role==="cashier"){openReversalRequestModal(tx,amount);return}
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><span class='eyebrow'>Anulación</span><h3>¿Reversar "+safeText(tx)+"?</h3><p>ReVale devolverá "+money(amount)+" al saldo del empleado.</p><div class='form-stack'><label>Motivo<select id='reverseReason' class='modal-input'>"+reversalReasonOptions()+"</select></label><label>Observación<textarea id='reverseNote' class='modal-input' rows='3' placeholder='Detalle opcional'></textarea></label></div><div class='modal-actions'><button class='btn btn-secondary' onclick='closeModal()'>Cancelar</button><button id='reverseConfirmBtn' class='btn btn-primary' onclick='confirmReverse(\""+tx+"\")'>Confirmar reverso</button></div></div></div>"
 }
 async function confirmReverse(tx){
-  var b=q("reverseConfirmBtn");if(b){b.disabled=true;b.textContent="Reversando…"}
+  var b=q("reverseConfirmBtn"),reason=q("reverseReason")?.value||"Otro",note=(q("reverseNote")?.value||"").trim();if(b){b.disabled=true;b.textContent="Reversando…"}
   try{
-    var r=await fetch("/api/revale-demo?action=reverse",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tx:tx})});var d=await r.json();
+    var r=await fetch("/api/revale-demo?action=reverse",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tx:tx,reason:reason,note:note,reviewed_by:state.userName})});var d=await r.json();
     if(!r.ok)throw new Error(d.error||"No se pudo reversar");
-    closeModal();await loadTransactions();toast("Reverso registrado · saldo restituido")
+    closeModal();await Promise.all([loadTransactions(),loadReversalRequests()]);toast("Reverso registrado · saldo restituido")
   }catch(e){if(b){b.disabled=false;b.textContent="Confirmar reverso"}toast(e.message||"No se pudo reversar")}
+}
+async function loadReversalRequests(){
+  if(!q("reversalQueue"))return;
+  var canReview=state.role==="supervisor"||state.role==="admin";
+  q("reversalQueue").classList.toggle("hidden",!canReview);
+  if(!canReview)return;
+  try{
+    var url="/api/revale-demo?action=reversal-requests&merchant_id="+encodeURIComponent(state.merchant?.id||"merchant_el_hornero")+(state.role==="supervisor"?"&location_id="+encodeURIComponent(state.location?.id||""):"");
+    var r=await fetch(url,{cache:"no-store"}),d=await r.json();if(!r.ok)throw new Error();
+    state.reversalRequests=d.requests||[];renderReversalRequests()
+  }catch(e){state.reversalRequests=[];renderReversalRequests()}
+}
+function renderReversalRequests(){
+  var rows=(state.reversalRequests||[]).filter(function(x){return x.status==="pending"}),box=q("reversalRequestRows");
+  q("reversalQueueMeta").textContent=rows.length+" pendiente"+(rows.length===1?"":"s");
+  if(!rows.length){box.innerHTML="<div class='muted'>No hay solicitudes pendientes.</div>";return}
+  box.innerHTML=rows.map(function(r){return"<div class='reversal-request'><div><b>"+safeText(r.transaction_id)+" · "+money(r.amount)+" · "+safeText(r.location_name||"Sucursal")+"</b><small>Solicitado por "+safeText(r.requested_by)+"</small><span class='reversal-reason-chip'>"+safeText(r.reason)+"</span>"+(r.note?"<small>"+safeText(r.note)+"</small>":"")+"</div><div class='reversal-request-actions'><button onclick='resolveReversalRequest("+r.id+",\"reject\")'>Rechazar</button><button class='approve' onclick='resolveReversalRequest("+r.id+",\"approve\")'>Aprobar</button></div></div>"}).join("")
+}
+async function resolveReversalRequest(id,decision){
+  try{
+    var r=await fetch("/api/revale-demo?action=resolve-reversal",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({request_id:id,decision:decision,reviewed_by:state.userName})});
+    var d=await r.json();if(!r.ok)throw new Error(d.error||"No se pudo resolver");
+    await Promise.all([loadTransactions(),loadReversalRequests()]);toast(decision==="approve"?"Reverso aprobado":"Solicitud rechazada")
+  }catch(e){toast(e.message||"No se pudo resolver")}
 }
 function closeModal(){q("modalRoot").innerHTML=""}
 
