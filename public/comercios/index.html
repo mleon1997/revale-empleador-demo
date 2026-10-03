@@ -1336,8 +1336,8 @@ body.role-admin .operations-grid{display:none!important}
           <div class="detail-row"><span>Período</span><b id="settlementPeriod">—</b></div>
           <div class="detail-row"><span>Consumos aprobados</span><b id="settlementGross" class="mono">$ 0.00</b></div>
           <div class="detail-row"><span>Ajustes / reversos</span><b id="settlementAdjustments" class="mono">-$ 0.00</b></div>
-          <div class="detail-row"><span>Fee ReVale · 2,5%</span><b id="settlementFee" class="mono">-$ 0.00</b></div>
-          <div class="detail-row"><span>IVA sobre fee · 15%</span><b id="settlementVat" class="mono">-$ 0.00</b></div>
+          <div class="detail-row"><span id="settlementFeeLabel">Fee ReVale · 2,5%</span><b id="settlementFee" class="mono">-$ 0.00</b></div>
+          <div class="detail-row"><span id="settlementVatLabel">IVA sobre fee · 15%</span><b id="settlementVat" class="mono">-$ 0.00</b></div>
           <div class="detail-row settlement-net-row"><span>Neto a recibir</span><b id="settlementNet" class="mono">$ 0.00</b></div>
         </section>
       </div>
@@ -1506,7 +1506,7 @@ body.role-admin .operations-grid{display:none!important}
 <div id="modalRoot"></div>
 
 <script>
-var state={amount:0,reference:"",tx:"",token:"",expiresAt:0,poll:null,timer:null,transactions:[],role:"admin",userName:"Gerencia",merchant:null,location:null};
+var state={amount:0,reference:"",tx:"",token:"",expiresAt:0,poll:null,timer:null,transactions:[],role:"admin",userName:"Gerencia",merchant:null,location:null,merchantTerms:{discountRate:.025,taxRate:.15,settlementFrequency:"weekly",settlementWeekday:1}};
 function q(id){return document.getElementById(id)}
 function money(n){return "$ "+Number(n||0).toFixed(2)}
 function toast(msg){var t=q("toast");t.textContent=msg;t.classList.add("show");setTimeout(function(){t.classList.remove("show")},1800)}
@@ -1598,7 +1598,8 @@ document.addEventListener("keydown",function(e){
 async function showHome(){
   hideScreens();q("homeScreen").classList.remove("hidden");
   q("topTitle").textContent=state.role==="admin"?merchantName()+" · Gerencia":merchantName()+" · "+locationName()+" · "+terminalName();
-  nav("navHome");setDashboardDate();await loadTransactions();
+  nav("navHome");setDashboardDate();
+  await Promise.all([loadTransactions(),loadMerchantTerms()]);
   if(state.role==="admin"){
     await Promise.all([loadBranchRequests(),loadMerchantUsers()]);
     renderManagerDashboard()
@@ -1697,7 +1698,7 @@ async function toggleMerchantUser(userId,active){
 async function showSettlements(){
   if(state.role!=="admin"){toast("Acceso restringido a gerencia");return}
   hideScreens();q("settlementsScreen").classList.remove("hidden");q("topTitle").textContent="Liquidaciones · "+merchantName();nav("navSettlement");
-  await Promise.all([loadTransactions(),loadBankAccount()])
+  await Promise.all([loadTransactions(),loadBankAccount(),loadMerchantTerms()])
 }
 function applyRole(){
   document.body.classList.remove("role-cashier","role-supervisor","role-admin");
@@ -2007,7 +2008,8 @@ function settlementStats(start){
   });
   gross=Math.round(gross*100)/100;adjustments=Math.round(adjustments*100)/100;
   var base=Math.round((gross-adjustments)*100)/100,feeBase=Math.max(0,base);
-  var fee=Math.round(feeBase*.025*100)/100,vat=Math.round(fee*.15*100)/100,net=Math.round((base-fee-vat)*100)/100;
+  var discount=Number(state.merchantTerms?.discountRate??.025),tax=Number(state.merchantTerms?.taxRate??.15);
+  var fee=Math.round(feeBase*discount*100)/100,vat=Math.round(fee*tax*100)/100,net=Math.round((base-fee-vat)*100)/100;
   return{start:start,next:next,gross:gross,adjustments:adjustments,base:base,fee:fee,vat:vat,net:net,count:count}
 }
 function updateWeeklySettlement(){
@@ -2083,6 +2085,30 @@ async function submitBankAccount(){
     var d=await r.json();if(!r.ok)throw new Error(d.error||"No se pudo registrar la cuenta");
     closeModal();await loadBankAccount();toast("Cuenta enviada a verificación")
   }catch(e){if(b){b.disabled=false;b.textContent="Enviar a verificación"}toast(e.message||"No se pudo registrar la cuenta")}
+}
+async function loadMerchantTerms(){
+  try{
+    var r=await fetch("/api/revale-demo?action=merchant-terms&merchant_id="+encodeURIComponent(state.merchant?.id||"merchant_el_hornero"),{cache:"no-store"});
+    var d=await r.json();if(!r.ok||!d.terms)throw new Error();
+    state.merchantTerms={
+      discountRate:Number(d.terms.discount_rate||0),
+      taxRate:Number(d.terms.tax_rate||0),
+      settlementFrequency:d.terms.settlement_frequency||"weekly",
+      settlementWeekday:Number(d.terms.settlement_weekday??1)
+    };
+    renderMerchantTerms()
+  }catch(e){
+    state.merchantTerms=state.merchantTerms||{discountRate:.025,taxRate:.15,settlementFrequency:"weekly",settlementWeekday:1};
+    renderMerchantTerms()
+  }
+}
+function percentLabel(v){
+  var n=Number(v||0)*100;
+  return (Math.round(n*100)/100).toLocaleString("es-EC",{minimumFractionDigits:n%1?1:0,maximumFractionDigits:2})+"%"
+}
+function renderMerchantTerms(){
+  if(q("settlementFeeLabel"))q("settlementFeeLabel").textContent="Fee ReVale · "+percentLabel(state.merchantTerms?.discountRate);
+  if(q("settlementVatLabel"))q("settlementVatLabel").textContent="IVA sobre fee · "+percentLabel(state.merchantTerms?.taxRate)
 }
 function settlementWeeksFromTransactions(){
   var current=startOfSettlementWeek(),map={};
