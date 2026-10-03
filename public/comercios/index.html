@@ -1388,6 +1388,8 @@ function applyRole(){
   q("userRoleLabel").textContent=state.role==="cashier"?"Caja · "+locationName():state.role==="supervisor"?"Supervisor · "+locationName():"Gerencia · Todas las sucursales";
   q("branchNavLabel").textContent=state.role==="admin"?"Sucursales":"Mi sucursal";
   if(state.role==="admin"){q("navSettlement").classList.remove("hidden");q("financeNavTitle").classList.remove("hidden")}else{q("navSettlement").classList.add("hidden");q("financeNavTitle").classList.add("hidden")};
+  if(q("txLocationFilter"))q("txLocationFilter").classList.toggle("hidden",state.role!=="admin");
+  if(q("exportTxBtn"))q("exportTxBtn").classList.toggle("hidden",state.role==="cashier");
   var terminalMode=state.role==="cashier"||state.role==="supervisor";
   q("chargePanelTitle").textContent=terminalMode?"Nueva venta":"Nueva transacción";
   q("amountLabel").textContent=terminalMode?"Monto a cobrar":"Monto";
@@ -1453,10 +1455,22 @@ async function newSale(){state.amount=0;state.reference="";state.tx="";state.tok
 
 async function loadTransactions(){
   try{
-    var url="/api/revale-demo?action=transactions&limit=50&merchant_id="+encodeURIComponent(state.merchant?.id||"merchant_el_hornero")+(state.role==="admin"?"":"&location_id="+encodeURIComponent(state.location?.id||""));var r=await fetch(url,{cache:"no-store"});var d=await r.json();
+    var limit=state.role==="admin"?500:100;
+    var url="/api/revale-demo?action=transactions&limit="+limit+"&merchant_id="+encodeURIComponent(state.merchant?.id||"merchant_el_hornero")+(state.role==="admin"?"":"&location_id="+encodeURIComponent(state.location?.id||""));
+    var r=await fetch(url,{cache:"no-store"});var d=await r.json();
     if(!r.ok)throw new Error(d.error||"No se pudieron cargar movimientos");
-    state.transactions=(d.transactions||[]).map(function(t){return{tx:t.id,amount:Number(t.amount||0),reference:t.reference||"",status:t.status,createdAt:t.created_at,approvedAt:t.approved_at,reversedAt:t.reversed_at}});
-    renderTx()
+    state.transactions=(d.transactions||[]).map(function(t){return{
+      tx:t.id,
+      amount:Number(t.amount||0),
+      reference:t.reference||"",
+      status:t.status,
+      createdAt:t.created_at,
+      approvedAt:t.approved_at,
+      reversedAt:t.reversed_at,
+      locationId:t.location_id||"",
+      locationName:t.location_name||locationName()
+    }});
+    syncMovementFilters();renderTx()
   }catch(e){toast(e.message||"No se pudieron cargar movimientos")}
 }
 function displayStatus(t){
@@ -1467,7 +1481,74 @@ function displayStatus(t){
   if(t.status==="approved")return{text:"Aprobada",cls:"ok"};
   return{text:t.status||"—",cls:"neutral"}
 }
+function safeText(v){
+  return String(v==null?"":v).replace(/[&<>"']/g,function(ch){return({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"})[ch]})
+}
 function txTime(t){if(!t.createdAt)return"—";try{return new Date(t.createdAt).toLocaleTimeString("es-EC",{hour:"2-digit",minute:"2-digit"})}catch(e){return"—"}}
+function txDateTime(t){
+  if(!t.createdAt)return"—";
+  try{return new Date(t.createdAt).toLocaleDateString("es-EC",{day:"numeric",month:"short"})+" · "+new Date(t.createdAt).toLocaleTimeString("es-EC",{hour:"2-digit",minute:"2-digit"})}
+  catch(e){return"—"}
+}
+function fullDateTime(v){
+  if(!v)return"—";
+  try{return new Date(v).toLocaleString("es-EC",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}
+  catch(e){return"—"}
+}
+function syncMovementFilters(){
+  if(!q("txLocationFilter"))return;
+  q("txLocationFilter").classList.toggle("hidden",state.role!=="admin");
+  if(q("exportTxBtn"))q("exportTxBtn").classList.toggle("hidden",state.role==="cashier");
+  if(state.role!=="admin")return;
+  var current=q("txLocationFilter").value||"all";
+  var seen={},opts=["<option value='all'>Todas las sucursales</option>"];
+  state.transactions.forEach(function(t){
+    if(!t.locationId||seen[t.locationId])return;
+    seen[t.locationId]=true;
+    opts.push("<option value='"+safeText(t.locationId)+"'>"+safeText(t.locationName||"Sucursal")+"</option>")
+  });
+  q("txLocationFilter").innerHTML=opts.join("");
+  if(seen[current])q("txLocationFilter").value=current
+}
+function filteredTransactions(){
+  var rows=state.transactions.slice(),search=(q("txSearch")?.value||"").trim().toLowerCase();
+  var status=q("txStatusFilter")?.value||"all",period=q("txPeriodFilter")?.value||"all",loc=q("txLocationFilter")?.value||"all";
+  if(search)rows=rows.filter(function(t){return String(t.tx).toLowerCase().includes(search)||String(t.reference||"").toLowerCase().includes(search)});
+  if(status!=="all")rows=rows.filter(function(t){return t.status===status});
+  if(state.role==="admin"&&loc!=="all")rows=rows.filter(function(t){return t.locationId===loc});
+  if(period!=="all"){
+    var now=new Date(),start;
+    if(period==="today"){start=new Date(now);start.setHours(0,0,0,0)}
+    else start=startOfSettlementWeek(now);
+    rows=rows.filter(function(t){return new Date(t.createdAt)>=start})
+  }
+  return rows
+}
+function renderMovementRows(){
+  var all=q("allRows");if(!all)return;
+  var rows=filteredTransactions(),total=rows.reduce(function(a,t){return a+Number(t.amount||0)},0);
+  if(q("filteredTxSummary"))q("filteredTxSummary").textContent=rows.length+" · "+money(total);
+  if(!rows.length){all.innerHTML="<tr><td colspan='7' class='muted'>No hay movimientos con estos filtros.</td></tr>";return}
+  all.innerHTML=rows.map(function(t){
+    var s=displayStatus(t),canReverse=(state.role==="supervisor"||state.role==="admin");
+    var buttons="<button class='btn btn-ghost tx-view-btn' onclick='openTransactionDetail(\""+t.tx+"\")'>Ver</button>";
+    if(t.status==="approved"&&canReverse)buttons+="<button class='btn btn-ghost tx-view-btn' onclick='openReverseModal(\""+t.tx+"\","+t.amount+")'>Anular</button>";
+    return"<tr><td><button class='tx-link' onclick='openTransactionDetail(\""+t.tx+"\")'>"+safeText(t.tx)+"</button></td><td>"+txDateTime(t)+"</td><td>"+safeText(t.locationName||"—")+"</td><td>"+safeText(t.reference||"—")+"</td><td><span class='status "+s.cls+"'>"+s.text+"</span></td><td class='amount'>"+money(t.amount)+"</td><td><div class='tx-actions'>"+buttons+"</div></td></tr>"
+  }).join("")
+}
+function exportTransactions(){
+  var rows=filteredTransactions();if(!rows.length){toast("No hay movimientos para exportar");return}
+  var data=[["Transacción","Fecha","Sucursal","Referencia","Estado","Monto"]];
+  rows.forEach(function(t){data.push([t.tx,fullDateTime(t.createdAt),t.locationName||"",t.reference||"",displayStatus(t).text,Number(t.amount||0).toFixed(2)])});
+  var csv=data.map(function(row){return row.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(",")}).join("\n");
+  var blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download="revale-movimientos-"+new Date().toISOString().slice(0,10)+".csv";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)
+}
+function openTransactionDetail(tx){
+  var t=state.transactions.find(function(x){return x.tx===tx});if(!t)return;
+  var s=displayStatus(t),canReverse=(state.role==="supervisor"||state.role==="admin")&&t.status==="approved";
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><span class='eyebrow'>Detalle de movimiento</span><h3>"+safeText(t.tx)+"</h3><div class='receipt'><div class='rr'><span>Estado</span><b><span class='status "+s.cls+"'>"+s.text+"</span></b></div><div class='rr'><span>Monto</span><b>"+money(t.amount)+"</b></div><div class='rr'><span>Sucursal</span><b>"+safeText(t.locationName||"—")+"</b></div><div class='rr'><span>Referencia</span><b>"+safeText(t.reference||"—")+"</b></div><div class='rr'><span>Creada</span><b>"+fullDateTime(t.createdAt)+"</b></div><div class='rr'><span>Aprobada</span><b>"+fullDateTime(t.approvedAt)+"</b></div>"+(t.reversedAt?"<div class='rr'><span>Reversada</span><b>"+fullDateTime(t.reversedAt)+"</b></div>":"")+"</div><div class='modal-actions'><button class='btn btn-secondary' onclick='closeModal()'>Cerrar</button>"+(canReverse?"<button class='btn btn-primary' onclick='closeModal();openReverseModal(\""+t.tx+"\","+t.amount+")'>Anular movimiento</button>":"")+"</div></div></div>"
+}
 function startOfSettlementWeek(now){
   var d=new Date(now||Date.now()),day=d.getDay(),diff=(day===0?-6:1-day);
   d.setDate(d.getDate()+diff);d.setHours(0,0,0,0);return d
@@ -1487,39 +1568,73 @@ function settlementPeriodLabel(start,next){
     return a+" – "+b
   }catch(e){return "Semana en curso"}
 }
+function sameSettlementWeek(value,start,next){
+  if(!value)return false;var d=new Date(value);return d>=start&&d<next
+}
+function settlementStats(start){
+  var next=new Date(start);next.setDate(start.getDate()+7);
+  var gross=0,adjustments=0,count=0;
+  state.transactions.forEach(function(t){
+    if(sameSettlementWeek(t.approvedAt||((t.status==="approved"||t.status==="reversed")?t.createdAt:null),start,next)){gross+=Number(t.amount||0);count++}
+    if(sameSettlementWeek(t.reversedAt,start,next))adjustments+=Number(t.amount||0)
+  });
+  gross=Math.round(gross*100)/100;adjustments=Math.round(adjustments*100)/100;
+  var base=Math.round((gross-adjustments)*100)/100,feeBase=Math.max(0,base);
+  var fee=Math.round(feeBase*.025*100)/100,vat=Math.round(fee*.15*100)/100,net=Math.round((base-fee-vat)*100)/100;
+  return{start:start,next:next,gross:gross,adjustments:adjustments,base:base,fee:fee,vat:vat,net:net,count:count}
+}
 function updateWeeklySettlement(){
   if(!q("pendingSettlement"))return;
-  var start=startOfSettlementWeek(),next=nextSettlementMonday();
-  var approved=state.transactions.filter(function(t){
-    if(t.status!=="approved")return false;
-    var dt=new Date(t.created_at||t.createdAt||0);
-    return dt>=start&&dt<next
-  });
-  var gross=approved.reduce(function(a,t){return a+Number(t.amount||0)},0);
-  var fee=Math.round(gross*0.025*100)/100;
-  var vat=Math.round(fee*0.15*100)/100;
-  var net=Math.round((gross-fee-vat)*100)/100;
-  q("pendingSettlement").textContent=money(net);
-  q("settlementNet").textContent=money(net);
-  q("settlementGross").textContent=money(gross);
-  q("settlementFee").textContent="-"+money(fee);
-  q("settlementVat").textContent="-"+money(vat);
-  q("settlementCount").textContent=approved.length+" transacción"+(approved.length===1?"":"es");
+  var start=startOfSettlementWeek(),stats=settlementStats(start),next=stats.next;
+  q("pendingSettlement").textContent=money(stats.net);
+  q("settlementNet").textContent=money(stats.net);
+  q("settlementGross").textContent=money(stats.gross);
+  if(q("settlementAdjustments"))q("settlementAdjustments").textContent="-"+money(stats.adjustments);
+  q("settlementFee").textContent="-"+money(stats.fee);
+  q("settlementVat").textContent="-"+money(stats.vat);
+  q("settlementCount").textContent=stats.count+" transacción"+(stats.count===1?"":"es");
   q("settlementDate").textContent=settlementDateLabel(next);
-  q("settlementPeriod").textContent=settlementPeriodLabel(start,next)
+  q("settlementPeriod").textContent=settlementPeriodLabel(start,next);
+  renderSettlementHistory()
+}
+function settlementWeeksFromTransactions(){
+  var current=startOfSettlementWeek(),map={};
+  state.transactions.forEach(function(t){
+    [t.approvedAt,t.reversedAt].forEach(function(v){
+      if(!v)return;var s=startOfSettlementWeek(new Date(v));
+      if(s<current)map[s.toISOString().slice(0,10)]=s
+    })
+  });
+  return Object.keys(map).map(function(k){return map[k]}).sort(function(a,b){return b-a})
+}
+function renderSettlementHistory(){
+  var body=q("settlementHistoryRows");if(!body)return;
+  var weeks=settlementWeeksFromTransactions();
+  if(!weeks.length){body.innerHTML="<tr><td colspan='7' class='muted'>Aún no hay períodos cerrados. El primer histórico aparecerá después del primer cierre semanal.</td></tr>";return}
+  body.innerHTML=weeks.map(function(start){
+    var s=settlementStats(start),key=start.toISOString().slice(0,10);
+    return"<tr><td><b>"+settlementPeriodLabel(s.start,s.next)+"</b></td><td>"+money(s.gross)+"</td><td>"+(s.adjustments?"-"+money(s.adjustments):money(0))+"</td><td>-"+money(s.fee+s.vat)+"</td><td><b>"+money(s.net)+"</b></td><td><span class='status neutral'>Cerrada</span></td><td><button class='history-detail-btn' onclick='openSettlementDetail(\""+key+"\")'>Ver detalle</button></td></tr>"
+  }).join("")
+}
+function openSettlementDetail(key){
+  var start=new Date(key+"T00:00:00"),s=settlementStats(start);
+  var related=state.transactions.filter(function(t){return sameSettlementWeek(t.approvedAt,start,s.next)||sameSettlementWeek(t.reversedAt,start,s.next)});
+  var rows=related.map(function(t){
+    var adjustment=sameSettlementWeek(t.reversedAt,start,s.next);
+    return"<div class='rr'><span>"+safeText(t.tx)+" · "+safeText(t.locationName||"Sucursal")+"</span><b>"+(adjustment?"-":"")+money(t.amount)+"</b></div>"
+  }).join("");
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><span class='eyebrow'>Liquidación semanal</span><h3>"+settlementPeriodLabel(s.start,s.next)+"</h3><div class='receipt'><div class='rr'><span>Consumos aprobados</span><b>"+money(s.gross)+"</b></div><div class='rr'><span>Ajustes / reversos</span><b>-"+money(s.adjustments)+"</b></div><div class='rr'><span>Fee ReVale · 2,5%</span><b>-"+money(s.fee)+"</b></div><div class='rr'><span>IVA sobre fee · 15%</span><b>-"+money(s.vat)+"</b></div><div class='rr'><span>Neto calculado</span><b>"+money(s.net)+"</b></div></div><div class='section-title' style='margin-top:18px'>Movimientos del período</div><div class='receipt'>"+(rows||"<div class='muted'>Sin movimientos.</div>")+"</div><div class='modal-actions'><button class='btn btn-secondary' onclick='closeModal()'>Cerrar</button></div></div></div>"
 }
 function renderTx(){
   var recent=q("recentRows"),all=q("allRows");if(!recent||!all)return;
   if(!state.transactions.length){
     recent.innerHTML="<tr><td colspan='4' class='muted'>Todavía no hay movimientos.</td></tr>";
-    all.innerHTML="<tr><td colspan='6' class='muted'>Todavía no hay movimientos.</td></tr>";
+    all.innerHTML="<tr><td colspan='7' class='muted'>Todavía no hay movimientos.</td></tr>";
+    if(q("filteredTxSummary"))q("filteredTxSummary").textContent="0 · "+money(0);
     q("todayTotal").textContent="$ 0.00";q("todayCountValue").textContent="0";q("todayCount").textContent="0 consumos aprobados";q("avgTicket").textContent="$ 0.00";updateWeeklySettlement();return
   }
-  recent.innerHTML=state.transactions.slice(0,4).map(function(t){var s=displayStatus(t);return"<tr><td><b>"+t.tx+"</b></td><td>"+txTime(t)+"</td><td><span class='status "+s.cls+"'>"+s.text+"</span></td><td class='amount'>"+money(t.amount)+"</td></tr>"}).join("");
-  all.innerHTML=state.transactions.map(function(t){
-    var s=displayStatus(t);var canReverse=(state.role==="supervisor"||state.role==="admin");var action=(t.status==="approved"&&canReverse)?"<button class='btn btn-ghost' style='padding:6px 8px;font-size:8px' onclick='openReverseModal(\""+t.tx+"\","+t.amount+")'>Anular</button>":"—";
-    return"<tr><td><b>"+t.tx+"</b></td><td>"+txTime(t)+"</td><td>"+(t.reference||"—")+"</td><td><span class='status "+s.cls+"'>"+s.text+"</span></td><td class='amount'>"+money(t.amount)+"</td><td style='text-align:right'>"+action+"</td></tr>"
-  }).join("");
+  recent.innerHTML=state.transactions.slice(0,4).map(function(t){var s=displayStatus(t);return"<tr><td><b>"+safeText(t.tx)+"</b></td><td>"+txTime(t)+"</td><td><span class='status "+s.cls+"'>"+s.text+"</span></td><td class='amount'>"+money(t.amount)+"</td></tr>"}).join("");
+  renderMovementRows();
   var approved=state.transactions.filter(function(t){return t.status==="approved"});
   var total=approved.reduce(function(a,t){return a+t.amount},0),avg=approved.length?total/approved.length:0;
   q("todayTotal").textContent=money(total);q("todayCountValue").textContent=approved.length;q("todayCount").textContent=approved.length+" aprobada"+(approved.length===1?"":"s");q("avgTicket").textContent=money(avg);updateWeeklySettlement()
