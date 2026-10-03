@@ -9,6 +9,54 @@ import {
   matchInvoice
 } from "../lib/revale-db.js";
 
+
+async function getMerchantConfig(sql, slug = "el-hornero") {
+  const [merchant] = await sql`
+    SELECT
+      id,
+      name,
+      slug,
+      logo_url,
+      brand_primary,
+      brand_secondary,
+      metadata
+    FROM revale.merchants
+    WHERE slug = ${slug}
+      AND active = true
+    LIMIT 1
+  `;
+
+  if (!merchant) return null;
+
+  const locations = await sql`
+    SELECT
+      id,
+      name,
+      slug,
+      metadata
+    FROM revale.merchant_locations
+    WHERE merchant_id = ${merchant.id}
+      AND active = true
+    ORDER BY name
+  `;
+
+  return {
+    id: merchant.id,
+    name: merchant.name,
+    slug: merchant.slug,
+    logoUrl: merchant.logo_url || null,
+    brandPrimary: merchant.brand_primary || "#51C878",
+    brandSecondary: merchant.brand_secondary || "#29294B",
+    shortName: merchant.metadata?.short_name || merchant.name,
+    locations: locations.map((location) => ({
+      id: location.id,
+      name: location.name,
+      slug: location.slug,
+      terminal: location.metadata?.demo_terminal || "Caja 01"
+    }))
+  };
+}
+
 function json(res, code, body) {
   res
     .status(code)
@@ -22,6 +70,13 @@ export default async function handler(req, res) {
 
   try {
     const sql = await getSql();
+
+    if (req.method === "GET" && action === "merchant-config") {
+      const slug = String(req.query?.merchant || "el-hornero");
+      const config = await getMerchantConfig(sql, slug);
+      if (!config) return json(res, 404, { ok: false, error: "Comercio no encontrado" });
+      return json(res, 200, { ok: true, merchant: config });
+    }
 
     if (req.method === "GET" && action === "health") {
       const [db] = await sql`
@@ -100,7 +155,9 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "GET" && action === "transactions") {
-      const rows = await listMerchantTransactions(sql, req.query?.limit || 50);
+      const merchant = String(req.query?.merchant_id || "merchant_el_hornero");
+      const location = req.query?.location_id ? String(req.query.location_id) : null;
+      const rows = await listMerchantTransactions(sql, req.query?.limit || 50, merchant, location);
       return json(res, 200, { ok: true, transactions: rows });
     }
 
@@ -170,6 +227,8 @@ export default async function handler(req, res) {
     if (req.method === "POST" && action === "create") {
       const amount = Number(req.body?.amount || 0);
       const reference = String(req.body?.reference || "").slice(0, 80);
+      const merchantId = String(req.body?.merchant_id || "merchant_el_hornero");
+      const locationId = String(req.body?.location_id || "location_el_hornero_cumbaya");
 
       if (!Number.isFinite(amount) || amount <= 0 || amount > 500) {
         return json(res, 400, {
@@ -181,7 +240,9 @@ export default async function handler(req, res) {
       const row = await createCharge(
         sql,
         Math.round(amount * 100) / 100,
-        reference
+        reference,
+        merchantId,
+        locationId
       );
 
       return json(res, 200, row);
