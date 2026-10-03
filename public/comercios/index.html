@@ -753,6 +753,19 @@ body.role-supervisor .receipt-card{border-radius:26px}
   body.role-supervisor .charge-layout{grid-template-columns:1fr}
 }
 
+
+/* NEUTRAL REVALE LOGIN */
+.neutral-access-pill{padding-left:14px}
+.neutral-access-pill span{font-weight:850}
+.secure-dot{background:#f4f8f5!important;color:#607069!important;border-color:#e4ebe6!important}
+.secure-dot i{background:var(--brand)!important}
+.neutral-merchant-mark{
+  width:34px;height:34px;border-radius:10px;display:grid;place-items:center;
+  background:#eef9f1;color:var(--brand);font-weight:950;font-size:14px;
+  border:1px solid rgba(81,200,120,.18)
+}
+.neutral-phone-merchant{align-items:center}
+
 </style>
 </head>
 <body>
@@ -762,7 +775,7 @@ body.role-supervisor .receipt-card{border-radius:26px}
   <div class="login-left product-visual">
     <div class="login-brand-row">
       <div class="brand-logo logo-inverse brand-logo-hero" aria-label="ReVale"></div>
-      <div class="co-brand-pill"><div class="merchant-logo co-brand-logo" aria-hidden="true"></div><span id="loginMerchantName">El Hornero</span><i>×</i><b>ReVale</b></div>
+      <div class="co-brand-pill neutral-access-pill"><span>Portal para comercios</span><i>•</i><b>ReVale</b></div>
     </div>
 
     <div class="product-showcase">
@@ -775,7 +788,7 @@ body.role-supervisor .receipt-card{border-radius:26px}
         <div class="visual-top">
           <div class="visual-dots"><i></i><i></i><i></i></div>
           <span>comercios.revale.app</span>
-          <b id="previewMerchantLocation"><span class="merchant-context-text">El Hornero · Cumbayá</span></b>
+          <b>ReVale Comercios</b>
         </div>
         <div class="visual-body">
           <div class="visual-side">
@@ -813,7 +826,7 @@ body.role-supervisor .receipt-card{border-radius:26px}
             <strong>$ 133.20</strong>
           </div>
           <div class="phone-preview-body">
-            <div class="phone-merchant"><div class="merchant-logo"></div><div><b id="previewPhoneMerchant">El Hornero</b><span id="previewPhoneLocation">Cumbayá</span></div></div>
+            <div class="phone-merchant neutral-phone-merchant"><div class="neutral-merchant-mark">R</div><div><b>Comercio afiliado</b><span>Pago con ReVale</span></div></div>
             <small>Estás por pagar</small>
             <strong>$ 24.50</strong>
             <div class="phone-balance">Saldo después: $ 108.70</div>
@@ -832,14 +845,14 @@ body.role-supervisor .receipt-card{border-radius:26px}
       </div>
     </div>
 
-    <div class="login-foot"><span>ReVale Comercios</span><span id="loginDemoMerchant">El Hornero · Demo</span></div>
+    <div class="login-foot"><span>ReVale Comercios</span><span>Acceso seguro</span></div>
   </div>
 
   <div class="login-right product-access">
     <div class="login-card access-card login-form-card">
       <div class="access-head">
         <div class="brand-logo logo-light brand-logo-access" aria-label="ReVale"></div>
-        <span class="demo-dot"><i></i> Demo</span>
+        <span id="accessBadge" class="demo-dot secure-dot"><i></i> Acceso seguro</span>
       </div>
 
       <div class="login-title-wrap">
@@ -849,7 +862,7 @@ body.role-supervisor .receipt-card{border-radius:26px}
 
       <div class="form-field">
         <label for="loginEmail">Correo electrónico</label>
-        <input id="loginEmail" type="email" autocomplete="username" value="gerencia@demo.revale.app" placeholder="nombre@empresa.com"/>
+        <input id="loginEmail" type="email" autocomplete="username" value="" placeholder="nombre@empresa.com"/>
       </div>
 
       <div class="form-field">
@@ -858,7 +871,7 @@ body.role-supervisor .receipt-card{border-radius:26px}
           <button type="button" class="text-link" onclick="toast('Recuperación de contraseña disponible en producción')">¿Olvidaste tu contraseña?</button>
         </div>
         <div class="password-wrap">
-          <input id="loginPassword" type="password" autocomplete="current-password" value="gerencia-demo" placeholder="••••••••"/>
+          <input id="loginPassword" type="password" autocomplete="current-password" value="" placeholder="••••••••"/>
           <button id="passwordToggle" type="button" class="password-toggle" onclick="togglePassword()">Mostrar</button>
         </div>
       </div>
@@ -870,10 +883,10 @@ body.role-supervisor .receipt-card{border-radius:26px}
 
       <button id="loginButton" class="btn btn-primary access-button" onclick="loginDemo()">Ingresar</button>
 
-      <div class="login-divider"><span></span><em>Acceso demo</em><span></span></div>
+      <div id="demoDivider" class="login-divider hidden"><span></span><em>Acceso de presentación</em><span></span></div>
 
-      <div class="demo-credentials role-demo-box">
-        <div class="role-demo-head"><span>Accesos demo</span><b id="demoMerchantName">El Hornero</b></div>
+      <div id="demoRoleBox" class="demo-credentials role-demo-box hidden">
+        <div class="role-demo-head"><span>Accesos de presentación</span><b id="demoMerchantName">El Hornero</b></div>
         <div class="role-demo-actions">
           <button type="button" onclick="fillDemoRole('cashier')"><span>Caja</span><small>Cobros + movimientos</small></button>
           <button type="button" onclick="fillDemoRole('supervisor')"><span>Supervisor</span><small>+ reversos</small></button>
@@ -1098,24 +1111,23 @@ var state={amount:0,reference:"",tx:"",token:"",expiresAt:0,poll:null,timer:null
 function q(id){return document.getElementById(id)}
 function money(n){return "$ "+Number(n||0).toFixed(2)}
 function toast(msg){var t=q("toast");t.textContent=msg;t.classList.add("show");setTimeout(function(){t.classList.remove("show")},1800)}
-async function loadMerchantConfig(){
-  var params=new URLSearchParams(location.search);
-  var slug=params.get("merchant")||"el-hornero";
+async function loadMerchantConfig(slug,wantedLocation){
   try{
     var r=await fetch("/api/revale-demo?action=merchant-config&merchant="+encodeURIComponent(slug),{cache:"no-store"});
     var d=await r.json();
     if(!r.ok||!d.merchant)throw new Error(d.error||"Comercio no encontrado");
     state.merchant=d.merchant;
-    var wanted=params.get("location");
-    state.location=(d.merchant.locations||[]).find(function(x){return x.slug===wanted})||d.merchant.locations?.[0]||null;
+    state.location=(d.merchant.locations||[]).find(function(x){return x.slug===wantedLocation})||d.merchant.locations?.[0]||null;
     applyMerchantConfig();
+    return true;
   }catch(e){
     console.error(e);
-    toast("No pudimos cargar el comercio");
+    toast("No pudimos cargar tu comercio");
+    return false;
   }
 }
-function merchantName(){return state.merchant?.shortName||state.merchant?.name||"El Hornero"}
-function locationName(){return state.location?.name||"Cumbayá"}
+function merchantName(){return state.merchant?.shortName||state.merchant?.name||"Comercio"}
+function locationName(){return state.location?.name||"Sucursal"}
 function terminalName(){return state.location?.terminal||"Caja 01"}
 function applyMerchantConfig(){
   if(!state.merchant)return;
@@ -1125,10 +1137,8 @@ function applyMerchantConfig(){
   document.querySelectorAll(".merchant-name-text").forEach(function(el){el.textContent=name});
   document.querySelectorAll(".merchant-location-text").forEach(function(el){el.textContent=loc});
   document.querySelectorAll(".merchant-context-text").forEach(function(el){el.textContent=name+" · "+loc});
-  ["loginMerchantName","previewPhoneMerchant","demoMerchantName","sidebarMerchantName"].forEach(function(id){if(q(id))q(id).textContent=name});
-  ["previewPhoneLocation","sidebarLocationName"].forEach(function(id){if(q(id))q(id).textContent=loc});
-  if(q("previewMerchantLocation"))q("previewMerchantLocation").textContent=name+" · "+loc;
-  if(q("loginDemoMerchant"))q("loginDemoMerchant").textContent=name+" · Demo";
+  ["sidebarMerchantName"].forEach(function(id){if(q(id))q(id).textContent=name});
+  ["sidebarLocationName"].forEach(function(id){if(q(id))q(id).textContent=loc});
   if(q("cashierContext"))q("cashierContext").textContent=name+" · "+loc;
   if(q("employeeMerchantName"))q("employeeMerchantName").textContent=name;
   if(q("employeeMerchantLocation"))q("employeeMerchantLocation").textContent=loc+" · "+terminalName();
@@ -1142,14 +1152,23 @@ function togglePassword(){
   input.type=showing?"password":"text";
   b.textContent=showing?"Mostrar":"Ocultar";
 }
-function fillDemoRole(role){
-  var map={
-    cashier:["caja@demo.revale.app","caja-demo","Caja 01"],
-    supervisor:["supervisor@demo.revale.app","supervisor-demo","Supervisor"],
-    admin:["gerencia@demo.revale.app","gerencia-demo","Gerencia"]
+function demoUsers(){
+  return {
+    "caja@demo.revale.app":{password:"caja-demo",role:"cashier",name:"Caja 01",merchant:"el-hornero",location:"cumbaya"},
+    "supervisor@demo.revale.app":{password:"supervisor-demo",role:"supervisor",name:"Supervisor",merchant:"el-hornero",location:"cumbaya"},
+    "gerencia@demo.revale.app":{password:"gerencia-demo",role:"admin",name:"Gerencia",merchant:"el-hornero",location:"cumbaya"},
+    "caja@cebiches.demo.revale.app":{password:"caja-demo",role:"cashier",name:"Caja 01",merchant:"cebiches-ruminahui",location:"quicentro-shopping"},
+    "supervisor@cebiches.demo.revale.app":{password:"supervisor-demo",role:"supervisor",name:"Supervisor",merchant:"cebiches-ruminahui",location:"quicentro-shopping"},
+    "gerencia@cebiches.demo.revale.app":{password:"gerencia-demo",role:"admin",name:"Gerencia",merchant:"cebiches-ruminahui",location:"quicentro-shopping"}
   };
-  var v=map[role];state.role=role;state.userName=v[2];
-  q("loginEmail").value=v[0];q("loginPassword").value=v[1];
+}
+function fillDemoRole(role){
+  var p=new URLSearchParams(location.search),ceb=p.get("merchant")==="cebiches-ruminahui";
+  var prefix=role==="cashier"?"caja":role==="supervisor"?"supervisor":"gerencia";
+  var email=ceb?prefix+"@cebiches.demo.revale.app":prefix+"@demo.revale.app";
+  var u=demoUsers()[email];
+  q("demoMerchantName").textContent=ceb?"Cebiches de la Rumiñahui":"El Hornero";
+  q("loginEmail").value=email;q("loginPassword").value=u.password;
   document.querySelectorAll(".role-demo-actions button").forEach(function(b){b.classList.remove("active")});
   var idx=role==="cashier"?0:role==="supervisor"?1:2,bs=document.querySelectorAll(".role-demo-actions button");
   if(bs[idx])bs[idx].classList.add("active");
@@ -1157,17 +1176,14 @@ function fillDemoRole(role){
 async function loginDemo(){
   var email=(q("loginEmail").value||"").trim().toLowerCase();
   var password=q("loginPassword").value||"";
-  var users={
-    "caja@demo.revale.app":["caja-demo","cashier","Caja 01"],
-    "supervisor@demo.revale.app":["supervisor-demo","supervisor","Supervisor"],
-    "gerencia@demo.revale.app":["gerencia-demo","admin","Gerencia"]
-  };
-  var u=users[email],b=q("loginButton");
+  var u=demoUsers()[email],b=q("loginButton");
   if(!email||!password){toast("Ingresa correo y contraseña");return}
-  if(!u||u[0]!==password){toast("Credenciales demo incorrectas");return}
-  state.role=u[1];state.userName=u[2];
+  if(!u||u.password!==password){toast("Correo o contraseña incorrectos");return}
   b.disabled=true;b.textContent="Ingresando…";
-  await new Promise(function(resolve){setTimeout(resolve,320)});
+  state.role=u.role;state.userName=u.name;
+  var loaded=await loadMerchantConfig(u.merchant,u.location);
+  if(!loaded){b.disabled=false;b.textContent="Ingresar";return}
+  await new Promise(function(resolve){setTimeout(resolve,220)});
   await enterDemo();
   b.disabled=false;b.textContent="Ingresar";
 }
@@ -1189,7 +1205,7 @@ function applyRole(){
   document.body.classList.add("role-"+state.role);
   q("userName").textContent=state.userName;
   q("userAvatar").textContent=state.role==="cashier"?"01":state.role==="supervisor"?"S":"G";
-  q("userRoleLabel").textContent=state.role==="cashier"?"Caja · Cumbayá":state.role==="supervisor"?"Supervisor · Cumbayá":"Gerencia · Todas las sucursales";
+  q("userRoleLabel").textContent=state.role==="cashier"?"Caja · "+locationName():state.role==="supervisor"?"Supervisor · "+locationName():"Gerencia · Todas las sucursales";
   q("branchNavLabel").textContent=state.role==="admin"?"Sucursales":"Mi sucursal";
   if(state.role==="admin")q("navSettlement").classList.remove("hidden");else q("navSettlement").classList.add("hidden");
   var terminalMode=state.role==="cashier"||state.role==="supervisor";
@@ -1329,7 +1345,16 @@ function employeeSuccess(){
   var remaining=emp.balanceAfter==null?emp.currentBalance:emp.balanceAfter;
   q("phone").innerHTML="<div class='employee-success'><div class='brand-logo logo-light success-brand' aria-label='ReVale'></div><div class='check'>✓</div><h2>Pago aprobado</h2><p>Tu consumo fue confirmado en "+merchantName()+".</p><div class='balance-success'><span>Saldo disponible</span><b>"+money(remaining)+"</b></div><div class='receipt'><div class='rr'><span>Comercio</span><b>"+merchantName()+"</b></div><div class='rr'><span>Total</span><b>"+money(emp.amount)+"</b></div><div class='rr'><span>Transacción</span><b>"+emp.tx+"</b></div><div class='rr'><span>Estado</span><b>Aprobado</b></div></div></div>"
 }
-(function init(){var p=new URLSearchParams(location.search);if(p.get("employee")==="1")loadEmployee();else loadMerchantConfig()})();
+(function init(){
+  var p=new URLSearchParams(location.search);
+  if(p.get("employee")==="1"){loadEmployee();return}
+  if(p.get("demo")==="1"){
+    q("demoDivider").classList.remove("hidden");
+    q("demoRoleBox").classList.remove("hidden");
+    q("accessBadge").innerHTML="<i></i> Presentación";
+    fillDemoRole("admin");
+  }
+})();
 </script>
 </body>
 </html>
