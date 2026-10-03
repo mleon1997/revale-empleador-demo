@@ -1083,12 +1083,40 @@ body.role-supervisor .receipt-card{border-radius:26px}
 
     <div id="transactionsScreen" class="content hidden">
       <div class="page-head">
-        <div><span class="eyebrow">Trazabilidad</span><h1>Movimientos.</h1><p>Consulta consumos, estados y reversos registrados en ReVale.</p></div>
-        <button class="btn btn-primary" onclick="showHome()">+ Nuevo cobro</button>
+        <div><span class="eyebrow">Trazabilidad</span><h1>Movimientos.</h1><p>Consulta, filtra y concilia los consumos registrados en ReVale.</p></div>
+        <div class="page-actions">
+          <button id="exportTxBtn" class="btn btn-secondary" onclick="exportTransactions()">Exportar CSV</button>
+          <button class="btn btn-primary" onclick="showHome()">+ Nuevo cobro</button>
+        </div>
       </div>
-      <section class="card recent">
-        <table class="table"><thead><tr><th>Transacción</th><th>Hora</th><th>Referencia</th><th>Estado</th><th style="text-align:right">Monto</th><th style="text-align:right">Acción</th></tr></thead>
-        <tbody id="allRows"><tr><td colspan="6" class="muted">Cargando movimientos…</td></tr></tbody></table>
+
+      <section class="card movement-toolbar">
+        <div class="movement-search">
+          <span>⌕</span>
+          <input id="txSearch" type="search" placeholder="Buscar transacción o referencia" oninput="renderMovementRows()"/>
+        </div>
+        <select id="txStatusFilter" onchange="renderMovementRows()">
+          <option value="all">Todos los estados</option>
+          <option value="approved">Aprobadas</option>
+          <option value="reversed">Reversadas</option>
+          <option value="pending">Pendientes</option>
+          <option value="expired">Expiradas</option>
+          <option value="declined">Rechazadas</option>
+        </select>
+        <select id="txPeriodFilter" onchange="renderMovementRows()">
+          <option value="all">Todo el período</option>
+          <option value="today">Hoy</option>
+          <option value="week">Esta semana</option>
+        </select>
+        <select id="txLocationFilter" class="admin-only-filter" onchange="renderMovementRows()">
+          <option value="all">Todas las sucursales</option>
+        </select>
+        <div class="movement-summary"><span>Resultado</span><b id="filteredTxSummary">—</b></div>
+      </section>
+
+      <section class="card recent movements-table-card">
+        <table class="table"><thead><tr><th>Transacción</th><th>Fecha / hora</th><th>Sucursal</th><th>Referencia</th><th>Estado</th><th style="text-align:right">Monto</th><th style="text-align:right">Acción</th></tr></thead>
+        <tbody id="allRows"><tr><td colspan="7" class="muted">Cargando movimientos…</td></tr></tbody></table>
       </section>
     </div>
 
@@ -1136,6 +1164,30 @@ body.role-supervisor .receipt-card{border-radius:26px}
           <div><span>03</span><b>Lunes</b><small>Se transfiere el neto al comercio.</small></div>
         </div>
       </section>
+
+      <div class="finance-lower-grid">
+        <section class="card settlement-history-card">
+          <div class="section-head-inline">
+            <div><span class="eyebrow">Conciliación</span><div class="section-title">Liquidaciones anteriores</div></div>
+            <span class="muted microcopy">Histórico calculado sobre movimientos registrados</span>
+          </div>
+          <div class="settlement-history-wrap">
+            <table class="table settlement-history-table">
+              <thead><tr><th>Período</th><th>Consumos</th><th>Ajustes</th><th>Fee + IVA</th><th>Neto</th><th>Estado</th><th></th></tr></thead>
+              <tbody id="settlementHistoryRows"><tr><td colspan="7" class="muted">Aún no hay períodos cerrados.</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card bank-card">
+          <div class="bank-card-head"><span class="eyebrow">Cuenta de liquidación</span><span class="status neutral">Protegida</span></div>
+          <div class="bank-icon">▣</div>
+          <h3>Cuenta bancaria del comercio</h3>
+          <p>Se registra y valida durante el onboarding antes de habilitar transferencias.</p>
+          <div class="bank-empty-state"><span>Estado</span><b>Por configurar</b></div>
+          <button class="btn btn-secondary bank-action" type="button" onclick="toast('La cuenta bancaria se configura durante el onboarding del comercio')">Ver configuración</button>
+        </section>
+      </div>
     </div>
 
     <div id="branchScreen" class="content hidden">
