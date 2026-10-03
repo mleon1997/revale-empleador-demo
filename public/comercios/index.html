@@ -1233,7 +1233,8 @@ async function startCharge(){
 }
 function makeQR(){
   var el=q("qr");el.innerHTML="";
-  var url=location.origin+"/comercios/?employee=1&tx="+encodeURIComponent(state.tx)+"&token="+encodeURIComponent(state.token);
+  var employeePath=location.hostname==="comercios.revale.app"?"/?employee=1&tx=":"/comercios/?employee=1&tx=";
+  var url=location.origin+employeePath+encodeURIComponent(state.tx)+"&token="+encodeURIComponent(state.token);
   try{new QRCode(el,{text:url,width:232,height:232,colorDark:"#0e1b15",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.H})}
   catch(e){el.innerHTML="<div style='font-size:10px;color:#6d7973;padding:20px'>No pudimos generar el QR.</div>"}
 }
