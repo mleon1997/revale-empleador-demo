@@ -278,6 +278,134 @@ export default async function handler(req, res) {
       });
     }
 
+    if (req.method === "GET" && action === "reversal-requests") {
+      const merchantId = String(req.query?.merchant_id || "merchant_el_hornero");
+      const locationId = req.query?.location_id ? String(req.query.location_id) : null;
+      const rows = await sql`
+        SELECT
+          rr.id,
+          rr.transaction_id,
+          rr.merchant_id,
+          rr.location_id,
+          rr.requested_by,
+          rr.reason,
+          rr.note,
+          rr.status,
+          rr.reviewed_by,
+          rr.reviewed_at,
+          rr.created_at,
+          tr.amount::float8 AS amount,
+          tr.reference,
+          tr.status AS transaction_status,
+          ml.name AS location_name
+        FROM revale.reversal_requests rr
+        JOIN revale.transactions tr ON tr.id = rr.transaction_id
+        LEFT JOIN revale.merchant_locations ml ON ml.id = rr.location_id
+        WHERE rr.merchant_id = ${merchantId}
+          AND (${locationId}::text IS NULL OR rr.location_id = ${locationId})
+        ORDER BY rr.created_at DESC
+        LIMIT 100
+      `;
+      return json(res, 200, { ok: true, requests: rows });
+    }
+
+    if (req.method === "POST" && action === "request-reversal") {
+      const tx = String(req.body?.tx || "");
+      const merchantId = String(req.body?.merchant_id || "merchant_el_hornero");
+      const locationId = req.body?.location_id ? String(req.body.location_id) : null;
+      const requestedBy = String(req.body?.requested_by || "Caja").slice(0, 120);
+      const reason = String(req.body?.reason || "").trim().slice(0, 120);
+      const note = String(req.body?.note || "").trim().slice(0, 500);
+      if (!tx || !reason) return json(res, 400, { ok: false, error: "Selecciona un motivo" });
+
+      const [tr] = await sql`
+        SELECT id, status, merchant_id, location_id
+        FROM revale.transactions
+        WHERE id = ${tx} AND merchant_id = ${merchantId}
+        LIMIT 1
+      `;
+      if (!tr) return json(res, 404, { ok: false, error: "Transacción no encontrada" });
+      if (tr.status !== "approved") return json(res, 409, { ok: false, error: "Solo se puede solicitar reverso de una transacción aprobada" });
+
+      try {
+        const [row] = await sql`
+          INSERT INTO revale.reversal_requests (
+            transaction_id, merchant_id, location_id, requested_by, reason, note
+          )
+          VALUES (
+            ${tx}, ${merchantId}, ${tr.location_id || locationId}, ${requestedBy}, ${reason}, ${note || null}
+          )
+          RETURNING id, transaction_id, merchant_id, location_id, requested_by, reason, note, status, created_at
+        `;
+        await sql`
+          INSERT INTO revale.transaction_events (transaction_id, event_type, payload)
+          VALUES (
+            ${tx},
+            'reversal_requested',
+            jsonb_build_object('requested_by',${requestedBy},'reason',${reason},'note',${note || null})
+          )
+        `;
+        return json(res, 200, { ok: true, request: row });
+      } catch (error) {
+        if (String(error?.message || "").includes("reversal_requests_one_pending_per_tx")) {
+          return json(res, 409, { ok: false, error: "Ya existe una solicitud de reverso pendiente para esta transacción" });
+        }
+        throw error;
+      }
+    }
+
+    if (req.method === "POST" && action === "resolve-reversal") {
+      const requestId = Number(req.body?.request_id || 0);
+      const decision = String(req.body?.decision || "");
+      const reviewedBy = String(req.body?.reviewed_by || "Supervisor").slice(0, 120);
+      if (!requestId || !["approve","reject"].includes(decision)) {
+        return json(res, 400, { ok: false, error: "Solicitud inválida" });
+      }
+      const [request] = await sql`
+        SELECT *
+        FROM revale.reversal_requests
+        WHERE id = ${requestId} AND status = 'pending'
+        LIMIT 1
+      `;
+      if (!request) return json(res, 404, { ok: false, error: "Solicitud no encontrada o ya resuelta" });
+
+      if (decision === "reject") {
+        const [row] = await sql`
+          UPDATE revale.reversal_requests
+          SET status='rejected', reviewed_by=${reviewedBy}, reviewed_at=now()
+          WHERE id=${requestId}
+          RETURNING *
+        `;
+        await sql`
+          INSERT INTO revale.transaction_events (transaction_id,event_type,payload)
+          VALUES (
+            ${request.transaction_id},
+            'reversal_rejected',
+            jsonb_build_object('reviewed_by',${reviewedBy},'request_id',${requestId})
+          )
+        `;
+        return json(res, 200, { ok: true, request: row });
+      }
+
+      const result = await reverseCharge(
+        sql,
+        request.transaction_id,
+        request.reason,
+        request.note || "",
+        reviewedBy
+      );
+      if (result.code !== "ok") {
+        return json(res, 409, { ok: false, error: "La transacción ya no puede reversarse", status: result.status });
+      }
+      const [row] = await sql`
+        UPDATE revale.reversal_requests
+        SET status='approved', reviewed_by=${reviewedBy}, reviewed_at=now()
+        WHERE id=${requestId}
+        RETURNING *
+      `;
+      return json(res, 200, { ok: true, request: row, reversal: result });
+    }
+
     if (req.method === "GET" && action === "transactions") {
       const merchant = String(req.query?.merchant_id || "merchant_el_hornero");
       const location = req.query?.location_id ? String(req.query.location_id) : null;
@@ -287,7 +415,10 @@ export default async function handler(req, res) {
 
     if (req.method === "POST" && action === "reverse") {
       const tx = String(req.body?.tx || "");
-      const result = await reverseCharge(sql, tx);
+      const reason = String(req.body?.reason || "other").slice(0,120);
+      const note = String(req.body?.note || "").slice(0,500);
+      const reviewedBy = String(req.body?.reviewed_by || "Supervisor").slice(0,120);
+      const result = await reverseCharge(sql, tx, reason, note, reviewedBy);
 
       if (result.code === "not_found") {
         return json(res, 404, {
