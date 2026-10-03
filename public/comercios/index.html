@@ -1506,7 +1506,7 @@ body.role-admin .operations-grid{display:none!important}
 <div id="modalRoot"></div>
 
 <script>
-var state={amount:0,reference:"",tx:"",token:"",expiresAt:0,poll:null,timer:null,transactions:[],role:"admin",userName:"Gerencia",merchant:null,location:null,merchantTerms:{discountRate:.025,taxRate:.15,settlementFrequency:"weekly",settlementWeekday:1}};
+var state={amount:0,reference:"",tx:"",token:"",expiresAt:0,poll:null,timer:null,idempotencyKey:null,transactions:[],role:"admin",userName:"Gerencia",merchant:null,location:null,merchantTerms:{discountRate:.025,taxRate:.15,settlementFrequency:"weekly",settlementWeekday:1}};
 function q(id){return document.getElementById(id)}
 function money(n){return "$ "+Number(n||0).toFixed(2)}
 function toast(msg){var t=q("toast");t.textContent=msg;t.classList.add("show");setTimeout(function(){t.classList.remove("show")},1800)}
@@ -1726,9 +1726,10 @@ async function startCharge(){
   if(!(amount>0))return;
   state.amount=amount;state.reference=q("refInput").value.trim();q("chargeBtn").disabled=true;
   try{
-    var r=await fetch("/api/revale-demo?action=create",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({amount:amount,reference:state.reference,merchant_id:state.merchant?.id,location_id:state.location?.id})});
+    if(!state.idempotencyKey)state.idempotencyKey=(crypto.randomUUID?crypto.randomUUID():"rv-"+Date.now()+"-"+Math.random().toString(36).slice(2));
+    var r=await fetch("/api/revale-demo?action=create",{method:"POST",headers:{"Content-Type":"application/json","X-Idempotency-Key":state.idempotencyKey},body:JSON.stringify({amount:amount,reference:state.reference,merchant_id:state.merchant?.id,location_id:state.location?.id,idempotency_key:state.idempotencyKey})});
     var d=await r.json();if(!r.ok)throw new Error(d.error||"No se pudo crear el cobro");
-    state.tx=d.tx;state.token=d.token;state.expiresAt=d.expiresAt;
+    state.tx=d.tx;state.token=d.token;state.expiresAt=d.expiresAt;state.idempotencyKey=null;
   }catch(e){q("chargeBtn").disabled=false;toast(e.message||"No pudimos iniciar el cobro");return}
   hideScreens();q("chargeScreen").classList.remove("hidden");q("topTitle").textContent="Cobro en curso · Cumbayá";nav("navHome");
   q("chargeAmount").textContent=money(state.amount);q("txRef").textContent=state.tx+(state.reference?" · "+state.reference:"");
@@ -1772,7 +1773,7 @@ async function approve(){
   await loadTransactions()
 }
 function cancelCharge(){clearInterval(state.poll);clearInterval(state.timer);newSale()}
-async function newSale(){state.amount=0;state.reference="";state.tx="";state.token="";q("amountInput").value="";q("refInput").value="";q("chargeBtn").disabled=true;await showHome()}
+async function newSale(){state.amount=0;state.reference="";state.tx="";state.token="";state.idempotencyKey=null;q("amountInput").value="";q("refInput").value="";q("chargeBtn").disabled=true;await showHome()}
 
 async function loadTransactions(){
   try{
