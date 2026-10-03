@@ -771,6 +771,46 @@ body.role-supervisor .receipt-card{border-radius:26px}
 .role-demo-box.hidden,
 #demoDivider.hidden{display:none!important}
 
+
+/* WEEKLY SETTLEMENTS */
+.weekly-settlement-grid{align-items:stretch}
+.weekly-settlement-hero{
+  min-height:300px;display:flex;flex-direction:column;justify-content:flex-end;
+  position:relative;overflow:hidden
+}
+.weekly-settlement-hero:before{
+  content:"";position:absolute;width:190px;height:190px;border-radius:50%;
+  right:-55px;top:-70px;border:1px solid rgba(255,255,255,.18)
+}
+.settlement-date{
+  margin-top:8px;font-size:14px;font-weight:850;letter-spacing:-.02em;
+  color:rgba(255,255,255,.78)
+}
+.weekly-breakdown{padding:26px}
+.weekly-breakdown .detail-row{padding:15px 0}
+.settlement-net-row{
+  margin-top:6px;padding-top:18px!important;border-top:1px solid #e7ebe8!important;
+  font-size:13px
+}
+.settlement-net-row b{font-size:18px;color:var(--navy)}
+.weekly-policy-card{margin-top:18px;padding:24px 26px;border-radius:24px}
+.weekly-policy-head{display:flex;align-items:center;justify-content:space-between;gap:18px}
+.weekly-badge{
+  background:#eef9f1;color:#2e7c4a;border:1px solid #dcefe2;
+  border-radius:999px;padding:8px 12px;font-size:8px;font-weight:900;text-transform:uppercase;
+  letter-spacing:.09em
+}
+.weekly-policy-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
+.weekly-policy-steps>div{
+  background:#f8faf8;border:1px solid #e8ede9;border-radius:18px;padding:16px
+}
+.weekly-policy-steps span{
+  display:block;font-size:7px;font-weight:900;letter-spacing:.12em;color:var(--brand);margin-bottom:10px
+}
+.weekly-policy-steps b{display:block;font-size:11px;color:var(--navy);margin-bottom:5px}
+.weekly-policy-steps small{display:block;font-size:8px;color:#7b8781;line-height:1.45}
+@media(max-width:900px){.weekly-policy-steps{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
@@ -1053,13 +1093,48 @@ body.role-supervisor .receipt-card{border-radius:26px}
 
     <div id="settlementsScreen" class="content hidden">
       <div class="product-head">
-        <div><div class="head-meta"><span>Finanzas</span><i></i><span class="merchant-name-text">El Hornero</span></div><h1>Liquidaciones</h1><p>Consumos aprobados pendientes de liquidación.</p></div>
+        <div>
+          <div class="head-meta"><span>Finanzas</span><i></i><span class="merchant-name-text">El Hornero</span></div>
+          <h1>Liquidaciones</h1>
+          <p>Cierre semanal los domingos a las 23:59 · transferencia programada cada lunes.</p>
+        </div>
       </div>
-      <div class="settlement-grid">
-        <section class="settlement-hero"><div class="settlement-label">Por liquidar</div><div id="pendingSettlement" class="settlement-amount mono">$ 0.00</div><div class="settlement-meta"><span class="status ok">Calculado</span><span id="settlementCount">0 transacciones</span></div></section>
-        <section class="card settlement-detail"><div class="section-title">Resumen</div><div class="detail-row"><span>Comercio</span><b class="merchant-name-text">El Hornero</b></div><div class="detail-row"><span>Alcance</span><b>Todas las sucursales</b></div><div class="detail-row"><span>Estado</span><span class="status wait">Pendiente</span></div><div class="detail-row"><span>Fuente</span><b>Consumos aprobados</b></div></section>
+
+      <div class="settlement-grid weekly-settlement-grid">
+        <section class="settlement-hero weekly-settlement-hero">
+          <div class="settlement-label">Próxima liquidación</div>
+          <div id="pendingSettlement" class="settlement-amount mono">$ 0.00</div>
+          <div id="settlementDate" class="settlement-date">Lunes —</div>
+          <div class="settlement-meta">
+            <span class="status ok">Programada</span>
+            <span id="settlementCount">0 transacciones</span>
+          </div>
+        </section>
+
+        <section class="card settlement-detail weekly-breakdown">
+          <div class="section-title">Resumen de la semana</div>
+          <div class="detail-row"><span>Período</span><b id="settlementPeriod">—</b></div>
+          <div class="detail-row"><span>Consumos aprobados</span><b id="settlementGross" class="mono">$ 0.00</b></div>
+          <div class="detail-row"><span>Fee ReVale · 2,5%</span><b id="settlementFee" class="mono">-$ 0.00</b></div>
+          <div class="detail-row"><span>IVA sobre fee · 15%</span><b id="settlementVat" class="mono">-$ 0.00</b></div>
+          <div class="detail-row settlement-net-row"><span>Neto a recibir</span><b id="settlementNet" class="mono">$ 0.00</b></div>
+        </section>
       </div>
-      <section class="card settlements-note"><div class="section-title">Histórico</div><p>El ciclo de liquidación bancaria se conectará en un sprint posterior.</p></section>
+
+      <section class="card settlements-note weekly-policy-card">
+        <div class="weekly-policy-head">
+          <div>
+            <span class="eyebrow">Ciclo de liquidación</span>
+            <div class="section-title">Una transferencia por semana</div>
+          </div>
+          <span class="weekly-badge">Lunes</span>
+        </div>
+        <div class="weekly-policy-steps">
+          <div><span>01</span><b>Lunes–domingo</b><small>Se acumulan consumos aprobados.</small></div>
+          <div><span>02</span><b>Domingo 23:59</b><small>ReVale cierra el período semanal.</small></div>
+          <div><span>03</span><b>Lunes</b><small>Se transfiere el neto al comercio.</small></div>
+        </div>
+      </section>
     </div>
 
     <div id="branchScreen" class="content hidden">
@@ -1293,12 +1368,52 @@ function displayStatus(t){
   return{text:t.status||"—",cls:"neutral"}
 }
 function txTime(t){if(!t.createdAt)return"—";try{return new Date(t.createdAt).toLocaleTimeString("es-EC",{hour:"2-digit",minute:"2-digit"})}catch(e){return"—"}}
+function startOfSettlementWeek(now){
+  var d=new Date(now||Date.now()),day=d.getDay(),diff=(day===0?-6:1-day);
+  d.setDate(d.getDate()+diff);d.setHours(0,0,0,0);return d
+}
+function nextSettlementMonday(now){
+  var start=startOfSettlementWeek(now),next=new Date(start);next.setDate(start.getDate()+7);return next
+}
+function settlementDateLabel(d){
+  try{return d.toLocaleDateString("es-EC",{weekday:"long",day:"numeric",month:"long"}).replace(/^./,function(x){return x.toUpperCase()})}
+  catch(e){return "Lunes"}
+}
+function settlementPeriodLabel(start,next){
+  var end=new Date(next.getTime()-1);
+  try{
+    var a=start.toLocaleDateString("es-EC",{day:"numeric",month:"short"}).replace(".","");
+    var b=end.toLocaleDateString("es-EC",{day:"numeric",month:"short"}).replace(".","");
+    return a+" – "+b
+  }catch(e){return "Semana en curso"}
+}
+function updateWeeklySettlement(){
+  if(!q("pendingSettlement"))return;
+  var start=startOfSettlementWeek(),next=nextSettlementMonday();
+  var approved=state.transactions.filter(function(t){
+    if(t.status!=="approved")return false;
+    var dt=new Date(t.created_at||t.createdAt||0);
+    return dt>=start&&dt<next
+  });
+  var gross=approved.reduce(function(a,t){return a+Number(t.amount||0)},0);
+  var fee=Math.round(gross*0.025*100)/100;
+  var vat=Math.round(fee*0.15*100)/100;
+  var net=Math.round((gross-fee-vat)*100)/100;
+  q("pendingSettlement").textContent=money(net);
+  q("settlementNet").textContent=money(net);
+  q("settlementGross").textContent=money(gross);
+  q("settlementFee").textContent="-"+money(fee);
+  q("settlementVat").textContent="-"+money(vat);
+  q("settlementCount").textContent=approved.length+" transacción"+(approved.length===1?"":"es");
+  q("settlementDate").textContent=settlementDateLabel(next);
+  q("settlementPeriod").textContent=settlementPeriodLabel(start,next)
+}
 function renderTx(){
   var recent=q("recentRows"),all=q("allRows");if(!recent||!all)return;
   if(!state.transactions.length){
     recent.innerHTML="<tr><td colspan='4' class='muted'>Todavía no hay movimientos.</td></tr>";
     all.innerHTML="<tr><td colspan='6' class='muted'>Todavía no hay movimientos.</td></tr>";
-    q("todayTotal").textContent="$ 0.00";q("todayCountValue").textContent="0";q("todayCount").textContent="0 consumos aprobados";q("avgTicket").textContent="$ 0.00";return
+    q("todayTotal").textContent="$ 0.00";q("todayCountValue").textContent="0";q("todayCount").textContent="0 consumos aprobados";q("avgTicket").textContent="$ 0.00";updateWeeklySettlement();return
   }
   recent.innerHTML=state.transactions.slice(0,4).map(function(t){var s=displayStatus(t);return"<tr><td><b>"+t.tx+"</b></td><td>"+txTime(t)+"</td><td><span class='status "+s.cls+"'>"+s.text+"</span></td><td class='amount'>"+money(t.amount)+"</td></tr>"}).join("");
   all.innerHTML=state.transactions.map(function(t){
@@ -1307,7 +1422,7 @@ function renderTx(){
   }).join("");
   var approved=state.transactions.filter(function(t){return t.status==="approved"});
   var total=approved.reduce(function(a,t){return a+t.amount},0),avg=approved.length?total/approved.length:0;
-  q("todayTotal").textContent=money(total);q("todayCountValue").textContent=approved.length;q("todayCount").textContent=approved.length+" aprobada"+(approved.length===1?"":"s");q("avgTicket").textContent=money(avg);if(q("pendingSettlement"))q("pendingSettlement").textContent=money(total);if(q("settlementCount"))q("settlementCount").textContent=approved.length+" transacción"+(approved.length===1?"":"es")
+  q("todayTotal").textContent=money(total);q("todayCountValue").textContent=approved.length;q("todayCount").textContent=approved.length+" aprobada"+(approved.length===1?"":"s");q("avgTicket").textContent=money(avg);updateWeeklySettlement()
 }
 function openReverseModal(tx,amount){
   if(state.role==="cashier"){toast("Requiere autorización de supervisor");return}
