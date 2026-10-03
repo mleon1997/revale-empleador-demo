@@ -951,6 +951,8 @@ body.role-admin .operations-grid{display:none!important}
 .reversal-request-actions .approve{background:var(--green);color:#fff;border-color:var(--green)}
 .reversal-reason-chip{display:inline-flex;margin-top:7px;border-radius:999px;background:#fff3d9;color:#805d19;padding:5px 8px;font-size:7px;font-weight:900}
 
+
+.bank-account-details{display:grid;gap:10px;margin-top:18px;padding:14px;border-radius:15px;background:#f7faf8;border:1px solid #e8eeea}.bank-account-details>div{display:flex;align-items:center;justify-content:space-between;gap:14px}.bank-account-details span{font-size:8px;color:#829089}.bank-account-details b{font-size:9px;color:var(--navy);text-align:right}
 </style>
 </head>
 <body>
@@ -1370,12 +1372,17 @@ body.role-admin .operations-grid{display:none!important}
         </section>
 
         <section class="card bank-card">
-          <div class="bank-card-head"><span class="eyebrow">Cuenta de liquidación</span><span class="status neutral">Protegida</span></div>
+          <div class="bank-card-head"><span class="eyebrow">Cuenta de liquidación</span><span id="bankSecurityBadge" class="status neutral">Protegida</span></div>
           <div class="bank-icon">▣</div>
-          <h3>Cuenta bancaria del comercio</h3>
-          <p>Se registra y valida durante el onboarding antes de habilitar transferencias.</p>
-          <div class="bank-empty-state"><span>Estado</span><b>Por configurar</b></div>
-          <button class="btn btn-secondary bank-action" type="button" onclick="toast('La cuenta bancaria se configura durante el onboarding del comercio')">Ver configuración</button>
+          <h3 id="bankTitle">Cuenta bancaria del comercio</h3>
+          <p id="bankDescription">Registra la cuenta donde ReVale realizará las liquidaciones semanales.</p>
+          <div id="bankAccountDetails" class="bank-account-details hidden">
+            <div><span>Banco</span><b id="bankNameValue">—</b></div>
+            <div><span>Cuenta</span><b id="bankNumberValue">—</b></div>
+            <div><span>Titular</span><b id="bankHolderValue">—</b></div>
+          </div>
+          <div class="bank-empty-state"><span>Estado</span><b id="bankStatusValue">Por configurar</b></div>
+          <button id="bankActionBtn" class="btn btn-secondary bank-action" type="button" onclick="openBankAccountModal()">Configurar cuenta</button>
         </section>
       </div>
     </div>
@@ -1687,7 +1694,11 @@ async function toggleMerchantUser(userId,active){
     await loadMerchantUsers();toast(active?"Usuario activado":"Usuario desactivado")
   }catch(e){toast(e.message||"No se pudo actualizar el usuario")}
 }
-function showSettlements(){if(state.role!=="admin"){toast("Acceso restringido a gerencia");return}hideScreens();q("settlementsScreen").classList.remove("hidden");q("topTitle").textContent="Liquidaciones · "+merchantName();nav("navSettlement");loadTransactions()}
+async function showSettlements(){
+  if(state.role!=="admin"){toast("Acceso restringido a gerencia");return}
+  hideScreens();q("settlementsScreen").classList.remove("hidden");q("topTitle").textContent="Liquidaciones · "+merchantName();nav("navSettlement");
+  await Promise.all([loadTransactions(),loadBankAccount()])
+}
 function applyRole(){
   document.body.classList.remove("role-cashier","role-supervisor","role-admin");
   document.body.classList.add("role-"+state.role);
@@ -2012,6 +2023,66 @@ function updateWeeklySettlement(){
   q("settlementDate").textContent=settlementDateLabel(next);
   q("settlementPeriod").textContent=settlementPeriodLabel(start,next);
   renderSettlementHistory()
+}
+async function loadBankAccount(){
+  if(!q("bankStatusValue"))return;
+  try{
+    var r=await fetch("/api/revale-demo?action=bank-account&merchant_id="+encodeURIComponent(state.merchant?.id||"merchant_el_hornero"),{cache:"no-store"});
+    var d=await r.json();if(!r.ok)throw new Error(d.error||"No se pudo cargar la cuenta bancaria");
+    state.bankAccount=d;renderBankAccount()
+  }catch(e){state.bankAccount=null;q("bankStatusValue").textContent="No disponible"}
+}
+function renderBankAccount(){
+  var data=state.bankAccount||{},verified=data.verified,request=data.request,details=q("bankAccountDetails"),btn=q("bankActionBtn");
+  if(verified){
+    details.classList.remove("hidden");
+    q("bankNameValue").textContent=verified.bank_name;
+    q("bankNumberValue").textContent=(verified.account_type||"Cuenta")+" · "+(verified.account_number_masked||"");
+    q("bankHolderValue").textContent=verified.holder_name;
+    q("bankStatusValue").textContent="Verificada";
+    q("bankStatusValue").style.color="#2e7c4a";
+    q("bankSecurityBadge").className="status ok";q("bankSecurityBadge").textContent="Verificada";
+    q("bankDescription").textContent="Esta es la cuenta activa para las liquidaciones semanales.";
+    btn.textContent=request&&request.status==="pending"?"Cambio en revisión":"Solicitar cambio";
+    btn.disabled=!!(request&&request.status==="pending");
+    return
+  }
+  if(request&&request.status==="pending"){
+    details.classList.remove("hidden");
+    q("bankNameValue").textContent=request.bank_name;
+    q("bankNumberValue").textContent=(request.account_type||"Cuenta")+" · "+(request.account_number_masked||"");
+    q("bankHolderValue").textContent=request.holder_name;
+    q("bankStatusValue").textContent="Pendiente de verificación";
+    q("bankStatusValue").style.color="#8b6b24";
+    q("bankSecurityBadge").className="status wait";q("bankSecurityBadge").textContent="En revisión";
+    q("bankDescription").textContent="ReVale está validando los datos antes de habilitar transferencias.";
+    btn.textContent="Ver solicitud";btn.disabled=false;return
+  }
+  details.classList.add("hidden");
+  q("bankStatusValue").textContent=request&&request.status==="rejected"?"Rechazada":"Por configurar";
+  q("bankStatusValue").style.color="";
+  q("bankSecurityBadge").className="status neutral";q("bankSecurityBadge").textContent="Protegida";
+  q("bankDescription").textContent=request&&request.status==="rejected"?"La solicitud fue rechazada. Puedes registrar una nueva cuenta.":"Registra la cuenta donde ReVale realizará las liquidaciones semanales.";
+  btn.textContent="Configurar cuenta";btn.disabled=false
+}
+function openBankAccountModal(){
+  if(state.role!=="admin"){toast("Acceso restringido a gerencia");return}
+  var data=state.bankAccount||{},request=data.request;
+  if(request&&request.status==="pending"){
+    q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><span class='eyebrow'>Cuenta bancaria</span><h3>Solicitud en revisión</h3><p>ReVale debe verificar la cuenta antes de usarla para liquidaciones.</p><div class='receipt'><div class='rr'><span>Banco</span><b>"+safeText(request.bank_name)+"</b></div><div class='rr'><span>Cuenta</span><b>"+safeText(request.account_type)+" · "+safeText(request.account_number_masked||"")+"</b></div><div class='rr'><span>Titular</span><b>"+safeText(request.holder_name)+"</b></div><div class='rr'><span>Estado</span><b>Pendiente de verificación</b></div></div><div class='modal-actions'><button class='btn btn-secondary' onclick='closeModal()'>Cerrar</button></div></div></div>";return
+  }
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><span class='eyebrow'>Cuenta de liquidación</span><h3>Registrar cuenta bancaria</h3><p>Por seguridad, ReVale verificará la información antes de habilitarla.</p><div class='form-stack'><label>Banco<input id='bankNameInput' class='modal-input' placeholder='Ej. Banco Pichincha'/></label><label>Tipo de cuenta<select id='bankTypeInput' class='modal-input'><option value='Cuenta corriente'>Cuenta corriente</option><option value='Cuenta de ahorros'>Cuenta de ahorros</option></select></label><label>Número de cuenta<input id='bankNumberInput' class='modal-input' inputmode='numeric' placeholder='Número de cuenta'/></label><label>Titular<input id='bankHolderInput' class='modal-input' placeholder='Razón social o titular'/></label><label>RUC / identificación<input id='bankIdInput' class='modal-input' placeholder='Identificación del titular'/></label></div><div class='modal-actions'><button class='btn btn-secondary' onclick='closeModal()'>Cancelar</button><button id='bankSubmitBtn' class='btn btn-primary' onclick='submitBankAccount()'>Enviar a verificación</button></div></div></div>"
+}
+async function submitBankAccount(){
+  var b=q("bankSubmitBtn");
+  var bank=(q("bankNameInput")?.value||"").trim(),type=q("bankTypeInput")?.value||"",number=(q("bankNumberInput")?.value||"").trim(),holder=(q("bankHolderInput")?.value||"").trim(),id=(q("bankIdInput")?.value||"").trim();
+  if(!bank||!type||!number||!holder||!id){toast("Completa todos los datos bancarios");return}
+  if(b){b.disabled=true;b.textContent="Enviando…"}
+  try{
+    var r=await fetch("/api/revale-demo?action=request-bank-account",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({merchant_id:state.merchant?.id,bank_name:bank,account_type:type,account_number:number,holder_name:holder,holder_identification:id,requested_by:state.userName})});
+    var d=await r.json();if(!r.ok)throw new Error(d.error||"No se pudo registrar la cuenta");
+    closeModal();await loadBankAccount();toast("Cuenta enviada a verificación")
+  }catch(e){if(b){b.disabled=false;b.textContent="Enviar a verificación"}toast(e.message||"No se pudo registrar la cuenta")}
 }
 function settlementWeeksFromTransactions(){
   var current=startOfSettlementWeek(),map={};
