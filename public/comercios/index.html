@@ -906,6 +906,39 @@ body.role-supervisor .receipt-card{border-radius:26px}
 .role-dot{display:block;width:10px;height:10px;border-radius:50%}.role-dot.cashier{background:#51c878}.role-dot.supervisor{background:#6ca8cf}.role-dot.admin{background:#a382be}
 @media(max-width:950px){.user-role-kpis{grid-template-columns:repeat(2,1fr)}}@media(max-width:680px){.user-role-kpis,.role-explainer-grid{grid-template-columns:1fr}}
 
+
+/* MANAGER EXECUTIVE HOME */
+.manager-executive{display:none}
+body.role-admin .manager-executive{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.65fr);gap:16px}
+body.role-admin .operations-grid{display:none!important}
+.executive-branches,.executive-actions,.executive-activity{overflow:hidden}
+.executive-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:21px 22px 15px}
+.executive-card-head h3{font-size:16px;letter-spacing:-.035em;margin:5px 0 5px;color:var(--navy)}
+.executive-card-head p{font-size:8px;color:#7f8b85;line-height:1.45;margin:0}
+.executive-branch-wrap{overflow:auto}
+.executive-branch-table td,.executive-branch-table th{white-space:nowrap}
+.manager-branch-name{display:flex;align-items:center;gap:9px}
+.manager-branch-name i{width:8px;height:8px;border-radius:50%;background:var(--brand);box-shadow:0 0 0 4px rgba(81,200,120,.09)}
+.manager-branch-name b{font-size:9px;color:var(--ink)}
+.share-bar{width:82px;height:5px;background:#edf1ee;border-radius:99px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:7px}
+.share-bar i{display:block;height:100%;background:var(--brand);border-radius:99px}
+.share-value{font-size:8px;color:#718078}
+.executive-actions{padding-bottom:12px}
+.manager-alerts{display:grid;gap:8px;padding:0 16px 14px}
+.manager-alert{display:flex;align-items:flex-start;gap:10px;border:1px solid #e8edea;background:#fafcfb;border-radius:15px;padding:12px}
+.manager-alert>span{width:25px;height:25px;border-radius:8px;display:grid;place-items:center;font-size:9px;font-weight:900;flex:0 0 auto;background:#edf5f0;color:var(--green)}
+.manager-alert.warn>span{background:#fff3d9;color:#8b651b}.manager-alert.info>span{background:#eef5fb;color:#356e94}
+.manager-alert b{display:block;font-size:9px;color:var(--navy)}.manager-alert small{display:block;font-size:7px;color:#7e8a84;line-height:1.45;margin-top:3px}
+.manager-alert button{margin-left:auto;border:0;background:transparent;color:var(--green);font-size:7px;font-weight:900;padding:4px}
+.executive-shortcuts{border-top:1px solid #edf1ee;padding:9px 12px 0;display:grid;gap:3px}
+.executive-shortcuts button{border:0;background:transparent;border-radius:12px;padding:10px;display:flex;align-items:center;gap:10px;text-align:left;color:var(--ink)}
+.executive-shortcuts button:hover{background:#f6f8f6}
+.executive-shortcuts button>span{width:27px;height:27px;border-radius:9px;background:#eef8f1;color:var(--green);display:grid;place-items:center;font-size:11px}
+.executive-shortcuts button div{flex:1}.executive-shortcuts b{display:block;font-size:9px}.executive-shortcuts small{display:block;font-size:7px;color:#87928d;margin-top:2px}.executive-shortcuts i{font-style:normal;color:#9aa49f}
+.executive-activity{grid-column:1/-1;padding-bottom:4px}
+.settlement-kpi .v{color:var(--green)}
+@media(max-width:1000px){body.role-admin .manager-executive{grid-template-columns:1fr}.executive-activity{grid-column:auto}}
+
 </style>
 </head>
 <body>
@@ -1066,11 +1099,11 @@ body.role-supervisor .receipt-card{border-radius:26px}
     <div id="homeScreen" class="content">
       <div class="product-head manager-home-head">
         <div>
-          <div class="head-meta"><span class="merchant-name-text">El Hornero</span><i></i><span class="merchant-location-text">Cumbayá</span></div>
-          <h1>Resumen</h1>
+          <div class="head-meta"><span class="merchant-name-text">El Hornero</span><i></i><span>Todas las sucursales</span></div>
+          <h1>Resumen ejecutivo</h1>
           <p id="dashboardDate">—</p>
         </div>
-        <button class="btn btn-primary" onclick="q('amountInput').focus();window.scrollTo({top:220,behavior:'smooth'})">+ Nuevo cobro</button>
+        <button class="btn btn-primary" onclick="showSettlements()">Ver liquidaciones</button>
       </div>
 
       <div class="cashier-home-head hidden">
@@ -1086,10 +1119,50 @@ body.role-supervisor .receipt-card{border-radius:26px}
       </div>
 
       <div id="managerKpis" class="kpis premium-kpis">
-        <div class="card kpi"><div class="k">Ventas netas</div><div id="todayTotal" class="v mono">$ 0.00</div><div class="s">Aprobadas vigentes</div></div>
-        <div class="card kpi"><div class="k">Transacciones</div><div id="todayCountValue" class="v mono">0</div><div id="todayCount" class="s">0 aprobadas</div></div>
-        <div class="card kpi"><div class="k">Ticket promedio</div><div id="avgTicket" class="v mono">$ 0.00</div><div class="s">Promedio aprobado</div></div>
-        <div class="card kpi health-kpi"><div class="k">Servicio</div><div class="service-state"><i></i><span>Operativo</span></div><div class="s">Actualizado en tiempo real</div></div>
+        <div class="card kpi"><div class="k">Ventas netas · semana</div><div id="todayTotal" class="v mono">$ 0.00</div><div class="s">Después de reversos</div></div>
+        <div class="card kpi"><div class="k">Transacciones · semana</div><div id="todayCountValue" class="v mono">0</div><div id="todayCount" class="s">0 procesadas</div></div>
+        <div class="card kpi"><div class="k">Ticket promedio</div><div id="avgTicket" class="v mono">$ 0.00</div><div class="s">Consumos de la semana</div></div>
+        <div class="card kpi settlement-kpi"><div class="k">Próxima liquidación</div><div id="managerNextSettlement" class="v mono">$ 0.00</div><div id="managerNextSettlementDate" class="s">Lunes —</div></div>
+      </div>
+
+      <div id="managerExecutive" class="manager-executive">
+        <section class="card executive-branches">
+          <div class="executive-card-head">
+            <div><span class="eyebrow">Desempeño</span><h3>Ventas por sucursal</h3><p>Semana en curso · netas de reversos.</p></div>
+            <button class="btn btn-ghost" onclick="showBranch()">Ver sucursales</button>
+          </div>
+          <div class="executive-branch-wrap">
+            <table class="table executive-branch-table">
+              <thead><tr><th>Sucursal</th><th>Ventas</th><th>Tx</th><th>Ticket prom.</th><th>Participación</th></tr></thead>
+              <tbody id="managerBranchRows"><tr><td colspan="5" class="muted">Cargando desempeño…</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card executive-actions">
+          <div class="executive-card-head">
+            <div><span class="eyebrow">Atención</span><h3>Pendientes</h3><p>Lo que requiere seguimiento de Gerencia.</p></div>
+          </div>
+          <div id="managerAlerts" class="manager-alerts">
+            <div class="manager-alert neutral"><span>—</span><div><b>Actualizando</b><small>Revisando pendientes del comercio.</small></div></div>
+          </div>
+          <div class="executive-shortcuts">
+            <button onclick="showSettlements()"><span>◫</span><div><b>Liquidaciones</b><small>Revisar próximo pago</small></div><i>→</i></button>
+            <button onclick="showUsers()"><span>◉</span><div><b>Usuarios</b><small>Administrar accesos</small></div><i>→</i></button>
+            <button onclick="showBranch()"><span>◎</span><div><b>Sucursales</b><small>Ver red operativa</small></div><i>→</i></button>
+          </div>
+        </section>
+
+        <section class="card executive-activity">
+          <div class="executive-card-head">
+            <div><span class="eyebrow">Actividad</span><h3>Movimientos recientes</h3><p>Todas las sucursales.</p></div>
+            <button class="btn btn-ghost" onclick="showTransactions()">Ver movimientos</button>
+          </div>
+          <table class="table compact-table">
+            <thead><tr><th>Transacción</th><th>Sucursal</th><th>Hora</th><th>Estado</th><th style="text-align:right">Monto</th></tr></thead>
+            <tbody id="managerRecentRows"><tr><td colspan="5" class="muted">Cargando movimientos…</td></tr></tbody>
+          </table>
+        </section>
       </div>
 
       <div class="operations-grid">
