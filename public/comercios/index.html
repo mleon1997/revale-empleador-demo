@@ -351,57 +351,195 @@ body{letter-spacing:-.005em}
 .role-demo-actions span{display:block;font-size:8px;font-weight:900;color:var(--navy)}
 .role-demo-actions small{display:block;font-size:6px;color:#7b8781;margin-top:3px;line-height:1.3}
 
-/* LOGIN SHOWCASE V2 */
-.product-visual{padding:34px 38px 28px;overflow:hidden}
-.product-visual:before,.product-visual:after{display:none}
-.login-brand-row{position:relative;z-index:8;display:flex;align-items:center;justify-content:space-between}
-.brand-logo-hero{width:66px;height:52px}
-.co-brand-pill{display:flex;align-items:center;gap:7px;padding:7px 10px 7px 7px;border-radius:999px;background:rgba(255,255,255,.88);box-shadow:0 10px 30px rgba(41,41,75,.10);font-size:7px;color:var(--navy);backdrop-filter:blur(12px)}
-.co-brand-logo{width:25px;height:25px;border-radius:50%}
-.co-brand-pill span,.co-brand-pill b{font-weight:900}.co-brand-pill i{font-style:normal;color:#9aa39f}
-.product-showcase{position:relative;z-index:3;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;margin:-8px 0 0}
-.showcase-glow{position:absolute;border-radius:50%;filter:blur(10px);pointer-events:none}
-.glow-one{width:520px;height:360px;background:rgba(255,255,255,.16);left:4%;top:21%}
-.glow-two{width:290px;height:290px;background:rgba(243,246,220,.18);right:-9%;bottom:5%}
-.shape-pill{position:absolute;border-radius:999px;z-index:1}
-.shape-cream{width:148px;height:57px;background:var(--brand-cream);right:6%;top:8%;transform:rotate(-8deg)}
-.shape-orb{position:absolute;width:115px;height:115px;border-radius:50%;background:var(--brand-pink);left:-43px;bottom:7%;opacity:.72}
-.hero-dashboard{position:relative;z-index:3;width:min(690px,82%);margin-left:-7%;transform:perspective(1200px) rotateY(-3deg) rotateX(1deg);border-radius:22px;box-shadow:0 38px 90px rgba(41,41,75,.20)}
-.hero-dashboard .visual-body{min-height:365px}
-.hero-dashboard .visual-top{height:34px}
-.hero-dashboard .visual-top>b{margin-left:auto;font-size:7px;color:var(--navy)}
-.hero-dashboard .visual-main{padding:21px}
-.visual-table-head{display:grid;grid-template-columns:1fr auto auto;gap:18px;padding:10px 10px 3px;font-size:5px;text-transform:uppercase;letter-spacing:.1em;color:#a2aaa6;font-weight:900}
+/* LOGIN SHOWCASE V3 — FINTECH REFINEMENT */
+.product-visual{
+  padding:32px 36px 26px;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 76% 28%,rgba(255,255,255,.14),transparent 26%),
+    radial-gradient(circle at 18% 86%,rgba(255,255,255,.08),transparent 28%),
+    linear-gradient(145deg,#48c978 0%,#50c97c 48%,#63cf89 100%);
+}
+.product-visual:before{
+  content:"";
+  display:block;
+  position:absolute;
+  width:560px;height:560px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.12);
+  left:-320px;bottom:-330px;
+  pointer-events:none;
+}
+.product-visual:after{
+  content:"";
+  display:block;
+  position:absolute;
+  width:420px;height:420px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.08);
+  right:-245px;top:-245px;
+  pointer-events:none;
+}
+.login-brand-row{
+  position:relative;z-index:8;display:flex;align-items:center;justify-content:space-between
+}
+.brand-logo-hero{width:64px;height:50px}
+.co-brand-pill{
+  display:flex;align-items:center;gap:7px;padding:6px 10px 6px 6px;
+  border-radius:999px;background:rgba(255,255,255,.82);
+  border:1px solid rgba(255,255,255,.62);
+  box-shadow:0 8px 24px rgba(32,50,43,.07);
+  font-size:7px;color:var(--navy);backdrop-filter:blur(14px)
+}
+.co-brand-logo{width:24px;height:24px;border-radius:50%}
+.co-brand-pill span,.co-brand-pill b{font-weight:850}
+.co-brand-pill i{font-style:normal;color:#9aa39f}
+
+.product-showcase{
+  position:relative;z-index:3;flex:1;min-height:0;
+  display:flex;align-items:center;justify-content:center;
+  margin:-4px 0 0
+}
+.showcase-glow{position:absolute;border-radius:50%;pointer-events:none;filter:blur(26px)}
+.glow-one{width:520px;height:350px;background:rgba(255,255,255,.08);left:7%;top:24%}
+.glow-two{width:270px;height:270px;background:rgba(255,255,255,.06);right:-4%;bottom:12%}
+.shape-pill,.shape-orb{display:none}
+
+.hero-dashboard{
+  position:relative;z-index:3;
+  width:min(720px,80%);
+  margin-left:-7%;
+  transform:none;
+  border-radius:20px;
+  border:1px solid rgba(35,49,43,.08);
+  box-shadow:
+    0 34px 80px rgba(31,54,45,.17),
+    0 4px 12px rgba(31,54,45,.05);
+  overflow:hidden
+}
+.hero-dashboard .visual-top{
+  height:35px;background:rgba(255,255,255,.96);
+  border-bottom:1px solid #e9eeeb
+}
+.hero-dashboard .visual-top>b{
+  margin-left:auto;font-size:6.5px;color:#6e7773;font-weight:800
+}
+.hero-dashboard .visual-body{min-height:378px;background:#f7f9f8}
+.hero-dashboard .visual-side{background:#29294b}
+.hero-dashboard .visual-main{padding:22px 23px}
+.hero-dashboard .visual-title{font-size:15px}
+.hero-dashboard .visual-title em{
+  background:#edf8f0;color:#38805a;padding:5px 8px
+}
+.hero-dashboard .visual-kpis{gap:9px;margin-top:18px}
+.hero-dashboard .visual-kpis div{
+  border:1px solid #e7ebe8;border-radius:11px;padding:14px;
+  box-shadow:none
+}
+.hero-dashboard .visual-kpis div:nth-child(1){background:#f6f7e5}
+.hero-dashboard .visual-kpis div:nth-child(2){background:#fff}
+.hero-dashboard .visual-kpis div:nth-child(3){background:#f8e8f2}
+.hero-dashboard .visual-pay{
+  margin-top:10px;border:1px solid #e7ebe8;border-radius:12px;
+  padding:16px;background:#fff
+}
+.hero-dashboard .visual-pay button{
+  background:#29294b;border-radius:999px;padding:9px 13px
+}
+.visual-table-head{
+  display:grid;grid-template-columns:1fr auto auto;gap:18px;
+  padding:10px 10px 4px;font-size:5px;text-transform:uppercase;
+  letter-spacing:.11em;color:#a1aaa5;font-weight:900
+}
 .visual-table-head span:nth-child(2),.visual-table-head span:nth-child(3){text-align:right}
-.showcase-phone{position:absolute;z-index:5;width:178px;height:355px;right:1.5%;bottom:4%;border-radius:32px;background:var(--navy);padding:7px;box-shadow:0 30px 70px rgba(41,41,75,.28);transform:rotate(2.5deg)}
-.phone-speaker{position:absolute;z-index:2;width:52px;height:11px;border-radius:0 0 10px 10px;background:var(--navy);left:50%;top:6px;transform:translateX(-50%)}
-.phone-screen{height:100%;background:#f8faf8;border-radius:26px;overflow:hidden}
-.phone-preview-top{background:var(--brand);height:150px;padding:20px 16px;color:#fff}
-.phone-preview-logo{width:38px;height:30px;margin-bottom:22px}
-.phone-preview-top small{display:block;font-size:7px;opacity:.88}
-.phone-preview-top span{display:block;font-size:6px;opacity:.72;margin-top:10px;text-transform:uppercase;letter-spacing:.08em}
-.phone-preview-top strong{display:block;font-size:24px;letter-spacing:-.06em;margin-top:3px}
-.phone-preview-body{margin:-10px 10px 0;background:#fff;border-radius:16px;padding:13px;box-shadow:0 10px 28px rgba(41,41,75,.07);text-align:center}
-.phone-merchant{display:flex;align-items:center;text-align:left;gap:7px;margin-bottom:16px}
-.phone-merchant .merchant-logo{width:28px;height:28px;border-radius:8px}
-.phone-merchant b{display:block;font-size:7px;color:var(--navy)}.phone-merchant span{display:block;font-size:5px;color:#85908b;margin-top:2px}
-.phone-preview-body>small{font-size:6px;color:#89938e}.phone-preview-body>strong{display:block;font-size:24px;color:var(--navy);letter-spacing:-.06em;margin-top:3px}
-.phone-balance{font-size:5.5px;color:#6d7a74;margin:6px 0 12px}
-.phone-preview-body>button{width:100%;border:0;background:var(--navy);color:#fff;border-radius:999px;padding:9px 7px;font-size:6px;font-weight:900}
-.approval-float{position:absolute;z-index:7;right:13%;bottom:0;background:var(--brand-pink);border-radius:18px;padding:12px 15px 12px 11px;box-shadow:0 20px 45px rgba(41,41,75,.15);display:flex;align-items:center;gap:10px;min-width:158px;transform:rotate(-1.5deg)}
-.approval-icon{width:30px;height:30px;border-radius:10px;background:#fff;display:grid;place-items:center;color:var(--navy);font-size:13px;font-weight:900}
-.approval-float span{display:block;font-size:6px;text-transform:uppercase;letter-spacing:.1em;font-weight:900;color:#6c5870}
-.approval-float b{display:block;font-size:19px;color:var(--navy);letter-spacing:-.05em;margin-top:2px}.approval-float small{display:block;font-size:5px;color:#6e6f72;margin-top:2px}
-.session-float{position:absolute;z-index:6;left:7%;bottom:2%;background:#fff;border-radius:999px;padding:8px 12px;display:flex;align-items:center;gap:7px;box-shadow:0 14px 35px rgba(41,41,75,.11);font-size:6px;color:#6f7a74}
-.session-float i{width:7px;height:7px;border-radius:50%;background:var(--brand)}.session-float span{font-weight:900;color:var(--navy)}.session-float b{font-size:6px}
-.login-foot{display:flex;align-items:center;justify-content:space-between;font-size:7px;color:rgba(41,41,75,.62);font-weight:850}
+.hero-dashboard .visual-row{
+  border-radius:10px;border:1px solid #e9edeb;background:#fff;
+  padding:9px 10px;margin-top:6px
+}
+
+.showcase-phone{
+  position:absolute;z-index:5;
+  width:166px;height:338px;
+  right:2.5%;bottom:8%;
+  border-radius:31px;
+  background:#29294b;padding:6px;
+  box-shadow:0 28px 62px rgba(35,42,66,.24);
+  transform:none
+}
+.phone-speaker{
+  position:absolute;z-index:2;width:48px;height:10px;border-radius:0 0 9px 9px;
+  background:#29294b;left:50%;top:5px;transform:translateX(-50%)
+}
+.phone-screen{height:100%;background:#f8faf8;border-radius:25px;overflow:hidden}
+.phone-preview-top{
+  background:linear-gradient(155deg,#50c979,#47c374);
+  height:145px;padding:19px 15px;color:#fff
+}
+.phone-preview-logo{width:36px;height:28px;margin-bottom:20px}
+.phone-preview-top small{display:block;font-size:6.8px;opacity:.86}
+.phone-preview-top span{
+  display:block;font-size:5.7px;opacity:.68;margin-top:10px;
+  text-transform:uppercase;letter-spacing:.09em
+}
+.phone-preview-top strong{display:block;font-size:23px;letter-spacing:-.055em;margin-top:3px}
+.phone-preview-body{
+  margin:-9px 9px 0;background:#fff;border-radius:15px;padding:12px;
+  border:1px solid #edf0ee;box-shadow:0 9px 24px rgba(41,41,75,.05);text-align:center
+}
+.phone-merchant{display:flex;align-items:center;text-align:left;gap:7px;margin-bottom:15px}
+.phone-merchant .merchant-logo{width:27px;height:27px;border-radius:8px}
+.phone-merchant b{display:block;font-size:6.7px;color:var(--navy)}
+.phone-merchant span{display:block;font-size:5px;color:#88928d;margin-top:2px}
+.phone-preview-body>small{font-size:5.8px;color:#89938e}
+.phone-preview-body>strong{
+  display:block;font-size:23px;color:var(--navy);
+  letter-spacing:-.055em;margin-top:3px
+}
+.phone-balance{font-size:5.3px;color:#7a8580;margin:6px 0 11px}
+.phone-preview-body>button{
+  width:100%;border:0;background:#29294b;color:#fff;border-radius:999px;
+  padding:8px 7px;font-size:5.8px;font-weight:900
+}
+
+.approval-float{
+  position:absolute;z-index:7;
+  right:12%;bottom:2%;
+  min-width:170px;
+  background:rgba(255,255,255,.96);
+  border:1px solid rgba(35,49,43,.08);
+  border-radius:16px;padding:11px 14px 11px 10px;
+  box-shadow:0 18px 42px rgba(31,54,45,.13);
+  display:flex;align-items:center;gap:10px;
+  transform:none;backdrop-filter:blur(12px)
+}
+.approval-icon{
+  width:31px;height:31px;border-radius:10px;
+  background:#eaf8ee;color:#278154;
+  display:grid;place-items:center;font-size:13px;font-weight:900
+}
+.approval-float span{
+  display:block;font-size:5.8px;text-transform:uppercase;
+  letter-spacing:.11em;font-weight:900;color:#829089
+}
+.approval-float b{
+  display:block;font-size:18px;color:var(--navy);
+  letter-spacing:-.045em;margin-top:2px
+}
+.approval-float small{display:block;font-size:5px;color:#8a948f;margin-top:2px}
+
+.session-float{display:none}
+.login-foot{
+  position:relative;z-index:8;
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:7px;color:rgba(41,41,75,.56);font-weight:800
+}
+
 @media(max-width:1250px){
-  .hero-dashboard{width:82%;margin-left:-10%}
-  .showcase-phone{width:160px;height:325px}
+  .hero-dashboard{width:78%;margin-left:-8%}
+  .showcase-phone{width:154px;height:316px;right:2%}
+  .approval-float{right:10%}
 }
 @media(max-width:1050px){
   .product-showcase{min-height:500px}
-  .hero-dashboard{width:78%}
+  .hero-dashboard{width:77%;margin-left:-8%}
   .showcase-phone{right:4%}
 }
 
