@@ -340,7 +340,7 @@ body{letter-spacing:-.005em}
 .settlements-note{margin-top:14px}.settlements-note p{font-size:9px;color:#75817b;margin:6px 0 0}
 @media(max-width:900px){.settlement-grid{grid-template-columns:1fr}}
 
-.merchant-logo{width:44px;height:44px;border-radius:13px;flex:0 0 auto;background:#fff url("https://play-lh.googleusercontent.com/MtXe01k_dbe375nwF5TmI971kF8bV5AzqAV2qgzqykz0hTN6ZaXwWRWf43bWFaed3ugJF3MpLokg3G_8h4wC=w240-h480") center/cover no-repeat;box-shadow:0 4px 14px rgba(41,41,75,.10);border:1px solid rgba(41,41,75,.06)}
+.merchant-logo{width:44px;height:44px;border-radius:13px;flex:0 0 auto;background:#fff var(--merchant-logo,none) center/cover no-repeat;box-shadow:0 4px 14px rgba(41,41,75,.10);border:1px solid rgba(41,41,75,.06)}
 .merchant-box .merchant-logo{width:36px;height:36px;border-radius:11px}
 .merchant-mini .merchant-logo{width:38px;height:38px;border-radius:11px}
 .role-demo-box{display:block!important;padding:12px!important}
@@ -762,7 +762,7 @@ body.role-supervisor .receipt-card{border-radius:26px}
   <div class="login-left product-visual">
     <div class="login-brand-row">
       <div class="brand-logo logo-inverse brand-logo-hero" aria-label="ReVale"></div>
-      <div class="co-brand-pill"><div class="merchant-logo co-brand-logo" aria-hidden="true"></div><span>El Hornero</span><i>×</i><b>ReVale</b></div>
+      <div class="co-brand-pill"><div class="merchant-logo co-brand-logo" aria-hidden="true"></div><span id="loginMerchantName">El Hornero</span><i>×</i><b>ReVale</b></div>
     </div>
 
     <div class="product-showcase">
@@ -775,7 +775,7 @@ body.role-supervisor .receipt-card{border-radius:26px}
         <div class="visual-top">
           <div class="visual-dots"><i></i><i></i><i></i></div>
           <span>comercios.revale.app</span>
-          <b>El Hornero · Cumbayá</b>
+          <b id="previewMerchantLocation"><span class="merchant-context-text">El Hornero · Cumbayá</span></b>
         </div>
         <div class="visual-body">
           <div class="visual-side">
@@ -813,7 +813,7 @@ body.role-supervisor .receipt-card{border-radius:26px}
             <strong>$ 133.20</strong>
           </div>
           <div class="phone-preview-body">
-            <div class="phone-merchant"><div class="merchant-logo"></div><div><b>El Hornero</b><span>Cumbayá</span></div></div>
+            <div class="phone-merchant"><div class="merchant-logo"></div><div><b id="previewPhoneMerchant">El Hornero</b><span id="previewPhoneLocation">Cumbayá</span></div></div>
             <small>Estás por pagar</small>
             <strong>$ 24.50</strong>
             <div class="phone-balance">Saldo después: $ 108.70</div>
@@ -828,11 +828,11 @@ body.role-supervisor .receipt-card{border-radius:26px}
       </div>
 
       <div class="session-float">
-        <i></i><span>Caja 01</span><b>Cumbayá</b>
+        <i></i><span>Caja 01</span><b class="merchant-location-text">Cumbayá</b>
       </div>
     </div>
 
-    <div class="login-foot"><span>ReVale Comercios</span><span>El Hornero · Demo</span></div>
+    <div class="login-foot"><span>ReVale Comercios</span><span id="loginDemoMerchant">El Hornero · Demo</span></div>
   </div>
 
   <div class="login-right product-access">
@@ -873,7 +873,7 @@ body.role-supervisor .receipt-card{border-radius:26px}
       <div class="login-divider"><span></span><em>Acceso demo</em><span></span></div>
 
       <div class="demo-credentials role-demo-box">
-        <div class="role-demo-head"><span>Accesos demo</span><b>El Hornero</b></div>
+        <div class="role-demo-head"><span>Accesos demo</span><b id="demoMerchantName">El Hornero</b></div>
         <div class="role-demo-actions">
           <button type="button" onclick="fillDemoRole('cashier')"><span>Caja</span><small>Cobros + movimientos</small></button>
           <button type="button" onclick="fillDemoRole('supervisor')"><span>Supervisor</span><small>+ reversos</small></button>
@@ -889,7 +889,7 @@ body.role-supervisor .receipt-card{border-radius:26px}
 <section id="merchantApp" class="app hidden">
   <aside class="sidebar">
     <div class="side-brand"><div class="brand-logo logo-inverse brand-logo-side" aria-label="ReVale"></div></div>
-    <div class="merchant-box"><div class="merchant-logo" aria-label="El Hornero"></div><div><b>El Hornero</b><span>Cumbayá</span></div></div>
+    <div class="merchant-box"><div class="merchant-logo" aria-label="Comercio"></div><div><b id="sidebarMerchantName">El Hornero</b><span id="sidebarLocationName">Cumbayá</span></div></div>
     <div class="nav-title">Operación</div>
     <button id="navHome" class="nav-item active" onclick="showHome()"><span class="nav-icon">⌂</span><span>Inicio</span></button>
     <button id="navMov" class="nav-item" onclick="showTransactions()"><span class="nav-icon">↕</span><span>Movimientos</span></button>
@@ -911,7 +911,7 @@ body.role-supervisor .receipt-card{border-radius:26px}
     <div id="homeScreen" class="content">
       <div class="product-head manager-home-head">
         <div>
-          <div class="head-meta"><span>El Hornero</span><i></i><span>Cumbayá</span></div>
+          <div class="head-meta"><span class="merchant-name-text">El Hornero</span><i></i><span class="merchant-location-text">Cumbayá</span></div>
           <h1>Resumen</h1>
           <p id="dashboardDate">—</p>
         </div>
@@ -922,7 +922,7 @@ body.role-supervisor .receipt-card{border-radius:26px}
         <div class="cashier-head-left">
           <div class="merchant-logo cashier-head-logo"></div>
           <div>
-            <div class="cashier-context">El Hornero · Cumbayá</div>
+            <div id="cashierContext" class="cashier-context"><span class="merchant-context-text">El Hornero · Cumbayá</span></div>
             <h1>Cobrar con ReVale</h1>
             <p>Ingresa el monto. El cliente confirma desde su teléfono.</p>
           </div>
@@ -985,8 +985,8 @@ body.role-supervisor .receipt-card{border-radius:26px}
             <div class="live-line"><i></i><span id="connText">Conexión activa con ReVale</span></div>
           </section>
           <section class="card transaction-meta">
-            <div class="detail-row"><span>Comercio</span><b>El Hornero</b></div>
-            <div class="detail-row"><span>Sucursal</span><b>Cumbayá</b></div>
+            <div class="detail-row"><span>Comercio</span><b class="merchant-name-text">El Hornero</b></div>
+            <div class="detail-row"><span>Sucursal</span><b class="merchant-location-text">Cumbayá</b></div>
             <div class="detail-row"><span>Terminal</span><b>Caja 01</b></div>
           </section>
         </div>
@@ -996,7 +996,7 @@ body.role-supervisor .receipt-card{border-radius:26px}
     <div id="approvedScreen" class="content hidden cashier-flow-screen">
       <div class="product-head">
         <div>
-          <div class="head-meta"><span>El Hornero</span><i></i><span>Cumbayá</span></div>
+          <div class="head-meta"><span class="merchant-name-text">El Hornero</span><i></i><span class="merchant-location-text">Cumbayá</span></div>
           <h1>Transacción aprobada</h1>
           <p>La operación quedó registrada.</p>
         </div>
@@ -1013,8 +1013,8 @@ body.role-supervisor .receipt-card{border-radius:26px}
 
         <section class="card receipt-card">
           <div class="receipt-title">Detalle</div>
-          <div class="detail-row"><span>Comercio</span><b>El Hornero</b></div>
-          <div class="detail-row"><span>Sucursal</span><b>Cumbayá</b></div>
+          <div class="detail-row"><span>Comercio</span><b class="merchant-name-text">El Hornero</b></div>
+          <div class="detail-row"><span>Sucursal</span><b class="merchant-location-text">Cumbayá</b></div>
           <div class="detail-row"><span>Terminal</span><b>Caja 01</b></div>
           <div class="detail-row"><span>Estado</span><span class="status ok">Aprobada</span></div>
           <div class="receipt-actions"><button class="btn btn-secondary" onclick="showTransactions()">Movimientos</button><button class="btn btn-primary" onclick="newSale()">Nuevo cobro</button></div>
@@ -1035,25 +1035,25 @@ body.role-supervisor .receipt-card{border-radius:26px}
 
     <div id="settlementsScreen" class="content hidden">
       <div class="product-head">
-        <div><div class="head-meta"><span>Finanzas</span><i></i><span>El Hornero</span></div><h1>Liquidaciones</h1><p>Consumos aprobados pendientes de liquidación.</p></div>
+        <div><div class="head-meta"><span>Finanzas</span><i></i><span class="merchant-name-text">El Hornero</span></div><h1>Liquidaciones</h1><p>Consumos aprobados pendientes de liquidación.</p></div>
       </div>
       <div class="settlement-grid">
         <section class="settlement-hero"><div class="settlement-label">Por liquidar</div><div id="pendingSettlement" class="settlement-amount mono">$ 0.00</div><div class="settlement-meta"><span class="status ok">Calculado</span><span id="settlementCount">0 transacciones</span></div></section>
-        <section class="card settlement-detail"><div class="section-title">Resumen</div><div class="detail-row"><span>Comercio</span><b>El Hornero</b></div><div class="detail-row"><span>Alcance</span><b>Todas las sucursales</b></div><div class="detail-row"><span>Estado</span><span class="status wait">Pendiente</span></div><div class="detail-row"><span>Fuente</span><b>Consumos aprobados</b></div></section>
+        <section class="card settlement-detail"><div class="section-title">Resumen</div><div class="detail-row"><span>Comercio</span><b class="merchant-name-text">El Hornero</b></div><div class="detail-row"><span>Alcance</span><b>Todas las sucursales</b></div><div class="detail-row"><span>Estado</span><span class="status wait">Pendiente</span></div><div class="detail-row"><span>Fuente</span><b>Consumos aprobados</b></div></section>
       </div>
       <section class="card settlements-note"><div class="section-title">Histórico</div><p>El ciclo de liquidación bancaria se conectará en un sprint posterior.</p></section>
     </div>
 
     <div id="branchScreen" class="content hidden">
       <div class="product-head">
-        <div><div class="head-meta"><span>Configuración</span></div><h1>Mi sucursal</h1><p>El Hornero · Cumbayá</p></div>
+        <div><div class="head-meta"><span>Configuración</span></div><h1>Mi sucursal</h1><p><span class="merchant-context-text">El Hornero · Cumbayá</span></p></div>
       </div>
 
       <div class="branch-grid premium-branch">
         <section class="card branch-card">
           <div class="section-title">Punto de venta</div>
-          <div class="detail-row"><span>Comercio</span><b>El Hornero</b></div>
-          <div class="detail-row"><span>Sucursal</span><b>Cumbayá</b></div>
+          <div class="detail-row"><span>Comercio</span><b class="merchant-name-text">El Hornero</b></div>
+          <div class="detail-row"><span>Sucursal</span><b class="merchant-location-text">Cumbayá</b></div>
           <div class="detail-row"><span>Terminal</span><b>Caja 01</b></div>
           <div class="detail-row"><span>Estado</span><span class="status ok">Activo</span></div>
         </section>
@@ -1081,7 +1081,7 @@ body.role-supervisor .receipt-card{border-radius:26px}
     <div class="phone-body">
       <div id="employeeLoading" class="pay-card"><div class="muted" style="font-size:9px;text-align:center;padding:26px">Cargando transacción…</div></div>
       <div id="employeePay" class="pay-card hidden">
-        <div class="merchant-mini"><div class="merchant-logo" aria-label="El Hornero"></div><div><b>El Hornero</b><span>Cumbayá · Caja 01</span></div></div>
+        <div class="merchant-mini"><div class="merchant-logo" aria-label="Comercio"></div><div><b id="employeeMerchantName">El Hornero</b><span id="employeeMerchantLocation">Cumbayá · Caja 01</span></div></div>
         <div class="pay-copy"><div class="small">Estás por pagar</div><div id="employeeAmount" class="amt mono">$ 0.00</div><div id="employeeAfter" class="after"></div></div>
         <button id="confirmBtn" class="confirm" onclick="confirmEmployee()">Confirmar pago</button>
         <div class="secure">◉ Transacción protegida por ReVale</div>
@@ -1094,10 +1094,45 @@ body.role-supervisor .receipt-card{border-radius:26px}
 <div id="modalRoot"></div>
 
 <script>
-var state={amount:0,reference:"",tx:"",token:"",expiresAt:0,poll:null,timer:null,transactions:[],role:"admin",userName:"Gerencia"};
+var state={amount:0,reference:"",tx:"",token:"",expiresAt:0,poll:null,timer:null,transactions:[],role:"admin",userName:"Gerencia",merchant:null,location:null};
 function q(id){return document.getElementById(id)}
 function money(n){return "$ "+Number(n||0).toFixed(2)}
 function toast(msg){var t=q("toast");t.textContent=msg;t.classList.add("show");setTimeout(function(){t.classList.remove("show")},1800)}
+async function loadMerchantConfig(){
+  var params=new URLSearchParams(location.search);
+  var slug=params.get("merchant")||"el-hornero";
+  try{
+    var r=await fetch("/api/revale-demo?action=merchant-config&merchant="+encodeURIComponent(slug),{cache:"no-store"});
+    var d=await r.json();
+    if(!r.ok||!d.merchant)throw new Error(d.error||"Comercio no encontrado");
+    state.merchant=d.merchant;
+    var wanted=params.get("location");
+    state.location=(d.merchant.locations||[]).find(function(x){return x.slug===wanted})||d.merchant.locations?.[0]||null;
+    applyMerchantConfig();
+  }catch(e){
+    console.error(e);
+    toast("No pudimos cargar el comercio");
+  }
+}
+function merchantName(){return state.merchant?.shortName||state.merchant?.name||"El Hornero"}
+function locationName(){return state.location?.name||"Cumbayá"}
+function terminalName(){return state.location?.terminal||"Caja 01"}
+function applyMerchantConfig(){
+  if(!state.merchant)return;
+  var name=merchantName(),loc=locationName(),logo=state.merchant.logoUrl;
+  document.documentElement.style.setProperty("--merchant-logo",logo?'url("'+logo+'")':"none");
+  document.documentElement.style.setProperty("--merchant-primary",state.merchant.brandPrimary||"#51C878");
+  document.querySelectorAll(".merchant-name-text").forEach(function(el){el.textContent=name});
+  document.querySelectorAll(".merchant-location-text").forEach(function(el){el.textContent=loc});
+  document.querySelectorAll(".merchant-context-text").forEach(function(el){el.textContent=name+" · "+loc});
+  ["loginMerchantName","previewPhoneMerchant","demoMerchantName","sidebarMerchantName"].forEach(function(id){if(q(id))q(id).textContent=name});
+  ["previewPhoneLocation","sidebarLocationName"].forEach(function(id){if(q(id))q(id).textContent=loc});
+  if(q("previewMerchantLocation"))q("previewMerchantLocation").textContent=name+" · "+loc;
+  if(q("loginDemoMerchant"))q("loginDemoMerchant").textContent=name+" · Demo";
+  if(q("cashierContext"))q("cashierContext").textContent=name+" · "+loc;
+  if(q("employeeMerchantName"))q("employeeMerchantName").textContent=name;
+  if(q("employeeMerchantLocation"))q("employeeMerchantLocation").textContent=loc+" · "+terminalName();
+}
 function hideScreens(){["homeScreen","chargeScreen","approvedScreen","transactionsScreen","settlementsScreen","branchScreen"].forEach(function(x){q(x).classList.add("hidden")})}
 function nav(which){["navHome","navMov","navSettlement","navBranch"].forEach(function(x){if(q(x))q(x).classList.remove("active")});if(which&&q(which))q(which).classList.add("active")}
 async function enterDemo(){q("login").classList.add("hidden");q("merchantApp").classList.remove("hidden");applyRole();await showHome()}
@@ -1145,10 +1180,10 @@ document.addEventListener("keydown",function(e){
     if(e.key==="Escape"&&!q("chargeScreen").classList.contains("hidden")){e.preventDefault();cancelCharge()}
   }
 });
-async function showHome(){hideScreens();q("homeScreen").classList.remove("hidden");q("topTitle").textContent=state.role==="admin"?"El Hornero · Gerencia":"El Hornero · Cumbayá · Caja 01";nav("navHome");setDashboardDate();await loadTransactions();if(state.role!=="admin")setTimeout(function(){q("amountInput").focus()},80)}
-async function showTransactions(){hideScreens();q("transactionsScreen").classList.remove("hidden");q("topTitle").textContent="Movimientos · El Hornero Cumbayá";nav("navMov");await loadTransactions()}
-function showBranch(){hideScreens();q("branchScreen").classList.remove("hidden");q("topTitle").textContent=state.role==="admin"?"Sucursales · El Hornero":"Mi sucursal · El Hornero Cumbayá";nav("navBranch")}
-function showSettlements(){if(state.role!=="admin"){toast("Acceso restringido a gerencia");return}hideScreens();q("settlementsScreen").classList.remove("hidden");q("topTitle").textContent="Liquidaciones · El Hornero";nav("navSettlement");loadTransactions()}
+async function showHome(){hideScreens();q("homeScreen").classList.remove("hidden");q("topTitle").textContent=state.role==="admin"?"El Hornero · Gerencia":"<span class="merchant-context-text">El Hornero · Cumbayá</span> · Caja 01";nav("navHome");setDashboardDate();await loadTransactions();if(state.role!=="admin")setTimeout(function(){q("amountInput").focus()},80)}
+async function showTransactions(){hideScreens();q("transactionsScreen").classList.remove("hidden");q("topTitle").textContent="Movimientos · "+merchantName()+" · "+locationName();nav("navMov");await loadTransactions()}
+function showBranch(){hideScreens();q("branchScreen").classList.remove("hidden");q("topTitle").textContent=state.role==="admin"?"Sucursales · "+merchantName():"Mi sucursal · "+merchantName()+" · "+locationName();nav("navBranch")}
+function showSettlements(){if(state.role!=="admin"){toast("Acceso restringido a gerencia");return}hideScreens();q("settlementsScreen").classList.remove("hidden");q("topTitle").textContent="Liquidaciones · "+merchantName();nav("navSettlement");loadTransactions()}
 function applyRole(){
   document.body.classList.remove("role-cashier","role-supervisor","role-admin");
   document.body.classList.add("role-"+state.role);
@@ -1172,7 +1207,7 @@ async function startCharge(){
   if(!(amount>0))return;
   state.amount=amount;state.reference=q("refInput").value.trim();q("chargeBtn").disabled=true;
   try{
-    var r=await fetch("/api/revale-demo?action=create",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({amount:amount,reference:state.reference})});
+    var r=await fetch("/api/revale-demo?action=create",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({amount:amount,reference:state.reference,merchant_id:state.merchant?.id,location_id:state.location?.id})});
     var d=await r.json();if(!r.ok)throw new Error(d.error||"No se pudo crear el cobro");
     state.tx=d.tx;state.token=d.token;state.expiresAt=d.expiresAt;
   }catch(e){q("chargeBtn").disabled=false;toast(e.message||"No pudimos iniciar el cobro");return}
@@ -1221,7 +1256,7 @@ async function newSale(){state.amount=0;state.reference="";state.tx="";state.tok
 
 async function loadTransactions(){
   try{
-    var r=await fetch("/api/revale-demo?action=transactions&limit=50",{cache:"no-store"});var d=await r.json();
+    var url="/api/revale-demo?action=transactions&limit=50&merchant_id="+encodeURIComponent(state.merchant?.id||"merchant_el_hornero")+(state.role==="admin"?"":"&location_id="+encodeURIComponent(state.location?.id||""));var r=await fetch(url,{cache:"no-store"});var d=await r.json();
     if(!r.ok)throw new Error(d.error||"No se pudieron cargar movimientos");
     state.transactions=(d.transactions||[]).map(function(t){return{tx:t.id,amount:Number(t.amount||0),reference:t.reference||"",status:t.status,createdAt:t.created_at,approvedAt:t.approved_at,reversedAt:t.reversed_at}});
     renderTx()
@@ -1275,6 +1310,7 @@ async function loadEmployee(){
     var r=await fetch("/api/revale-demo?action=get&tx="+encodeURIComponent(emp.tx)+"&token="+encodeURIComponent(emp.token),{cache:"no-store"});var d=await r.json();
     if(!r.ok)throw new Error(d.error||"No encontramos la transacción");
     emp.amount=Number(d.amount||0);emp.currentBalance=Number(d.currentBalance??0);emp.balanceBefore=d.balanceBefore==null?emp.currentBalance:Number(d.balanceBefore);emp.balanceAfter=d.balanceAfter==null?null:Number(d.balanceAfter);
+    if(d.merchant){state.merchant={id:d.merchant.id,name:d.merchant.name,shortName:d.merchant.name,logoUrl:d.merchant.logoUrl,brandPrimary:d.merchant.brandPrimary};state.location={id:d.merchant.locationId,name:d.merchant.locationName,terminal:"Caja 01"};applyMerchantConfig()}
     var first=d.employee?.firstName||"Andrea";
     q("employeeHello").textContent="Hola, "+first;q("employeeBalance").textContent=money(emp.currentBalance);q("employeeAmount").textContent=money(emp.amount);q("employeeAfter").textContent="Saldo después de la compra: "+money(emp.currentBalance-emp.amount);
     q("employeeLoading").classList.add("hidden");q("employeePay").classList.remove("hidden");
@@ -1291,9 +1327,9 @@ async function confirmEmployee(){
 }
 function employeeSuccess(){
   var remaining=emp.balanceAfter==null?emp.currentBalance:emp.balanceAfter;
-  q("phone").innerHTML="<div class='employee-success'><div class='brand-logo logo-light success-brand' aria-label='ReVale'></div><div class='check'>✓</div><h2>Pago aprobado</h2><p>Tu consumo fue confirmado en El Hornero.</p><div class='balance-success'><span>Saldo disponible</span><b>"+money(remaining)+"</b></div><div class='receipt'><div class='rr'><span>Comercio</span><b>El Hornero</b></div><div class='rr'><span>Total</span><b>"+money(emp.amount)+"</b></div><div class='rr'><span>Transacción</span><b>"+emp.tx+"</b></div><div class='rr'><span>Estado</span><b>Aprobado</b></div></div></div>"
+  q("phone").innerHTML="<div class='employee-success'><div class='brand-logo logo-light success-brand' aria-label='ReVale'></div><div class='check'>✓</div><h2>Pago aprobado</h2><p>Tu consumo fue confirmado en "+merchantName()+".</p><div class='balance-success'><span>Saldo disponible</span><b>"+money(remaining)+"</b></div><div class='receipt'><div class='rr'><span>Comercio</span><b class="merchant-name-text">El Hornero</b></div><div class='rr'><span>Total</span><b>"+money(emp.amount)+"</b></div><div class='rr'><span>Transacción</span><b>"+emp.tx+"</b></div><div class='rr'><span>Estado</span><b>Aprobado</b></div></div></div>"
 }
-(function init(){var p=new URLSearchParams(location.search);if(p.get("employee")==="1")loadEmployee()})();
+(function init(){var p=new URLSearchParams(location.search);if(p.get("employee")==="1")loadEmployee();else loadMerchantConfig()})();
 </script>
 </body>
 </html>
