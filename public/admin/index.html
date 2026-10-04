@@ -313,6 +313,133 @@ function showSettlements(){hide();q("settlementsScreen").classList.remove("hidde
 function showOnboarding(){hide();q("onboardingScreen").classList.remove("hidden");nav("navOnboarding");q("topTitle").textContent="Onboarding"}
 function showMerchants(){hide();q("merchantsScreen").classList.remove("hidden");nav("navMerchants");q("topTitle").textContent="Comercios"}
 function showEmployers(){hide();q("employersScreen").classList.remove("hidden");nav("navEmployers");q("topTitle").textContent="Empresas"}
+function approvalStatusView(v){
+  var map={
+    pending:["Pendiente","pending"],
+    approved:["Aprobada · por ejecutar","pending"],
+    executing:["Ejecutando","pending"],
+    executed:["Ejecutada","ok"],
+    execution_failed:["Falló ejecución","no"],
+    rejected:["Rechazada","no"],
+    cancelled:["Cancelada","neutral"],
+    expired:["Expirada","neutral"]
+  };
+  var x=map[v]||[v||"—","neutral"];return "<span class='status "+x[1]+"'>"+esc(x[0])+"</span>"
+}
+function approvalEntityLabel(r){
+  var map={
+    funding_batch:"Fondeo",
+    settlement:"Liquidación",
+    merchant_withholding:"Retención",
+    merchant_fee_credit_note:"Nota de crédito",
+    treasury_transfer:"Tesorería"
+  };
+  return (map[r.entity_type]||r.entity_type||"Entidad")+" · "+r.entity_id
+}
+function currentUserAlreadyDecided(r){
+  return (r.decisions||[]).some(d=>String(d.approver_id)===String(s.principal?.adminUserId))
+}
+function canCurrentUserApprove(r){
+  var p=s.approvals?.myPermission||{};
+  if(!p.active||!p.can_approve)return false;
+  if(String(r.requested_by)===String(s.principal?.adminUserId))return false;
+  if(currentUserAlreadyDecided(r))return false;
+  if(p.approval_limit!==null&&p.approval_limit!==undefined&&Number(r.amount)>Number(p.approval_limit)+0.00001)return false;
+  return r.status==="pending"
+}
+function renderApprovals(){
+  var a=s.approvals||{},p=a.myPermission||{},requests=a.requests||[];
+  if(q("kApprovalPending"))q("kApprovalPending").textContent=Number(a.pending||0);
+  if(q("kApprovalActionable"))q("kApprovalActionable").textContent=Number(a.actionable||0);
+  if(q("kApprovalMaker"))q("kApprovalMaker").innerHTML=p.active&&p.can_make?"<span class='status ok'>Habilitado</span>":"<span class='status neutral'>No</span>";
+  if(q("kApprovalApprover")){
+    if(p.active&&p.can_approve){
+      q("kApprovalApprover").innerHTML="<span class='status ok'>Habilitado</span><br/><small>"+(p.approval_limit===null||p.approval_limit===undefined?"Sin límite personal":money(p.approval_limit))+"</small>"
+    }else q("kApprovalApprover").innerHTML="<span class='status neutral'>No</span>"
+  }
+
+  var body=q("approvalRows");
+  if(body)body.innerHTML=requests.length?requests.map(r=>{
+    var decisions=(r.decisions||[]).map(d=>"<small>"+esc(d.approver_name||d.approver_id)+" · "+esc(d.decision)+"</small>").join("<br/>");
+    var progress="<b>"+Number(r.approval_count||0)+"/"+Number(r.required_approvals||1)+"</b>"+(decisions?"<br/>"+decisions:"");
+    var actions="";
+    if(canCurrentUserApprove(r)){
+      actions="<div class='actions'><button class='btn secondary' onclick='rejectFinancialApproval("+JSON.stringify(r.id)+")'>Rechazar</button><button class='btn primary' onclick='approveFinancialApproval("+JSON.stringify(r.id)+")'>Aprobar</button></div>"
+    }else if(r.status==="execution_failed"&&p.active&&p.can_approve&&String(r.requested_by)!==String(s.principal?.adminUserId)){
+      actions="<button class='btn primary' onclick='retryFinancialApproval("+JSON.stringify(r.id)+")'>Reintentar</button>"
+    }else if(String(r.requested_by)===String(s.principal?.adminUserId)&&r.status==="pending"){
+      actions="<span class='status neutral'>Tu solicitud</span>"
+    }
+    var expiry=new Date(r.expires_at),expired=expiry.getTime()<Date.now();
+    return "<tr><td><b>"+esc(r.action_label||r.action_type)+"</b><br/><small>"+esc(r.id)+"</small></td><td><b>"+esc(r.requested_by_name||r.requested_by)+"</b><br/><small>"+new Date(r.created_at).toLocaleString("es-EC")+"</small></td><td>"+esc(approvalEntityLabel(r))+"</td><td class='amount'><b>"+money(r.amount)+"</b><br/><small>"+esc(String(r.currency||"USD").trim())+"</small></td><td>"+progress+"</td><td>"+approvalStatusView(r.status)+(r.failure_reason?"<br/><small>"+esc(r.failure_reason)+"</small>":"")+"</td><td>"+(expired?"<span class='status neutral'>Vencida</span>":expiry.toLocaleString("es-EC"))+"</td><td>"+actions+"</td></tr>"
+  }).join(""):"<tr><td colspan='8'>Sin solicitudes financieras todavía.</td></tr>";
+
+  var config=q("approvalAdminConfig"),isSuper=s.principal?.role==="superadmin";
+  if(config)config.classList.toggle("hidden",!isSuper);
+  if(isSuper){
+    var policies=a.policies||[],policyRows=q("approvalPolicyRows");
+    if(policyRows)policyRows.innerHTML=policies.map(x=>"<tr><td><b>"+esc(x.label)+"</b><br/><small>"+esc(x.action_type)+"</small></td><td class='amount'>"+money(x.threshold_amount)+"</td><td>"+x.approvals_below+" aprobación(es)</td><td>"+x.approvals_above+" aprobación(es)</td><td>"+x.expiry_hours+" h</td><td>"+(x.active?"<span class='status ok'>Activa</span>":"<span class='status neutral'>Inactiva</span>")+"</td><td><button class='btn secondary' onclick='openApprovalPolicy("+JSON.stringify(x.action_type)+")'>Editar</button></td></tr>").join("")||"<tr><td colspan='7'>Sin políticas.</td></tr>";
+
+    var users=a.users||[],userRows=q("approvalUserRows");
+    if(userRows)userRows.innerHTML=users.map(u=>"<tr><td><b>"+esc(u.display_name||u.email)+"</b><br/><small>"+esc(u.email||"")+"</small></td><td>"+esc(u.role||"—")+"</td><td>"+(u.permission_active&&u.can_make?"<span class='status ok'>Sí</span>":"<span class='status neutral'>No</span>")+"</td><td>"+(u.permission_active&&u.can_approve?"<span class='status ok'>Sí</span>":"<span class='status neutral'>No</span>")+"</td><td class='amount'>"+(u.approval_limit===null||u.approval_limit===undefined?"Sin límite":money(u.approval_limit))+"</td><td>"+(u.user_active?"<span class='status ok'>Usuario activo</span>":"<span class='status no'>Inactivo</span>")+"</td><td><button class='btn secondary' onclick='openFinancialUserPermission("+JSON.stringify(u.admin_user_id)+")'>Configurar</button></td></tr>").join("")||"<tr><td colspan='7'>Sin usuarios.</td></tr>"
+  }
+}
+function approveFinancialApproval(id){
+  var r=(s.approvals?.requests||[]).find(x=>x.id===id);if(!r)return;
+  openConfirm("Aprobar solicitud",esc(r.action_label||r.action_type)+" · "+money(r.amount)+". Tu aprobación es independiente de la del creador.",async()=>{
+    var d=await api("financial-approval-decision",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id,decision:"approve"})});
+    await loadAll();showApprovals();
+    if(d.execution?.code==="ok")toast("Aprobada y ejecutada");
+    else toast("Aprobación registrada")
+  })
+}
+function rejectFinancialApproval(id){
+  openReason("Rechazar solicitud financiera",async reason=>{
+    await api("financial-approval-decision",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id,decision:"reject",note:reason})});
+    await loadAll();showApprovals();toast("Solicitud rechazada")
+  })
+}
+function retryFinancialApproval(id){
+  openConfirm("Reintentar ejecución","Las aprobaciones existentes se conservan. Solo se reintenta la ejecución del movimiento ya aprobado.",async()=>{
+    await api("retry-financial-approval",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id})});
+    await loadAll();showApprovals();toast("Ejecución completada")
+  })
+}
+function openApprovalPolicy(actionType){
+  var x=(s.approvals?.policies||[]).find(p=>p.action_type===actionType);if(!x)return;
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Política maker-checker</div><h3>"+esc(x.label)+"</h3><p>Define el umbral que cambia de aprobación simple a múltiple. No modifica operaciones ya solicitadas.</p><div class='field'><label>Umbral</label><input id='policyThreshold' class='input' type='number' min='0' step='0.01' value='"+Number(x.threshold_amount||0).toFixed(2)+"'/></div><div class='field'><label>Aprobaciones hasta umbral</label><input id='policyBelow' class='input' type='number' min='1' max='5' step='1' value='"+Number(x.approvals_below||1)+"'/></div><div class='field'><label>Aprobaciones sobre umbral</label><input id='policyAbove' class='input' type='number' min='1' max='5' step='1' value='"+Number(x.approvals_above||2)+"'/></div><div class='field'><label>Vigencia de solicitud (horas)</label><input id='policyExpiry' class='input' type='number' min='1' max='720' value='"+Number(x.expiry_hours||24)+"'/></div><div class='field'><label><input id='policyActive' type='checkbox' "+(x.active?"checked":"")+"/> Política activa</label></div><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button id='policySaveBtn' class='btn primary' onclick='saveApprovalPolicy("+JSON.stringify(actionType)+")'>Guardar</button></div></div></div>"
+}
+async function saveApprovalPolicy(actionType){
+  var b=q("policySaveBtn");b.disabled=true;b.textContent="Guardando…";
+  try{
+    await api("financial-policy",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      action_type:actionType,
+      threshold_amount:Number(q("policyThreshold").value||0),
+      approvals_below:Number(q("policyBelow").value||1),
+      approvals_above:Number(q("policyAbove").value||2),
+      expiry_hours:Number(q("policyExpiry").value||24),
+      active:q("policyActive").checked
+    })});
+    closeModal();await loadAll();showApprovals();toast("Política actualizada")
+  }catch(e){toast(e.message);b.disabled=false;b.textContent="Guardar"}
+}
+function openFinancialUserPermission(adminUserId){
+  var u=(s.approvals?.users||[]).find(x=>String(x.admin_user_id)===String(adminUserId));if(!u)return;
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Permisos financieros</div><h3>"+esc(u.display_name||u.email)+"</h3><p>Maker solicita. Approver decide. Si un usuario tiene ambos, sigue prohibida la autoaprobación.</p><div class='field'><label><input id='permMaker' type='checkbox' "+(u.can_make?"checked":"")+"/> Puede crear solicitudes (Maker)</label></div><div class='field'><label><input id='permApprover' type='checkbox' "+(u.can_approve?"checked":"")+"/> Puede aprobar (Approver)</label></div><div class='field'><label>Límite personal por aprobación</label><input id='permLimit' class='input' type='number' min='0' step='0.01' value='"+(u.approval_limit===null||u.approval_limit===undefined?"":Number(u.approval_limit).toFixed(2))+"' placeholder='Vacío = sin límite personal'/></div><div class='field'><label><input id='permActive' type='checkbox' "+(u.permission_active?"checked":"")+"/> Permiso financiero activo</label></div><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button id='permSaveBtn' class='btn primary' onclick='saveFinancialUserPermission("+JSON.stringify(adminUserId)+")'>Guardar</button></div></div></div>"
+}
+async function saveFinancialUserPermission(adminUserId){
+  var b=q("permSaveBtn"),limit=(q("permLimit").value||"").trim();b.disabled=true;b.textContent="Guardando…";
+  try{
+    await api("financial-user-permission",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      admin_user_id:adminUserId,
+      can_make:q("permMaker").checked,
+      can_approve:q("permApprover").checked,
+      approval_limit:limit===""?null:Number(limit),
+      active:q("permActive").checked
+    })});
+    closeModal();await loadAll();showApprovals();toast("Permisos financieros actualizados")
+  }catch(e){toast(e.message);b.disabled=false;b.textContent="Guardar"}
+}
 function showApprovals(){hide();q("approvalsScreen").classList.remove("hidden");nav("navApprovals");q("topTitle").textContent="Aprobaciones financieras";renderApprovals()}
 function showAccounting(){hide();q("accountingScreen").classList.remove("hidden");nav("navAccounting");q("topTitle").textContent="Contabilidad"}
 function showAudit(){hide();q("auditScreen").classList.remove("hidden");nav("navAudit");q("topTitle").textContent="Auditoría"}
