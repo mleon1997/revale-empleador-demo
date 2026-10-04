@@ -14,7 +14,10 @@ import {
 import {
   ensureSettlementTaxSchema,
   reviewMerchantWithholding,
-  registerIssuedFeeInvoice
+  registerIssuedFeeInvoice,
+  registerIssuedFeeCreditNote,
+  resolveFeeCreditNoteWithholding,
+  reconcileSettlementPayout
 } from "../lib/revale-settlement-tax.js";
 
 function json(res,code,body){
@@ -50,8 +53,12 @@ export default async function handler(req,res){
           (SELECT COUNT(*)::int FROM revale.merchant_location_requests WHERE status='pending') AS pending_branches,
           (SELECT COUNT(*)::int FROM revale.merchant_bank_account_requests WHERE status='pending') AS pending_banks,
           (SELECT COUNT(*)::int FROM revale.merchant_withholdings WHERE status='reported') AS pending_withholdings,
+          (SELECT COUNT(*)::int FROM revale.merchant_fee_credit_notes WHERE status='pending_issue') AS pending_credit_notes,
+          (SELECT COUNT(*)::int FROM revale.merchant_fee_credit_notes WHERE status='issued' AND withholding_status='review_required') AS pending_credit_note_tax_reviews,
           (SELECT COUNT(*)::int FROM revale.settlements WHERE status IN ('closed','failed')) AS settlement_action_required,
-          (SELECT COUNT(*)::int FROM revale.settlements WHERE status='scheduled') AS payouts_scheduled`
+          (SELECT COUNT(*)::int FROM revale.settlements WHERE status='scheduled') AS payouts_scheduled,
+          (SELECT COUNT(*)::int FROM revale.settlements WHERE status='paid') AS pending_reconciliations,
+          (SELECT COUNT(*)::int FROM revale.settlement_reconciliations WHERE status='mismatch') AS reconciliation_mismatches`
       );
       const [money]=await sql.query(
         `SELECT
@@ -84,14 +91,34 @@ export default async function handler(req,res){
            COALESCE(wh.verified_total,0)::float8 AS verified_withholding_amount,
            fi.id AS fee_invoice_id,fi.invoice_number,fi.status AS fee_invoice_status,
            fi.total_amount::float8 AS fee_invoice_total,
+           COALESCE(cn.pending_count,0)::int AS merchant_pending_credit_notes,
+           COALESCE(cn.review_count,0)::int AS merchant_pending_credit_note_tax_reviews,
+           rec.status AS reconciliation_status,rec.bank_reference AS reconciliation_reference,
+           rec.bank_posted_on,rec.bank_amount::float8 AS reconciliation_bank_amount,
+           rec.difference_amount::float8 AS reconciliation_difference_amount,
            s.currency,s.status,s.closed_at,s.scheduled_at,s.paid_at,s.payout_reference,
            mba.bank_name,mba.account_type,
            CASE WHEN mba.account_number IS NULL THEN NULL ELSE '•••• '||right(mba.account_number,4) END AS account_number_masked,
-           lp.id AS payout_id,lp.attempt_no,lp.status AS payout_status,lp.failure_reason
+           lp.id AS payout_id,lp.attempt_no,lp.status AS payout_status,lp.failure_reason,
+           lp.amount::float8 AS payout_amount
          FROM revale.settlements s
          JOIN revale.merchants m ON m.id=s.merchant_id
          LEFT JOIN revale.merchant_bank_accounts mba ON mba.id=s.bank_account_id
          LEFT JOIN revale.merchant_fee_invoices fi ON fi.settlement_id=s.id
+         LEFT JOIN LATERAL (
+           SELECT
+             COUNT(*) FILTER (WHERE status='pending_issue') AS pending_count,
+             COUNT(*) FILTER (WHERE status='issued' AND withholding_status='review_required') AS review_count
+           FROM revale.merchant_fee_credit_notes
+           WHERE merchant_id=s.merchant_id
+         ) cn ON true
+         LEFT JOIN LATERAL (
+           SELECT status,bank_reference,bank_posted_on,bank_amount,difference_amount
+           FROM revale.settlement_reconciliations
+           WHERE settlement_id=s.id
+           ORDER BY updated_at DESC
+           LIMIT 1
+         ) rec ON true
          LEFT JOIN LATERAL (
            SELECT COALESCE(SUM(amount),0) AS adjustment_total
            FROM revale.settlement_adjustments
@@ -105,7 +132,7 @@ export default async function handler(req,res){
            WHERE settlement_id=s.id
          ) wh ON true
          LEFT JOIN LATERAL (
-           SELECT id,attempt_no,status,failure_reason
+           SELECT id,attempt_no,status,failure_reason,amount
            FROM revale.settlement_payouts
            WHERE settlement_id=s.id
            ORDER BY attempt_no DESC
@@ -168,7 +195,9 @@ export default async function handler(req,res){
           bank_missing:"El comercio no tiene una cuenta bancaria verificada",
           fee_invoice_pending:"Registra primero la factura ReVale emitida para esta liquidación",
           withholding_pending:"Existe una retención reportada pendiente de verificación",
-          merchant_balance_offset:"El mayor contable del comercio no tiene saldo pagable; existe un reverso o saldo anterior que compensa esta liquidación"
+          merchant_balance_offset:"El mayor contable del comercio no tiene saldo pagable; existe un reverso o saldo anterior que compensa esta liquidación",
+          credit_note_pending:"Existe una nota de crédito ReVale pendiente de emisión para este comercio",
+          credit_note_withholding_review_pending:"Existe una nota de crédito cuya retención asociada requiere revisión de Finanzas"
         };
         return json(res,409,{ok:false,error:messages[result.code]||"No se pudo programar el pago",detail:result});
       }
@@ -256,6 +285,168 @@ export default async function handler(req,res){
         ]
       );
       return json(res,200,{ok:true,invoice:fi});
+    }
+
+    if(req.method==="GET" && action==="credit-notes"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const rows=await sql.query(
+        `SELECT
+           cn.id,cn.fee_invoice_id,cn.settlement_id,cn.merchant_id,m.name AS merchant_name,
+           cn.transaction_id,cn.credit_note_number,cn.access_key,
+           cn.subtotal::float8 AS subtotal,cn.vat_amount::float8 AS vat_amount,
+           cn.total_amount::float8 AS total_amount,cn.currency,cn.reason,cn.status,
+           cn.withholding_status,
+           cn.withholding_adjustment_amount::float8 AS withholding_adjustment_amount,
+           cn.withholding_resolution_note,cn.resolved_by,cn.resolved_at,cn.issued_at,cn.created_at,
+           fi.invoice_number,fi.total_amount::float8 AS invoice_total,
+           s.period_start,s.period_end,s.status AS settlement_status,
+           COALESCE((
+             SELECT SUM(w.total_amount)
+             FROM revale.merchant_withholdings w
+             WHERE w.fee_invoice_id=cn.fee_invoice_id AND w.status='verified'
+           ),0)::float8 AS verified_withholding_total
+         FROM revale.merchant_fee_credit_notes cn
+         JOIN revale.merchants m ON m.id=cn.merchant_id
+         JOIN revale.merchant_fee_invoices fi ON fi.id=cn.fee_invoice_id
+         JOIN revale.settlements s ON s.id=cn.settlement_id
+         ORDER BY
+           CASE
+             WHEN cn.status='pending_issue' THEN 1
+             WHEN cn.status='issued' AND cn.withholding_status='review_required' THEN 2
+             ELSE 3
+           END,
+           cn.created_at DESC
+         LIMIT 200`
+      );
+      return json(res,200,{ok:true,items:rows});
+    }
+
+    if(req.method==="POST" && action==="register-fee-credit-note"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const id=String(req.body?.id||"");
+      const number=String(req.body?.credit_note_number||"").trim().slice(0,80);
+      const accessKey=String(req.body?.access_key||"").trim().slice(0,160);
+      const issuedAt=req.body?.issued_at?String(req.body.issued_at):null;
+      const result=await registerIssuedFeeCreditNote(sql,{
+        creditNoteId:id,creditNoteNumber:number,accessKey,issuedAt,actorId:principal.adminUserId
+      });
+      if(result.code!=="ok"){
+        const messages={
+          not_found:"Nota de crédito no encontrada",
+          credit_note_number_required:"Ingresa el número de nota de crédito",
+          duplicate_access_key:"La clave de acceso ya está registrada",
+          invalid_status:"La nota de crédito ya no puede modificarse"
+        };
+        return json(res,409,{ok:false,error:messages[result.code]||"No se pudo registrar la nota de crédito",detail:result});
+      }
+      const cn=result.creditNote;
+      await sql.query(
+        `INSERT INTO revale.audit_events (
+           merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata
+         ) VALUES ($1,'revale_admin',$2,'fee_credit_note.issued','merchant_fee_credit_note',$3,$4::jsonb)`,
+        [
+          cn.merchant_id,principal.adminUserId,cn.id,
+          JSON.stringify({
+            settlementId:cn.settlement_id,transactionId:cn.transaction_id,
+            creditNoteNumber:cn.credit_note_number,totalAmount:cn.total_amount
+          })
+        ]
+      );
+      return json(res,200,{ok:true,creditNote:cn});
+    }
+
+    if(req.method==="POST" && action==="resolve-credit-note-withholding"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const id=String(req.body?.id||"");
+      const adjustmentAmount=Number(req.body?.withholding_adjustment_amount||0);
+      const note=String(req.body?.resolution_note||"").trim().slice(0,500);
+      const result=await resolveFeeCreditNoteWithholding(sql,{
+        creditNoteId:id,
+        withholdingAdjustmentAmount:adjustmentAmount,
+        resolutionNote:note,
+        actorId:principal.adminUserId
+      });
+      if(result.code!=="ok"){
+        const messages={
+          not_found:"Nota de crédito no encontrada",
+          invalid_amount:"El ajuste de retención no puede ser negativo",
+          credit_note_not_issued:"Registra primero la nota de crédito emitida",
+          amount_exceeds_withholding:"El ajuste supera la retención verificada de la factura",
+          invalid_status:"La revisión tributaria ya fue resuelta"
+        };
+        return json(res,409,{ok:false,error:messages[result.code]||"No se pudo resolver la retención",detail:result});
+      }
+      const cn=result.creditNote;
+      if(Number(result.withholdingAdjustmentAmount||0)>0){
+        await emitAndPostAccountingEvent(sql,{
+          eventType:"merchant_withholding_credit_reversed",
+          sourceType:"fee_credit_note",
+          sourceId:cn.id,
+          eventKey:"withholding_credit_reversed",
+          amount:Number(result.withholdingAdjustmentAmount||0),
+          merchantId:cn.merchant_id,
+          settlementId:cn.settlement_id,
+          transactionId:cn.transaction_id||null,
+          payload:{
+            credit_note_number:cn.credit_note_number||null,
+            resolution_note:cn.withholding_resolution_note||null
+          }
+        });
+      }
+      await sql.query(
+        `INSERT INTO revale.audit_events (
+           merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata
+         ) VALUES ($1,'revale_admin',$2,'fee_credit_note.withholding_resolved','merchant_fee_credit_note',$3,$4::jsonb)`,
+        [
+          cn.merchant_id,principal.adminUserId,cn.id,
+          JSON.stringify({
+            settlementId:cn.settlement_id,
+            withholdingAdjustmentAmount:Number(result.withholdingAdjustmentAmount||0),
+            resolutionNote:cn.withholding_resolution_note||null
+          })
+        ]
+      );
+      return json(res,200,{ok:true,result});
+    }
+
+    if(req.method==="POST" && action==="reconcile-settlement"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const id=String(req.body?.id||"");
+      const result=await reconcileSettlementPayout(sql,{
+        settlementId:id,
+        bankReference:req.body?.bank_reference,
+        bankPostedOn:req.body?.bank_posted_on,
+        bankAmount:req.body?.bank_amount,
+        actorId:principal.adminUserId
+      });
+      if(result.code!=="ok"){
+        const messages={
+          not_found:"Liquidación no encontrada",
+          reference_required:"Ingresa la referencia bancaria",
+          date_required:"Ingresa la fecha de contabilización bancaria",
+          invalid_amount:"Ingresa el monto debitado en banco",
+          paid_payout_missing:"No existe un payout pagado para conciliar",
+          invalid_status:"La liquidación no está lista para conciliación"
+        };
+        return json(res,409,{ok:false,error:messages[result.code]||"No se pudo conciliar la liquidación",detail:result});
+      }
+      const rec=result.reconciliation;
+      await sql.query(
+        `INSERT INTO revale.audit_events (
+           merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata
+         ) VALUES ($1,'revale_admin',$2,$3,'settlement_reconciliation',$4,$5::jsonb)`,
+        [
+          rec.merchant_id,principal.adminUserId,
+          rec.status==="matched"?"settlement.reconciled":"settlement.reconciliation_mismatch",
+          rec.id,
+          JSON.stringify({
+            settlementId:rec.settlement_id,expectedAmount:rec.expected_amount,
+            bankAmount:rec.bank_amount,differenceAmount:rec.difference_amount,
+            bankReference:rec.bank_reference
+          })
+        ]
+      );
+      return json(res,200,{ok:true,reconciliation:rec});
     }
 
     if(req.method==="GET" && action==="withholdings"){
