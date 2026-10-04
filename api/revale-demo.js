@@ -8,6 +8,7 @@ import {
   reverseCharge,
   matchInvoice
 } from "../lib/revale-db.js";
+import { getMerchantPrincipal, roleAllowed } from "../lib/revale-auth.js";
 
 
 async function getMerchantConfig(sql, slug = "el-hornero") {
@@ -71,6 +72,29 @@ export default async function handler(req, res) {
   try {
     const sql = await getSql();
 
+    const protectedActions = new Set([
+      "branch-requests","request-branch",
+      "merchant-users","invite-user","update-user",
+      "bank-account","request-bank-account","merchant-terms",
+      "reversal-requests","request-reversal","resolve-reversal",
+      "transactions","reverse","invoice-match","create"
+    ]);
+    let principal = null;
+    if (protectedActions.has(action)) {
+      principal = await getMerchantPrincipal(sql, req);
+      if (!principal) {
+        return json(res, 401, { ok: false, error: "Sesión requerida" });
+      }
+    }
+
+    const requireRoles = (roles) => {
+      if (!roleAllowed(principal, roles)) {
+        json(res, 403, { ok: false, error: "No tienes permisos para esta acción" });
+        return false;
+      }
+      return true;
+    };
+
     if (req.method === "GET" && action === "merchant-config") {
       const slug = String(req.query?.merchant || "el-hornero");
       const config = await getMerchantConfig(sql, slug);
@@ -79,7 +103,8 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "GET" && action === "branch-requests") {
-      const merchantId = String(req.query?.merchant_id || "merchant_el_hornero");
+      if (!requireRoles(["admin"])) return;
+      const merchantId = principal.merchantId;
       const rows = await sql`
         SELECT id, merchant_id, requested_by, name, address, requested_terminals, status, created_at, reviewed_at
         FROM revale.merchant_location_requests
@@ -91,7 +116,8 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST" && action === "request-branch") {
-      const merchantId = String(req.body?.merchant_id || "merchant_el_hornero");
+      if (!requireRoles(["admin"])) return;
+      const merchantId = principal.merchantId;
       const requestedBy = String(req.body?.requested_by || "Gerencia").slice(0, 120);
       const name = String(req.body?.name || "").trim().slice(0, 120);
       const address = String(req.body?.address || "").trim().slice(0, 240);
@@ -106,7 +132,8 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "GET" && action === "merchant-users") {
-      const merchantId = String(req.query?.merchant_id || "merchant_el_hornero");
+      if (!requireRoles(["admin"])) return;
+      const merchantId = principal.merchantId;
       const rows = await sql`
         SELECT
           mu.id,
@@ -132,7 +159,8 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST" && action === "invite-user") {
-      const merchantId = String(req.body?.merchant_id || "merchant_el_hornero");
+      if (!requireRoles(["admin"])) return;
+      const merchantId = principal.merchantId;
       const displayName = String(req.body?.display_name || "").trim().slice(0, 120);
       const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 180);
       const role = String(req.body?.role || "cashier");
@@ -163,7 +191,8 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST" && action === "update-user") {
-      const merchantId = String(req.body?.merchant_id || "merchant_el_hornero");
+      if (!requireRoles(["admin"])) return;
+      const merchantId = principal.merchantId;
       const userId = String(req.body?.user_id || "");
       const active = typeof req.body?.active === "boolean" ? req.body.active : null;
       const role = req.body?.role ? String(req.body.role) : null;
@@ -203,7 +232,8 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "GET" && action === "bank-account") {
-      const merchantId = String(req.query?.merchant_id || "merchant_el_hornero");
+      if (!requireRoles(["admin"])) return;
+      const merchantId = principal.merchantId;
       const [verified] = await sql`
         SELECT id, merchant_id, bank_name, account_type, account_number, holder_name, holder_identification, status, requested_by, verified_by, verified_at, created_at, updated_at
         FROM revale.merchant_bank_accounts
@@ -231,7 +261,8 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST" && action === "request-bank-account") {
-      const merchantId = String(req.body?.merchant_id || "merchant_el_hornero");
+      if (!requireRoles(["admin"])) return;
+      const merchantId = principal.merchantId;
       const bankName = String(req.body?.bank_name || "").trim().slice(0, 120);
       const accountType = String(req.body?.account_type || "").trim().slice(0, 60);
       const accountNumber = String(req.body?.account_number || "").replace(/\s+/g, "").slice(0, 60);
@@ -263,7 +294,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "GET" && action === "merchant-terms") {
-      const merchantId = String(req.query?.merchant_id || "merchant_el_hornero");
+      const merchantId = principal.merchantId;
       const [row] = await sql`
         SELECT
           id,
@@ -297,8 +328,7 @@ export default async function handler(req, res) {
         storage: "neon-postgres",
         schema: "revale",
         database: db?.database_name,
-        serverTime: db?.server_time,
-        demoBalance: demo?.balance ?? null
+        serverTime: db?.server_time
       });
     }
 
@@ -363,8 +393,9 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "GET" && action === "reversal-requests") {
-      const merchantId = String(req.query?.merchant_id || "merchant_el_hornero");
-      const locationId = req.query?.location_id ? String(req.query.location_id) : null;
+      if (!requireRoles(["supervisor","admin"])) return;
+      const merchantId = principal.merchantId;
+      const locationId = principal.role === "admin" ? null : principal.locationId;
       const rows = await sql`
         SELECT
           rr.id,
@@ -395,9 +426,10 @@ export default async function handler(req, res) {
 
     if (req.method === "POST" && action === "request-reversal") {
       const tx = String(req.body?.tx || "");
-      const merchantId = String(req.body?.merchant_id || "merchant_el_hornero");
-      const locationId = req.body?.location_id ? String(req.body.location_id) : null;
-      const requestedBy = String(req.body?.requested_by || "Caja").slice(0, 120);
+      if (!requireRoles(["cashier","supervisor"])) return;
+      const merchantId = principal.merchantId;
+      const locationId = principal.locationId;
+      const requestedBy = principal.displayName;
       const reason = String(req.body?.reason || "").trim().slice(0, 120);
       const note = String(req.body?.note || "").trim().slice(0, 500);
       if (!tx || !reason) return json(res, 400, { ok: false, error: "Selecciona un motivo" });
@@ -439,9 +471,10 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST" && action === "resolve-reversal") {
+      if (!requireRoles(["supervisor","admin"])) return;
       const requestId = Number(req.body?.request_id || 0);
       const decision = String(req.body?.decision || "");
-      const reviewedBy = String(req.body?.reviewed_by || "Supervisor").slice(0, 120);
+      const reviewedBy = principal.displayName;
       if (!requestId || !["approve","reject"].includes(decision)) {
         return json(res, 400, { ok: false, error: "Solicitud inválida" });
       }
@@ -491,17 +524,18 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "GET" && action === "transactions") {
-      const merchant = String(req.query?.merchant_id || "merchant_el_hornero");
-      const location = req.query?.location_id ? String(req.query.location_id) : null;
+      const merchant = principal.merchantId;
+      const location = principal.role === "admin" ? null : principal.locationId;
       const rows = await listMerchantTransactions(sql, req.query?.limit || 50, merchant, location);
       return json(res, 200, { ok: true, transactions: rows });
     }
 
     if (req.method === "POST" && action === "reverse") {
+      if (!requireRoles(["supervisor","admin"])) return;
       const tx = String(req.body?.tx || "");
       const reason = String(req.body?.reason || "other").slice(0,120);
       const note = String(req.body?.note || "").slice(0,500);
-      const reviewedBy = String(req.body?.reviewed_by || "Supervisor").slice(0,120);
+      const reviewedBy = principal.displayName;
       const result = await reverseCharge(sql, tx, reason, note, reviewedBy);
 
       if (result.code === "not_found") {
@@ -564,10 +598,11 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST" && action === "create") {
+      if (!requireRoles(["cashier","supervisor"])) return;
       const amount = Number(req.body?.amount || 0);
       const reference = String(req.body?.reference || "").slice(0, 80);
-      const merchantId = String(req.body?.merchant_id || "merchant_el_hornero");
-      const locationId = String(req.body?.location_id || "location_el_hornero_cumbaya");
+      const merchantId = principal.merchantId;
+      const locationId = principal.locationId;
       const idempotencyKey = String(
         req.headers?.["x-idempotency-key"] || req.body?.idempotency_key || ""
       ).trim().slice(0, 180);
