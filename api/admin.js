@@ -19,6 +19,14 @@ import {
   processPendingAccountingEvents
 } from "../lib/revale-accounting.js";
 import {
+  ensureSafeguardingSchema,
+  safeguardingControl,
+  upsertTreasuryAccount,
+  recordTreasuryBalance,
+  setSafeguardingEnforcement,
+  registerTreasuryTransfer
+} from "../lib/revale-safeguarding.js";
+import {
   ensureSettlementTaxSchema,
   reviewMerchantWithholding,
   registerIssuedFeeInvoice,
@@ -43,6 +51,7 @@ export default async function handler(req,res){
     const sql=await getSql();
     await ensureSettlementTaxSchema(sql);
     await ensureFundingTreasurySchema(sql);
+    await ensureSafeguardingSchema(sql);
     const principal=await getAdminPrincipal(sql,req);
     if(!principal)return json(res,401,{ok:false,error:"Sesión requerida"});
 
@@ -206,7 +215,9 @@ export default async function handler(req,res){
           withholding_pending:"Existe una retención reportada pendiente de verificación",
           merchant_balance_offset:"El mayor contable del comercio no tiene saldo pagable; existe un reverso o saldo anterior que compensa esta liquidación",
           credit_note_pending:"Existe una nota de crédito ReVale pendiente de emisión para este comercio",
-          credit_note_withholding_review_pending:"Existe una nota de crédito cuya retención asociada requiere revisión de Finanzas"
+          credit_note_withholding_review_pending:"Existe una nota de crédito cuya retención asociada requiere revisión de Finanzas",
+          safeguarding_blocked:"Safeguarding está bloqueando pagos porque la cobertura no está saludable",
+          safeguarding_account_missing:"Configura una cuenta segregada primaria para pagos a comercios"
         };
         return json(res,409,{ok:false,error:messages[result.code]||"No se pudo programar el pago",detail:result});
       }
@@ -225,7 +236,12 @@ export default async function handler(req,res){
       const reference=String(req.body?.payout_reference||"").trim().slice(0,160);
       const result=await markSettlementPaid(sql,id,reference,principal.adminUserId);
       if(result.code!=="ok"){
-        return json(res,409,{ok:false,error:result.code==="reference_required"?"Ingresa la referencia de la transferencia":"La liquidación no puede marcarse como pagada",detail:result});
+        const message=result.code==="reference_required"
+          ?"Ingresa la referencia de la transferencia"
+          :result.code==="safeguarding_blocked"
+            ?"Safeguarding bloqueó el pago porque la cobertura ya no es suficiente"
+            :"La liquidación no puede marcarse como pagada";
+        return json(res,409,{ok:false,error:message,detail:result});
       }
       const [settlement]=await sql.query("SELECT merchant_id,currency FROM revale.settlements WHERE id=$1",[id]);
       const payoutAmount=Number(result.settlement?.payout_amount||0);
@@ -577,6 +593,164 @@ export default async function handler(req,res){
       return json(res,200,{ok:true,results});
     }
 
+    if(req.method==="GET" && action==="safeguarding"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const control=await safeguardingControl(sql);
+      return json(res,200,{ok:true,control});
+    }
+
+    if(req.method==="POST" && action==="treasury-account"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const result=await upsertTreasuryAccount(sql,{
+        id:req.body?.id||null,
+        bankName:req.body?.bank_name,
+        accountName:req.body?.account_name,
+        accountNumberLast4:req.body?.account_number_last4,
+        purpose:req.body?.purpose,
+        currency:req.body?.currency||"USD",
+        isPrimary:Boolean(req.body?.is_primary),
+        actorId:principal.adminUserId
+      });
+      if(result.code!=="ok"){
+        const messages={fields_required:"Completa banco y nombre de cuenta",invalid_purpose:"Tipo de cuenta inválido"};
+        return json(res,409,{ok:false,error:messages[result.code]||"No se pudo guardar la cuenta",detail:result});
+      }
+      await sql.query(
+        `INSERT INTO revale.audit_events (
+           actor_type,actor_id,action,resource_type,resource_id,metadata
+         ) VALUES ('revale_admin',$1,'treasury.account_upserted','treasury_bank_account',$2,$3::jsonb)`,
+        [
+          principal.adminUserId,result.account.id,
+          JSON.stringify({
+            bankName:result.account.bank_name,purpose:result.account.purpose,
+            isPrimary:result.account.is_primary,last4:result.account.account_number_last4
+          })
+        ]
+      );
+      return json(res,200,{ok:true,account:result.account,control:await safeguardingControl(sql)});
+    }
+
+    if(req.method==="POST" && action==="treasury-balance"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const result=await recordTreasuryBalance(sql,{
+        accountId:String(req.body?.account_id||""),
+        balance:req.body?.balance,
+        availableBalance:req.body?.available_balance,
+        asOf:req.body?.as_of,
+        source:req.body?.source||"manual",
+        statementReference:req.body?.statement_reference,
+        actorId:principal.adminUserId
+      });
+      if(result.code!=="ok"){
+        const messages={
+          account_not_found:"Cuenta de tesorería no encontrada",
+          account_inactive:"La cuenta está inactiva",
+          invalid_balance:"Ingresa un saldo válido",
+          invalid_available_balance:"Ingresa un saldo disponible válido",
+          invalid_as_of:"Ingresa la fecha y hora del saldo"
+        };
+        return json(res,409,{ok:false,error:messages[result.code]||"No se pudo registrar el saldo",detail:result});
+      }
+      await sql.query(
+        `INSERT INTO revale.audit_events (
+           actor_type,actor_id,action,resource_type,resource_id,metadata
+         ) VALUES ('revale_admin',$1,'treasury.balance_recorded','treasury_bank_balance',$2,$3::jsonb)`,
+        [
+          principal.adminUserId,result.snapshot.id,
+          JSON.stringify({
+            accountId:result.snapshot.bank_account_id,balance:result.snapshot.balance,
+            availableBalance:result.snapshot.available_balance,asOf:result.snapshot.as_of
+          })
+        ]
+      );
+      return json(res,200,{ok:true,snapshot:result.snapshot,control:await safeguardingControl(sql)});
+    }
+
+    if(req.method==="POST" && action==="safeguarding-enforcement"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const result=await setSafeguardingEnforcement(sql,{
+        enabled:Boolean(req.body?.enabled),
+        actorId:principal.adminUserId
+      });
+      if(result.code!=="ok"){
+        return json(res,409,{
+          ok:false,
+          error:"No se puede activar enforcement hasta tener cuentas, saldos vigentes y cobertura de al menos 100%",
+          detail:result
+        });
+      }
+      await sql.query(
+        `INSERT INTO revale.audit_events (
+           actor_type,actor_id,action,resource_type,resource_id,metadata
+         ) VALUES ('revale_admin',$1,$2,'safeguarding_settings','default',$3::jsonb)`,
+        [
+          principal.adminUserId,
+          req.body?.enabled?"safeguarding.enforcement_enabled":"safeguarding.enforcement_disabled",
+          JSON.stringify({enabled:Boolean(req.body?.enabled)})
+        ]
+      );
+      return json(res,200,{ok:true,result});
+    }
+
+    if(req.method==="POST" && action==="treasury-transfer"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const result=await registerTreasuryTransfer(sql,{
+        transferType:req.body?.transfer_type,
+        amount:req.body?.amount,
+        bankReference:req.body?.bank_reference,
+        bankPostedOn:req.body?.bank_posted_on,
+        fromAccountId:req.body?.from_account_id||null,
+        toAccountId:req.body?.to_account_id||null,
+        actorId:principal.adminUserId
+      });
+      if(result.code!=="ok"){
+        const messages={
+          invalid_type:"Tipo de transferencia inválido",
+          invalid_amount:"Ingresa un monto válido",
+          reference_required:"Ingresa la referencia bancaria",
+          date_required:"Ingresa la fecha bancaria",
+          account_missing:"Configura cuentas primaria segregada y operativa",
+          account_inactive:"Una de las cuentas está inactiva",
+          currency_mismatch:"Las cuentas deben usar la misma moneda",
+          invalid_direction:"Las cuentas no corresponden al tipo de movimiento",
+          same_account:"Origen y destino no pueden ser la misma cuenta",
+          sweep_exceeds_excess:"El barrido supera el excedente liberable sin afectar safeguarding",
+          insufficient_source_balance:"La cuenta origen no tiene saldo suficiente según el último control",
+          duplicate_reference:"La referencia bancaria ya fue utilizada"
+        };
+        return json(res,409,{ok:false,error:messages[result.code]||"No se pudo registrar la transferencia",detail:result});
+      }
+      const t=result.transfer;
+      await emitAndPostAccountingEvent(sql,{
+        eventType:t.transfer_type==="safeguarding_topup"?"safeguarding_topup":"safeguarding_sweep",
+        sourceType:"treasury_internal_transfer",
+        sourceId:t.id,
+        eventKey:"confirmed",
+        amount:t.amount,
+        currency:String(t.currency||"USD").trim(),
+        payload:{
+          from_account_id:t.from_account_id,
+          to_account_id:t.to_account_id,
+          bank_reference:t.bank_reference,
+          bank_posted_on:t.bank_posted_on
+        }
+      });
+      if(!result.idempotent){
+        await sql.query(
+          `INSERT INTO revale.audit_events (
+             actor_type,actor_id,action,resource_type,resource_id,metadata
+           ) VALUES ('revale_admin',$1,$2,'treasury_internal_transfer',$3,$4::jsonb)`,
+          [
+            principal.adminUserId,
+            t.transfer_type==="safeguarding_topup"?"safeguarding.topup":"safeguarding.sweep",
+            t.id,
+            JSON.stringify({amount:t.amount,from:t.from_account_id,to:t.to_account_id,bankReference:t.bank_reference})
+          ]
+        );
+      }
+      return json(res,200,{ok:true,result:{...result,control:await safeguardingControl(sql)}});
+    }
+
     if(req.method==="GET" && action==="funding-queue"){
       const rows=await sql.query(
         `SELECT
@@ -638,7 +812,9 @@ export default async function handler(req,res){
       const bankReference=String(req.body?.bank_reference||"").trim().slice(0,160);
       const bankPostedOn=String(req.body?.bank_posted_on||"");
       const result=await registerFundingReceipt(sql,{
-        fundingBatchId:id,amount,bankReference,bankPostedOn,actorId:principal.adminUserId
+        fundingBatchId:id,amount,bankReference,bankPostedOn,
+        treasuryAccountId:req.body?.treasury_account_id||null,
+        actorId:principal.adminUserId
       });
       if(result.code!=="ok"){
         const messages={
@@ -648,7 +824,10 @@ export default async function handler(req,res){
           reference_required:"Ingresa la referencia bancaria",
           date_required:"Ingresa la fecha del movimiento bancario",
           currency_mismatch:"La moneda del movimiento no coincide con el fondeo",
-          duplicate_reference:"La referencia bancaria ya está aplicada a otro fondeo"
+          duplicate_reference:"La referencia bancaria ya está aplicada a otro fondeo",
+          treasury_account_not_found:"La cuenta de tesorería no existe",
+          invalid_treasury_account:"Selecciona una cuenta activa de fondos de clientes",
+          treasury_account_required:"Configura una cuenta segregada para registrar este ingreso"
         };
         return json(res,409,{ok:false,error:messages[result.code]||"No se pudo registrar el ingreso",detail:result});
       }
@@ -692,7 +871,9 @@ export default async function handler(req,res){
       const bankPostedOn=String(req.body?.bank_posted_on||"");
       const reason=String(req.body?.reason||"").trim().slice(0,500);
       const result=await refundFundingExcess(sql,{
-        fundingBatchId:id,amount,bankReference,bankPostedOn,reason,actorId:principal.adminUserId
+        fundingBatchId:id,amount,bankReference,bankPostedOn,reason,
+        treasuryAccountId:req.body?.treasury_account_id||null,
+        actorId:principal.adminUserId
       });
       if(result.code!=="ok"){
         const messages={
@@ -702,7 +883,11 @@ export default async function handler(req,res){
           reference_required:"Ingresa la referencia bancaria",
           date_required:"Ingresa la fecha del débito bancario",
           refund_exceeds_available:"La devolución supera los fondos empresariales no asignados",
-          duplicate_reference:"La referencia bancaria ya está utilizada"
+          duplicate_reference:"La referencia bancaria ya está utilizada",
+          treasury_account_not_found:"La cuenta de tesorería no existe",
+          invalid_treasury_account:"Selecciona una cuenta activa de fondos de clientes",
+          treasury_account_required:"Configura una cuenta segregada para esta devolución",
+          safeguarding_blocked:"Safeguarding está bloqueando salidas hasta recuperar cobertura suficiente"
         };
         return json(res,409,{ok:false,error:messages[result.code]||"No se pudo registrar la devolución",detail:result});
       }
