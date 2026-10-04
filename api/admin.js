@@ -1,6 +1,13 @@
 import { getSql } from "../lib/revale-db.js";
 import { getAdminPrincipal, roleAllowed } from "../lib/revale-auth.js";
-import { confirmFundingBatchAtomic } from "../lib/revale-admin-funding.js";
+import {
+  ensureFundingTreasurySchema,
+  confirmFundingBatchAtomic,
+  registerFundingReceipt,
+  refundFundingExcess,
+  fundingBatchMoneySummary,
+  treasuryControl
+} from "../lib/revale-admin-funding.js";
 import {
   closeLastCompletedWeeklySettlement,
   scheduleSettlementPayout,
@@ -35,6 +42,7 @@ export default async function handler(req,res){
   try{
     const sql=await getSql();
     await ensureSettlementTaxSchema(sql);
+    await ensureFundingTreasurySchema(sql);
     const principal=await getAdminPrincipal(sql,req);
     if(!principal)return json(res,401,{ok:false,error:"Sesión requerida"});
 
@@ -50,6 +58,7 @@ export default async function handler(req,res){
           (SELECT COUNT(*)::int FROM revale.employers WHERE active=true) AS employers,
           (SELECT COUNT(*)::int FROM revale.transactions WHERE status='approved') AS approved_transactions,
           (SELECT COUNT(*)::int FROM revale.funding_batches WHERE status='pending') AS pending_funding,
+          (SELECT COUNT(*)::int FROM revale.funding_batches WHERE status='received') AS funding_ready_to_allocate,
           (SELECT COUNT(*)::int FROM revale.merchant_location_requests WHERE status='pending') AS pending_branches,
           (SELECT COUNT(*)::int FROM revale.merchant_bank_account_requests WHERE status='pending') AS pending_banks,
           (SELECT COUNT(*)::int FROM revale.merchant_withholdings WHERE status='reported') AS pending_withholdings,
@@ -570,19 +579,159 @@ export default async function handler(req,res){
 
     if(req.method==="GET" && action==="funding-queue"){
       const rows=await sql.query(
-        `SELECT fb.id,fb.employer_id,e.name AS employer_name,fb.program_id,bp.name AS program_name,
-                fb.external_reference,fb.amount::float8 AS amount,fb.currency,fb.status,fb.created_at,
-                COUNT(fbi.id)::int AS employee_count,
-                COALESCE(SUM(fbi.amount),0)::float8 AS item_total
+        `SELECT
+           fb.id,fb.employer_id,e.name AS employer_name,fb.program_id,bp.name AS program_name,
+           fb.external_reference,fb.amount::float8 AS amount,fb.currency,fb.status,fb.received_at,fb.created_at,
+           COUNT(fbi.id)::int AS employee_count,
+           COALESCE(SUM(fbi.amount),0)::float8 AS item_total,
+           COALESCE((
+             SELECT SUM(r.amount)
+             FROM revale.employer_funding_receipts r
+             WHERE r.funding_batch_id=fb.id AND r.status='confirmed'
+           ),0)::float8 AS received_amount,
+           COALESCE((
+             SELECT SUM(rf.amount)
+             FROM revale.employer_funding_refunds rf
+             WHERE rf.funding_batch_id=fb.id AND rf.status='confirmed'
+           ),0)::float8 AS refunded_amount,
+           COALESCE((
+             SELECT SUM(i.amount)
+             FROM revale.funding_batch_items i
+             WHERE i.funding_batch_id=fb.id AND i.status='allocated'
+           ),0)::float8 AS allocated_amount
          FROM revale.funding_batches fb
          JOIN revale.employers e ON e.id=fb.employer_id
          LEFT JOIN revale.benefit_programs bp ON bp.id=fb.program_id
          LEFT JOIN revale.funding_batch_items fbi ON fbi.funding_batch_id=fb.id
          GROUP BY fb.id,e.name,bp.name
-         ORDER BY CASE fb.status WHEN 'pending' THEN 0 WHEN 'received' THEN 1 ELSE 2 END,fb.created_at DESC
+         ORDER BY CASE fb.status WHEN 'pending' THEN 0 WHEN 'received' THEN 1 WHEN 'allocated' THEN 2 ELSE 3 END,fb.created_at DESC
          LIMIT 100`
       );
-      return json(res,200,{ok:true,items:rows});
+      const items=rows.map(x=>{
+        const received=Number(x.received_amount||0);
+        const refunded=Number(x.refunded_amount||0);
+        const allocated=Number(x.allocated_amount||0);
+        const prepared=Number(x.item_total||0);
+        const cashAvailable=Math.round((received-refunded-allocated+Number.EPSILON)*100)/100;
+        const pendingAllocation=Math.round((prepared-allocated+Number.EPSILON)*100)/100;
+        return {
+          ...x,
+          cash_available:cashAvailable,
+          pending_allocation:pendingAllocation,
+          funding_gap:Math.round((Math.max(pendingAllocation-cashAvailable,0)+Number.EPSILON)*100)/100,
+          excess_after_allocation:Math.round((Math.max(cashAvailable-pendingAllocation,0)+Number.EPSILON)*100)/100
+        };
+      });
+      return json(res,200,{ok:true,items});
+    }
+
+    if(req.method==="GET" && action==="treasury-control"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const control=await treasuryControl(sql);
+      return json(res,200,{ok:true,control});
+    }
+
+    if(req.method==="POST" && action==="record-funding-receipt"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const id=String(req.body?.id||"");
+      const amount=Number(req.body?.amount||0);
+      const bankReference=String(req.body?.bank_reference||"").trim().slice(0,160);
+      const bankPostedOn=String(req.body?.bank_posted_on||"");
+      const result=await registerFundingReceipt(sql,{
+        fundingBatchId:id,amount,bankReference,bankPostedOn,actorId:principal.adminUserId
+      });
+      if(result.code!=="ok"){
+        const messages={
+          not_found:"Fondeo no encontrado",
+          invalid_status:"Este fondeo ya no acepta nuevos ingresos",
+          invalid_amount:"Ingresa un monto bancario válido",
+          reference_required:"Ingresa la referencia bancaria",
+          date_required:"Ingresa la fecha del movimiento bancario",
+          currency_mismatch:"La moneda del movimiento no coincide con el fondeo",
+          duplicate_reference:"La referencia bancaria ya está aplicada a otro fondeo"
+        };
+        return json(res,409,{ok:false,error:messages[result.code]||"No se pudo registrar el ingreso",detail:result});
+      }
+      if(!result.idempotent){
+        await emitAndPostAccountingEvent(sql,{
+          eventType:"funding_cash_received",
+          sourceType:"funding_receipt",
+          sourceId:result.receipt.id,
+          eventKey:"confirmed",
+          amount:result.receipt.amount,
+          currency:String(result.receipt.currency||"USD").trim(),
+          employerId:result.receipt.employer_id,
+          payload:{
+            funding_batch_id:id,
+            bank_reference:result.receipt.bank_reference,
+            bank_posted_on:result.receipt.bank_posted_on,
+            confirmed_by:principal.adminUserId
+          }
+        });
+        await sql.query(
+          `INSERT INTO revale.audit_events (
+             employer_id,actor_type,actor_id,action,resource_type,resource_id,metadata
+           ) VALUES ($1,'revale_admin',$2,'funding.cash_received','employer_funding_receipt',$3,$4::jsonb)`,
+          [
+            result.receipt.employer_id,principal.adminUserId,result.receipt.id,
+            JSON.stringify({
+              fundingBatchId:id,amount:result.receipt.amount,
+              bankReference:result.receipt.bank_reference,ready:result.ready
+            })
+          ]
+        );
+      }
+      return json(res,200,{ok:true,result});
+    }
+
+    if(req.method==="POST" && action==="refund-funding"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const id=String(req.body?.id||"");
+      const amount=Number(req.body?.amount||0);
+      const bankReference=String(req.body?.bank_reference||"").trim().slice(0,160);
+      const bankPostedOn=String(req.body?.bank_posted_on||"");
+      const reason=String(req.body?.reason||"").trim().slice(0,500);
+      const result=await refundFundingExcess(sql,{
+        fundingBatchId:id,amount,bankReference,bankPostedOn,reason,actorId:principal.adminUserId
+      });
+      if(result.code!=="ok"){
+        const messages={
+          not_found:"Fondeo no encontrado",
+          invalid_status:"El fondeo no tiene fondos disponibles para devolución",
+          invalid_amount:"Ingresa un monto de devolución válido",
+          reference_required:"Ingresa la referencia bancaria",
+          date_required:"Ingresa la fecha del débito bancario",
+          refund_exceeds_available:"La devolución supera los fondos empresariales no asignados",
+          duplicate_reference:"La referencia bancaria ya está utilizada"
+        };
+        return json(res,409,{ok:false,error:messages[result.code]||"No se pudo registrar la devolución",detail:result});
+      }
+      if(!result.idempotent){
+        await emitAndPostAccountingEvent(sql,{
+          eventType:"funding_refunded",
+          sourceType:"funding_refund",
+          sourceId:result.refund.id,
+          eventKey:"confirmed",
+          amount:result.refund.amount,
+          currency:String(result.refund.currency||"USD").trim(),
+          employerId:result.refund.employer_id,
+          payload:{
+            funding_batch_id:id,
+            bank_reference:result.refund.bank_reference,
+            reason:result.refund.reason||null
+          }
+        });
+        await sql.query(
+          `INSERT INTO revale.audit_events (
+             employer_id,actor_type,actor_id,action,resource_type,resource_id,metadata
+           ) VALUES ($1,'revale_admin',$2,'funding.refunded','employer_funding_refund',$3,$4::jsonb)`,
+          [
+            result.refund.employer_id,principal.adminUserId,result.refund.id,
+            JSON.stringify({fundingBatchId:id,amount:result.refund.amount,bankReference:result.refund.bank_reference})
+          ]
+        );
+      }
+      return json(res,200,{ok:true,result});
     }
 
     if(req.method==="GET" && action==="branch-queue"){
@@ -649,27 +798,55 @@ export default async function handler(req,res){
     if(req.method==="POST" && action==="approve-funding"){
       if(!requireRoles(["superadmin","finance"]))return;
       const id=String(req.body?.id||"");
-      const [batch]=await sql.query("SELECT id,employer_id,program_id,amount::float8 AS amount,currency,status FROM revale.funding_batches WHERE id=$1 LIMIT 1",[id]);
+      const [batch]=await sql.query(
+        "SELECT id,employer_id,program_id,amount::float8 AS amount,currency,status FROM revale.funding_batches WHERE id=$1 LIMIT 1",
+        [id]
+      );
       if(!batch)return json(res,404,{ok:false,error:"Fondeo no encontrado"});
+
       const result=await confirmFundingBatchAtomic(sql,id);
       if(result.code!=="ok"){
-        const messages={no_items:"El fondeo no tiene colaboradores preparados",insufficient_funding:"El monto no cubre las asignaciones",invalid_status:"El fondeo no puede procesarse"};
+        const messages={
+          no_items:"El fondeo no tiene colaboradores preparados",
+          funds_not_received:"Primero confirma que el dinero ingresó al banco",
+          insufficient_received_funds:"Los fondos bancarios verificados no cubren las asignaciones",
+          invalid_status:"El fondeo no puede procesarse"
+        };
         return json(res,409,{ok:false,error:messages[result.code]||"No se pudo acreditar el fondeo",detail:result});
       }
-      await emitAndPostAccountingEvent(sql,{
-        eventType:"funding_received",
-        sourceType:"funding_batch",
-        sourceId:id,
-        eventKey:"allocated",
-        amount:batch.amount,
-        currency:String(batch.currency||"USD").trim(),
-        employerId:batch.employer_id,
-        payload:{program_id:batch.program_id,allocated_by:principal.adminUserId}
-      });
+
+      const allocatedAmount=Number(result.allocatedAmount||result.summary?.allocated_amount||0);
+      if(!result.idempotent && allocatedAmount>0){
+        await emitAndPostAccountingEvent(sql,{
+          eventType:"funding_allocated",
+          sourceType:"funding_batch",
+          sourceId:id,
+          eventKey:"allocated_v2",
+          amount:allocatedAmount,
+          currency:String(batch.currency||"USD").trim(),
+          employerId:batch.employer_id,
+          payload:{
+            program_id:batch.program_id,
+            allocated_by:principal.adminUserId,
+            verified_cash:true,
+            received_amount:result.summary?.received_amount||0,
+            excess_after_allocation:result.summary?.cash_available||0
+          }
+        });
+      }
       await sql.query(
-        `INSERT INTO revale.audit_events (employer_id,actor_type,actor_id,action,resource_type,resource_id,metadata)
-         VALUES ($1,'revale_admin',$2,'funding.allocated','funding_batch',$3,$4::jsonb)`,
-        [batch.employer_id,principal.adminUserId,id,JSON.stringify({role:principal.role})]
+        `INSERT INTO revale.audit_events (
+           employer_id,actor_type,actor_id,action,resource_type,resource_id,metadata
+         ) VALUES ($1,'revale_admin',$2,'funding.allocated','funding_batch',$3,$4::jsonb)`,
+        [
+          batch.employer_id,principal.adminUserId,id,
+          JSON.stringify({
+            role:principal.role,
+            allocatedAmount,
+            receivedAmount:result.summary?.received_amount||0,
+            unallocatedCash:result.summary?.cash_available||0
+          })
+        ]
       );
       return json(res,200,{ok:true,result});
     }
@@ -678,10 +855,15 @@ export default async function handler(req,res){
       if(!requireRoles(["superadmin","finance"]))return;
       const id=String(req.body?.id||"");
       const reason=String(req.body?.reason||"").trim().slice(0,400);
+      const summary=await fundingBatchMoneySummary(sql,id);
+      if(!summary)return json(res,404,{ok:false,error:"Fondeo no encontrado"});
+      if(Number(summary.received_amount||0)-Number(summary.refunded_amount||0)>0.00001){
+        return json(res,409,{ok:false,error:"Este fondeo ya tiene dinero recibido. Devuelve primero los fondos no asignados antes de cancelarlo."});
+      }
       const [row]=await sql.query(
         `UPDATE revale.funding_batches
          SET status='cancelled',updated_at=now(),metadata=metadata||jsonb_build_object('rejection_reason',$2,'rejected_by',$3)
-         WHERE id=$1 AND status IN ('pending','received')
+         WHERE id=$1 AND status='pending'
          RETURNING id,employer_id,status`,
         [id,reason||null,principal.adminUserId]
       );
