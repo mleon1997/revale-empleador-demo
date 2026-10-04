@@ -9,6 +9,7 @@ import {
   matchInvoice
 } from "../lib/revale-db.js";
 import { getMerchantPrincipal, getEmployeePrincipal, roleAllowed } from "../lib/revale-auth.js";
+import { evaluateRedemptionRules } from "../lib/revale-benefits.js";
 
 
 async function getMerchantConfig(sql, slug = "el-hornero") {
@@ -709,6 +710,43 @@ export default async function handler(req, res) {
         return json(res, 403, {
           message: "RVL-018",
           error: "No tienes un beneficio activo para realizar este consumo"
+        });
+      }
+
+      const [chargeContext] = await sql.query(
+        `SELECT merchant_id,location_id,amount::float8 AS amount,status
+         FROM revale.transactions
+         WHERE id=$1 AND public_token=$2
+         LIMIT 1`,
+        [tx,token]
+      );
+      if (!chargeContext) {
+        return json(res, 404, { message:"RVL-005", error:"Transacción no encontrada" });
+      }
+
+      const ruleCheck = await evaluateRedemptionRules(sql, {
+        programId: employeePrincipal.benefit.program_id,
+        personId: employeePrincipal.personId,
+        merchantId: chargeContext.merchant_id,
+        locationId: chargeContext.location_id,
+        amount: chargeContext.amount
+      });
+
+      if (!ruleCheck.ok) {
+        await sql.query(
+          `INSERT INTO revale.transaction_events (transaction_id,event_type,payload)
+           VALUES ($1,'declined_rule',jsonb_build_object(
+             'person_id',$2,
+             'program_id',$3,
+             'message',$4,
+             'rules',$5::jsonb
+           ))`,
+          [tx,employeePrincipal.personId,employeePrincipal.benefit.program_id,ruleCheck.message,JSON.stringify(ruleCheck.rules)]
+        );
+        return json(res, 409, {
+          message:"RVL-020",
+          error:ruleCheck.message,
+          ruleDenied:true
         });
       }
 
