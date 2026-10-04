@@ -67,6 +67,12 @@ The current stack is a modular-monolith target:
 - bank_statement_imports
 - bank_statement_entries
 
+### Financial approvals
+- financial_user_permissions
+- financial_approval_policies
+- financial_approval_requests
+- financial_approval_decisions
+
 ### Platform controls
 - idempotency_keys
 - audit_events
@@ -96,6 +102,12 @@ The current stack is a modular-monolith target:
 21. A bank statement is evidence of what physically happened. If an already-executed payout is observed while safeguarding is below threshold, ReVale records the payment and emits a specific safeguarding override audit event instead of hiding the real bank movement.
 22. Bank import idempotency is based on account, normalized bank fields and occurrence order so repeated legitimate movements with identical amount/date/descriptions are not collapsed.
 23. Imported closing balances may anchor safeguarding only when Finance explicitly opts to use the mapped balance column.
+24. Sensitive financial actions use maker-checker: the requester can never approve the same request, even when the user has both Maker and Approver permissions.
+25. Approval requirements are policy-driven by action and amount. Defaults require one independent approval up to the configured threshold and two independent approvals above it.
+26. Approvers may have a personal monetary approval limit in addition to action-level policy thresholds.
+27. Funding allocation, merchant payout scheduling, employer refunds, safeguarding top-ups/sweeps and tax-withholding adjustments execute only after the required approvals are met.
+28. Approval execution is idempotent and recoverable: a failed execution preserves approvals and can be retried without creating a duplicate money movement.
+29. Bank evidence remains authoritative for movements already executed externally; reconciliation may repair posting state even when preventive approval/safeguarding controls would block a new future action.
 
 ## Immediate production backlog
 
