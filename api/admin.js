@@ -11,6 +11,10 @@ import {
   emitAndPostAccountingEvent,
   processPendingAccountingEvents
 } from "../lib/revale-accounting.js";
+import {
+  ensureSettlementTaxSchema,
+  reviewMerchantWithholding
+} from "../lib/revale-settlement-tax.js";
 
 function json(res,code,body){
   res.status(code).setHeader("Content-Type","application/json; charset=utf-8").setHeader("Cache-Control","no-store").json(body);
@@ -26,6 +30,7 @@ export default async function handler(req,res){
   const action=String(req.query?.action||"");
   try{
     const sql=await getSql();
+    await ensureSettlementTaxSchema(sql);
     const principal=await getAdminPrincipal(sql,req);
     if(!principal)return json(res,401,{ok:false,error:"Sesión requerida"});
 
@@ -43,6 +48,7 @@ export default async function handler(req,res){
           (SELECT COUNT(*)::int FROM revale.funding_batches WHERE status='pending') AS pending_funding,
           (SELECT COUNT(*)::int FROM revale.merchant_location_requests WHERE status='pending') AS pending_branches,
           (SELECT COUNT(*)::int FROM revale.merchant_bank_account_requests WHERE status='pending') AS pending_banks,
+          (SELECT COUNT(*)::int FROM revale.merchant_withholdings WHERE status='reported') AS pending_withholdings,
           (SELECT COUNT(*)::int FROM revale.settlements WHERE status IN ('closed','failed')) AS settlement_action_required,
           (SELECT COUNT(*)::int FROM revale.settlements WHERE status='scheduled') AS payouts_scheduled`
       );
@@ -139,7 +145,8 @@ export default async function handler(req,res){
           already_paid:"Esta liquidación ya está pagada",
           invalid_status:"La liquidación no puede programarse en su estado actual",
           non_positive_net:"El neto de esta liquidación no requiere transferencia",
-          bank_missing:"El comercio no tiene una cuenta bancaria verificada"
+          bank_missing:"El comercio no tiene una cuenta bancaria verificada",
+          withholding_pending:"Existe una retención reportada pendiente de verificación"
         };
         return json(res,409,{ok:false,error:messages[result.code]||"No se pudo programar el pago",detail:result});
       }
@@ -160,17 +167,18 @@ export default async function handler(req,res){
       if(result.code!=="ok"){
         return json(res,409,{ok:false,error:result.code==="reference_required"?"Ingresa la referencia de la transferencia":"La liquidación no puede marcarse como pagada",detail:result});
       }
-      const [settlement]=await sql.query("SELECT merchant_id,net_amount::float8 AS net_amount,currency FROM revale.settlements WHERE id=$1",[id]);
+      const [settlement]=await sql.query("SELECT merchant_id,currency FROM revale.settlements WHERE id=$1",[id]);
+      const payoutAmount=Number(result.settlement?.payout_amount||0);
       await emitAndPostAccountingEvent(sql,{
         eventType:"merchant_payout_paid",
         sourceType:"settlement",
         sourceId:id,
         eventKey:"paid",
-        amount:settlement?.net_amount||0,
-        currency:String(settlement?.currency||"USD").trim(),
+        amount:payoutAmount,
+        currency:String(result.settlement?.payout_currency||settlement?.currency||"USD").trim(),
         merchantId:settlement?.merchant_id||null,
         settlementId:id,
-        payload:{payout_reference:reference}
+        payload:{payout_reference:reference,payout_id:result.settlement?.payout_id||null,payout_amount:payoutAmount}
       });
       await sql.query(
         `INSERT INTO revale.audit_events (merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata)
@@ -193,6 +201,80 @@ export default async function handler(req,res){
         `INSERT INTO revale.audit_events (merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata)
          VALUES ($1,'revale_admin',$2,'settlement.payout_failed','settlement',$3,$4::jsonb)`,
         [settlement?.merchant_id||null,principal.adminUserId,id,JSON.stringify({reason})]
+      );
+      return json(res,200,{ok:true,result});
+    }
+
+    if(req.method==="GET" && action==="withholdings"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const rows=await sql.query(
+        `SELECT
+           w.id,w.settlement_id,w.fee_invoice_id,w.merchant_id,m.name AS merchant_name,
+           w.document_number,w.authorization_number,w.issued_on,
+           w.income_tax_amount::float8 AS income_tax_amount,
+           w.vat_withheld_amount::float8 AS vat_withheld_amount,
+           w.total_amount::float8 AS total_amount,
+           w.status,w.reported_by,w.verified_by,w.verified_at,w.rejection_reason,w.created_at,
+           fi.invoice_number,fi.subtotal::float8 AS invoice_subtotal,
+           fi.vat_amount::float8 AS invoice_vat,fi.total_amount::float8 AS invoice_total,
+           s.period_start,s.period_end,s.status AS settlement_status
+         FROM revale.merchant_withholdings w
+         JOIN revale.merchants m ON m.id=w.merchant_id
+         JOIN revale.merchant_fee_invoices fi ON fi.id=w.fee_invoice_id
+         JOIN revale.settlements s ON s.id=w.settlement_id
+         ORDER BY CASE w.status WHEN 'reported' THEN 1 WHEN 'verified' THEN 2 ELSE 3 END,w.created_at DESC
+         LIMIT 200`
+      );
+      return json(res,200,{ok:true,items:rows});
+    }
+
+    if(req.method==="POST" && action==="review-withholding"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const withholdingId=String(req.body?.id||"");
+      const decision=String(req.body?.decision||"");
+      const rejectionReason=String(req.body?.rejection_reason||"").trim().slice(0,500);
+      if(!withholdingId || !["verify","reject"].includes(decision)){
+        return json(res,400,{ok:false,error:"Solicitud de retención inválida"});
+      }
+      const result=await reviewMerchantWithholding(sql,{
+        withholdingId,
+        decision,
+        actorId:principal.adminUserId,
+        rejectionReason
+      });
+      if(result.code!=="ok"){
+        return json(res,409,{ok:false,error:result.code==="not_found"?"Retención no encontrada":"La retención ya fue resuelta",detail:result});
+      }
+
+      const w=result.withholding;
+      if(decision==="verify"){
+        await emitAndPostAccountingEvent(sql,{
+          eventType:"merchant_withholding_verified",
+          sourceType:"merchant_withholding",
+          sourceId:w.id,
+          eventKey:"verified",
+          amount:w.total_amount,
+          merchantId:w.merchant_id,
+          settlementId:w.settlement_id,
+          payload:{
+            document_number:w.document_number||null,
+            income_tax_amount:w.income_tax_amount||0,
+            vat_withheld_amount:w.vat_withheld_amount||0
+          }
+        });
+      }
+
+      await sql.query(
+        `INSERT INTO revale.audit_events (
+           merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata
+         ) VALUES ($1,'revale_admin',$2,$3,'merchant_withholding',$4,$5::jsonb)`,
+        [
+          w.merchant_id||null,
+          principal.adminUserId,
+          decision==="verify"?"withholding.verified":"withholding.rejected",
+          w.id,
+          JSON.stringify({settlementId:w.settlement_id,totalAmount:w.total_amount,rejectionReason:rejectionReason||null})
+        ]
       );
       return json(res,200,{ok:true,result});
     }
