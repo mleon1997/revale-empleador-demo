@@ -1,6 +1,6 @@
 import { getSql } from "../lib/revale-db.js";
 import { getAdminPrincipal, roleAllowed } from "../lib/revale-auth.js";
-import { confirmFundingBatch } from "../lib/revale-benefits.js";
+import { confirmFundingBatchAtomic } from "../lib/revale-admin-funding.js";
 
 function json(res,code,body){
   res.status(code).setHeader("Content-Type","application/json; charset=utf-8").setHeader("Cache-Control","no-store").json(body);
@@ -132,7 +132,7 @@ export default async function handler(req,res){
       const id=String(req.body?.id||"");
       const [batch]=await sql.query("SELECT id,employer_id,status FROM revale.funding_batches WHERE id=$1 LIMIT 1",[id]);
       if(!batch)return json(res,404,{ok:false,error:"Fondeo no encontrado"});
-      const result=await confirmFundingBatch(sql,id);
+      const result=await confirmFundingBatchAtomic(sql,id);
       if(result.code!=="ok"){
         const messages={no_items:"El fondeo no tiene colaboradores preparados",insufficient_funding:"El monto no cubre las asignaciones",invalid_status:"El fondeo no puede procesarse"};
         return json(res,409,{ok:false,error:messages[result.code]||"No se pudo acreditar el fondeo",detail:result});
