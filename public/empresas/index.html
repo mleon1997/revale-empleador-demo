@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ReVale Empresas</title>
+<meta name="theme-color" content="#51c878"/>
+<style>
+:root{--green:#51c878;--green2:#3fb66a;--navy:#29294b;--ink:#20213e;--muted:#7c847f;--line:#e8ece9;--bg:#f7f9f7;--soft:#eef8f1;--cream:#f4f6dc;--warn:#fff5dd;--shadow:0 22px 70px rgba(41,41,75,.08)}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit}.hidden{display:none!important}button{cursor:pointer}.mono{font-variant-numeric:tabular-nums}
+.wordmark{font-weight:950;letter-spacing:-.065em;font-size:25px}.wordmark span{color:var(--green)}
+.eyebrow{font-size:8px;text-transform:uppercase;letter-spacing:.15em;font-weight:900;color:#5f7468}
+.btn{border:0;border-radius:13px;padding:12px 15px;font-size:10px;font-weight:900;transition:.16s}.btn:hover{transform:translateY(-1px)}
+.btn-primary{background:var(--green);color:#fff;box-shadow:0 10px 28px rgba(81,200,120,.2)}.btn-secondary{background:#fff;color:var(--navy);border:1px solid var(--line)}.btn-ghost{background:transparent;color:#6f7873}
+.card{background:#fff;border:1px solid var(--line);border-radius:22px;box-shadow:0 8px 32px rgba(41,41,75,.035)}
+.status{display:inline-flex;border-radius:999px;padding:6px 9px;font-size:7px;font-weight:900}.status.ok{background:#eaf8ef;color:#2d7c4b}.status.wait{background:var(--warn);color:#886320}.status.neutral{background:#eef1ef;color:#69756f}
+#toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,16px);opacity:0;background:#242541;color:#fff;border-radius:12px;padding:11px 15px;font-size:9px;font-weight:850;z-index:500;transition:.2s}#toast.show{opacity:1;transform:translate(-50%,0)}
+.login{min-height:100vh;display:grid;grid-template-columns:1.1fr .9fr;background:#fff}
+.login-story{position:relative;overflow:hidden;padding:52px 64px;background:radial-gradient(circle at 78% 18%,rgba(81,200,120,.19),transparent 26%),linear-gradient(145deg,#29294b,#1e203a);color:#fff;display:flex;flex-direction:column;justify-content:space-between}
+.login-story:after{content:"";position:absolute;width:620px;height:620px;border:1px solid rgba(255,255,255,.06);border-radius:50%;right:-300px;bottom:-300px}
+.hero{position:relative;z-index:2;margin:auto 0;max-width:690px}.hero .eyebrow{color:#b9c4bf}.hero h1{font-size:62px;line-height:.94;letter-spacing:-.07em;margin:17px 0 21px}.hero p{font-size:15px;line-height:1.6;color:#cdd0dd;max-width:555px}
+.hero-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:30px}.hero-item{border:1px solid rgba(255,255,255,.11);background:rgba(255,255,255,.05);padding:14px;border-radius:16px}.hero-item b{font-size:9px}.hero-item span{display:block;font-size:7px;line-height:1.45;color:#b8bdcb;margin-top:5px}
+.login-panel{display:grid;place-items:center;padding:42px;background:#f7f9f8}.login-card{width:min(420px,100%);background:#fff;border:1px solid var(--line);border-radius:27px;padding:30px;box-shadow:var(--shadow)}.login-card h2{font-size:29px;letter-spacing:-.05em;margin:10px 0 7px}.login-card p{font-size:10px;line-height:1.55;color:#7b8580}
+.field{display:grid;gap:6px;margin-top:13px}.field label{font-size:8px;font-weight:850;color:#68736d}.input{width:100%;border:1px solid var(--line);border-radius:13px;padding:12px 13px;outline:0;background:#fff;font-size:10px}.input:focus{border-color:#a7dcb9;box-shadow:0 0 0 3px rgba(81,200,120,.08)}.login-card .btn-primary{width:100%;margin-top:18px;padding:14px}
+.demo-hint{margin-top:15px;padding:11px;border-radius:13px;background:#f6f8f7;font-size:8px;color:#7b8580;line-height:1.5}
+.app{min-height:100vh;display:grid;grid-template-columns:232px 1fr}.sidebar{height:100vh;position:sticky;top:0;background:#29294b;color:#fff;padding:24px 16px;display:flex;flex-direction:column}.side-brand{padding:2px 10px 24px}
+.company-box{padding:12px;border-radius:15px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1);margin-bottom:19px}.company-box b{display:block;font-size:10px}.company-box span{font-size:7px;color:#aeb1c3}
+.nav-label{padding:8px 11px 7px;font-size:7px;text-transform:uppercase;letter-spacing:.14em;color:#7f849f;font-weight:900}.nav{border:0;background:transparent;color:#b9bdce;border-radius:11px;padding:11px 12px;margin:2px 0;width:100%;text-align:left;font-size:9px;font-weight:820}.nav:hover,.nav.active{background:rgba(255,255,255,.08);color:#fff}.side-space{flex:1}.side-note{border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:12px;font-size:7px;color:#9ea4b9;line-height:1.45}
+.main{min-width:0}.topbar{height:68px;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:0 29px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20}.top-title{font-size:10px;font-weight:900}.user{display:flex;align-items:center;gap:8px}.avatar{width:30px;height:30px;border-radius:10px;background:#e9f7ed;color:#338254;display:grid;place-items:center;font-size:8px;font-weight:950}.user b{font-size:8px}.user small{display:block;color:#8b938f;font-size:7px;margin-top:2px}.logout{border:1px solid var(--line);background:#fff;border-radius:11px;padding:9px 11px;font-size:7px;font-weight:850;color:#69736e}
+.content{padding:30px;max-width:1340px;margin:0 auto}.page-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:22px}.page-head h1{font-size:36px;letter-spacing:-.055em;margin:7px 0 6px}.page-head p{font-size:10px;color:#7d8782;line-height:1.5;margin:0}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}.kpi{padding:18px}.kpi .k{font-size:7px;text-transform:uppercase;letter-spacing:.12em;color:#89928e;font-weight:900}.kpi .v{font-size:26px;font-weight:950;letter-spacing:-.05em;margin-top:7px;color:var(--navy)}.kpi .s{font-size:7px;color:#929a96;margin-top:4px}
+.grid-2{display:grid;grid-template-columns:1.25fr .75fr;gap:15px}.section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:15px;padding:19px 20px 13px}.section-head h3{font-size:15px;letter-spacing:-.035em;margin:5px 0}.section-head p{font-size:8px;color:#87908b;margin:0}
+.table{width:100%;border-collapse:collapse}.table th{font-size:7px;text-transform:uppercase;letter-spacing:.09em;text-align:left;color:#929a96;padding:10px 17px;border-top:1px solid #edf0ee;border-bottom:1px solid #edf0ee}.table td{font-size:9px;padding:13px 17px;border-bottom:1px solid #eff2f0}.table tr:last-child td{border-bottom:0}.amount{text-align:right;font-weight:900}
+.program-card{padding:17px;margin:0 16px 11px;border:1px solid #e8ece9;border-radius:17px;background:#fff}.program-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.program-card h3{font-size:14px;margin:4px 0}.program-card p{font-size:8px;color:#838d88;margin:0}.program-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:13px}.mini{padding:10px;border-radius:12px;background:#f7f9f8}.mini span{display:block;font-size:6px;text-transform:uppercase;letter-spacing:.1em;color:#929b96;font-weight:850}.mini b{display:block;font-size:10px;margin-top:4px}.program-actions{display:flex;gap:7px;margin-top:12px}
+.rule-list{display:grid;gap:8px;padding:0 16px 16px}.rule{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px;border:1px solid #e9ecea;border-radius:14px}.rule b{font-size:9px}.rule small{display:block;font-size:7px;color:#858f89;margin-top:3px}
+.funding-hero{padding:22px;background:linear-gradient(145deg,#29294b,#20223f);color:#fff;border-radius:22px}.funding-hero .eyebrow{color:#aeb4c8}.funding-hero h3{font-size:22px;letter-spacing:-.04em;margin:8px 0}.funding-hero p{font-size:8px;color:#bec2d0;line-height:1.5}.funding-hero .btn{margin-top:13px}
+.modal-bg{position:fixed;inset:0;background:rgba(24,25,45,.46);backdrop-filter:blur(5px);display:grid;place-items:center;padding:20px;z-index:300}.modal{width:min(480px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:24px;padding:24px;box-shadow:0 32px 90px rgba(0,0,0,.18)}.modal h3{font-size:24px;letter-spacing:-.045em;margin:8px 0}.modal p{font-size:9px;color:#7f8984;line-height:1.55}.form{display:grid;gap:11px;margin-top:16px}.form label{font-size:7px;font-weight:900;color:#6c7771}.form .input{margin-top:6px}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}.check-grid{display:grid;gap:7px;margin-top:8px}.check-row{display:flex;align-items:center;gap:8px;font-size:9px;border:1px solid var(--line);border-radius:12px;padding:10px}.check-row input{accent-color:var(--green)}
+@media(max-width:1000px){.kpis{grid-template-columns:1fr 1fr}.grid-2{grid-template-columns:1fr}}@media(max-width:760px){.app{grid-template-columns:1fr}.sidebar{display:none}.content{padding:20px}.login{grid-template-columns:1fr}.login-story{display:none}.program-stats{grid-template-columns:1fr 1fr}.page-head{align-items:flex-start}.kpis{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+
+<section id="login" class="login">
+  <div class="login-story">
+    <div class="wordmark">re<span>vale</span> <small style="font-size:11px;letter-spacing:0;color:#aeb4c7">EMPRESAS</small></div>
+    <div class="hero">
+      <div class="eyebrow">Beneficios corporativos</div>
+      <h1>Beneficios que<br/>sí se usan.</h1>
+      <p>Asigna, fondea y controla beneficios de alimentación desde una sola plataforma. Cada dólar queda trazable desde la empresa hasta el consumo.</p>
+      <div class="hero-grid">
+        <div class="hero-item"><b>Asignaciones</b><span>Define cuánto recibe cada colaborador y cuándo.</span></div>
+        <div class="hero-item"><b>Reglas</b><span>Controla vigencia, comercios y límites de consumo.</span></div>
+        <div class="hero-item"><b>Trazabilidad</b><span>Fondeos, saldos y consumos vinculados al programa.</span></div>
+      </div>
+    </div>
+    <div style="font-size:8px;color:#858ba5">www.revale.app · ReVale Empresas</div>
+  </div>
+  <div class="login-panel">
+    <div class="login-card">
+      <div class="wordmark">re<span>vale</span></div>
+      <div class="eyebrow" style="margin-top:20px">Portal Empresas</div>
+      <h2>Administra tus beneficios.</h2>
+      <p>Ingresa con tu usuario corporativo de ReVale.</p>
+      <div class="field"><label>Correo</label><input id="loginEmail" class="input" type="email" autocomplete="email" placeholder="nombre@empresa.com"/></div>
+      <div class="field"><label>Contraseña</label><input id="loginPassword" class="input" type="password" autocomplete="current-password" placeholder="••••••••"/></div>
+      <button id="loginBtn" class="btn btn-primary" onclick="login()">Ingresar</button>
+      <div id="demoHint" class="demo-hint hidden"><b>Presentación</b><br/>beneficios@demo.revale.app · beneficios-demo</div>
+    </div>
+  </div>
+</section>
+
+<section id="app" class="app hidden">
+  <aside class="sidebar">
+    <div class="side-brand"><div class="wordmark">re<span>vale</span></div><div style="font-size:7px;color:#7f849e;margin-top:3px">EMPRESAS</div></div>
+    <div class="company-box"><b id="companyName">Empresa</b><span id="companyTax">Beneficios corporativos</span></div>
+    <div class="nav-label">Gestión</div>
+    <button id="navHome" class="nav active" onclick="showHome()">Inicio</button>
+    <button id="navPrograms" class="nav" onclick="showPrograms()">Programas</button>
+    <button id="navEmployees" class="nav" onclick="showEmployees()">Colaboradores</button>
+    <button id="navFunding" class="nav" onclick="showFunding()">Fondeos</button>
+    <div class="side-space"></div>
+    <div class="side-note">Los fondos se acreditan a colaboradores únicamente después de la validación de ReVale.</div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div id="topTitle" class="top-title">ReVale Empresas</div>
+      <div class="user"><div class="avatar">AB</div><div><b id="userName">Administrador</b><small id="userRole">Administrador</small></div><button class="logout" onclick="logout()">Cerrar sesión</button></div>
+    </header>
+
+    <div id="homeScreen" class="content">
+      <div class="page-head"><div><div class="eyebrow">Vista general</div><h1>Beneficios en control.</h1><p>Estado financiero y operativo de tus programas.</p></div><button class="btn btn-primary" onclick="openFundingModal()">+ Solicitar fondeo</button></div>
+      <div class="kpis">
+        <div class="card kpi"><div class="k">Programas activos</div><div id="kpiPrograms" class="v mono">0</div><div class="s">Beneficios configurados</div></div>
+        <div class="card kpi"><div class="k">Colaboradores</div><div id="kpiEmployees" class="v mono">0</div><div class="s">Con beneficio activo</div></div>
+        <div class="card kpi"><div class="k">Saldo visible</div><div id="kpiBalance" class="v mono">$ 0.00</div><div class="s">En cuentas de colaboradores</div></div>
+        <div class="card kpi"><div class="k">Fondeos pendientes</div><div id="kpiPending" class="v mono">$ 0.00</div><div class="s">En validación por ReVale</div></div>
+      </div>
+      <div class="grid-2">
+        <section class="card"><div class="section-head"><div><div class="eyebrow">Programas</div><h3>Beneficios activos</h3><p>Asignación, frecuencia y población.</p></div><button class="btn btn-ghost" onclick="showPrograms()">Ver todos</button></div><div id="homePrograms"></div></section>
+        <section class="funding-hero"><div class="eyebrow">Próximo paso</div><h3>Fondea en una sola operación.</h3><p>ReVale calcula automáticamente el monto total según los colaboradores activos del programa.</p><button class="btn btn-primary" onclick="openFundingModal()">Preparar fondeo</button></section>
+      </div>
+    </div>
+
+    <div id="programsScreen" class="content hidden">
+      <div class="page-head"><div><div class="eyebrow">Configuración</div><h1>Programas.</h1><p>Define monto, frecuencia, acumulación y reglas de uso.</p></div></div>
+      <div id="programList" class="card" style="padding:16px 0 8px"></div>
+    </div>
+
+    <div id="employeesScreen" class="content hidden">
+      <div class="page-head"><div><div class="eyebrow">Población</div><h1>Colaboradores.</h1><p>Beneficiarios, programa y saldo disponible.</p></div></div>
+      <section class="card" style="overflow:hidden"><div class="section-head"><div><h3>Directorio de beneficiarios</h3><p id="employeeMeta">—</p></div></div><table class="table"><thead><tr><th>Colaborador</th><th>Programa</th><th>Identificación</th><th>Estado</th><th style="text-align:right">Saldo</th></tr></thead><tbody id="employeeRows"></tbody></table></section>
+    </div>
+
+    <div id="fundingScreen" class="content hidden">
+      <div class="page-head"><div><div class="eyebrow">Tesorería</div><h1>Fondeos.</h1><p>Solicitudes de fondeo y estado de acreditación.</p></div><button class="btn btn-primary" onclick="openFundingModal()">+ Solicitar fondeo</button></div>
+      <section class="card" style="overflow:hidden"><div class="section-head"><div><h3>Historial</h3><p>Una solicitud pendiente no acredita saldos hasta que ReVale valida los fondos.</p></div></div><table class="table"><thead><tr><th>Solicitud</th><th>Programa</th><th>Colaboradores</th><th>Estado</th><th style="text-align:right">Monto</th></tr></thead><tbody id="fundingRows"></tbody></table></section>
+    </div>
+  </main>
+</section>
+
+<div id="modalRoot"></div>
+
+<script>
+const state={principal:null,overview:null,programs:[],employees:[],funding:[],merchants:[]};
+const q=id=>document.getElementById(id);
+const money=n=>"$ "+Number(n||0).toFixed(2);
+function toast(msg){const t=q("toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800)}
+function hideScreens(){["homeScreen","programsScreen","employeesScreen","fundingScreen"].forEach(id=>q(id).classList.add("hidden"))}
+function nav(id){["navHome","navPrograms","navEmployees","navFunding"].forEach(x=>q(x).classList.remove("active"));q(id).classList.add("active")}
+function status(s){return s==="allocated"?"<span class='status ok'>Acreditado</span>":s==="pending"?"<span class='status wait'>Pendiente</span>":"<span class='status neutral'>"+String(s||"—")+"</span>"}
+function roleLabel(r){return r==="admin"?"Administrador":r==="finance"?"Finanzas":r==="hr"?"RR. HH.":"Consulta"}
+
+async function api(action,opts={}){
+  const r=await fetch("/api/employer?action="+encodeURIComponent(action),{cache:"no-store",...opts});
+  const d=await r.json();if(!r.ok)throw new Error(d.error||"No se pudo completar la operación");return d
+}
+async function restoreSession(){
+  try{
+    const r=await fetch("/api/employer-auth?action=session",{cache:"no-store"});if(!r.ok)return false;
+    const d=await r.json();state.principal=d.principal;
+    q("companyName").textContent=d.principal.employerName||"Empresa";
+    q("userName").textContent=d.principal.displayName||"Administrador";
+    q("userRole").textContent=roleLabel(d.principal.role);
+    q("login").classList.add("hidden");q("app").classList.remove("hidden");
+    await loadAll();showHome();return true
+  }catch(e){return false}
+}
+async function login(){
+  const email=(q("loginEmail").value||"").trim().toLowerCase(),password=q("loginPassword").value||"",b=q("loginBtn");
+  if(!email||!password){toast("Ingresa correo y contraseña");return}
+  b.disabled=true;b.textContent="Ingresando…";
+  try{
+    const r=await fetch("/api/employer-auth?action=login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
+    const d=await r.json();if(!r.ok)throw new Error(d.error||"No pudimos iniciar sesión");
+    const ok=await restoreSession();if(!ok)throw new Error("No pudimos abrir tu sesión");
+  }catch(e){toast(e.message)}finally{b.disabled=false;b.textContent="Ingresar"}
+}
+async function logout(){
+  try{await fetch("/api/employer-auth?action=logout",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"})}catch(e){}
+  q("app").classList.add("hidden");q("login").classList.remove("hidden");q("loginPassword").value=""
+}
+async function loadAll(){
+  const [overview,programs,employees,funding,merchants]=await Promise.all([api("overview"),api("programs"),api("employees"),api("funding"),api("merchant-catalog")]);
+  state.overview=overview;state.programs=programs.programs||[];state.employees=employees.employees||[];state.funding=funding.funding||[];state.merchants=merchants.merchants||[];
+  renderAll()
+}
+function renderAll(){
+  const o=state.overview||{},s=o.stats||{},f=o.funding||{};
+  q("companyTax").textContent=o.employer?.tax_id?"RUC · "+o.employer.tax_id:"Beneficios corporativos";
+  q("kpiPrograms").textContent=s.active_programs||0;q("kpiEmployees").textContent=s.active_employees||0;q("kpiBalance").textContent=money(s.visible_balance);q("kpiPending").textContent=money(f.pending_funding);
+  q("homePrograms").innerHTML=state.programs.length?state.programs.slice(0,3).map(programCard).join(""):"<div style='padding:20px' class='eyebrow'>Sin programas</div>";
+  q("programList").innerHTML=state.programs.length?state.programs.map(programCard).join(""):"<div style='padding:20px'>No hay programas configurados.</div>";
+  q("employeeMeta").textContent=state.employees.length+" colaborador"+(state.employees.length===1?"":"es");
+  q("employeeRows").innerHTML=state.employees.length?state.employees.map(e=>"<tr><td><b>"+esc(e.first_name+" "+e.last_name)+"</b><br/><span style='font-size:7px;color:#8c9590'>"+esc(e.email||"")+"</span></td><td>"+esc(e.program_name)+"</td><td>"+esc(e.person_identification)+"</td><td><span class='status "+(e.status==="active"?"ok":"neutral")+"'>"+esc(e.status)+"</span></td><td class='amount'>"+money(e.balance)+"</td></tr>").join(""):"<tr><td colspan='5'>Sin colaboradores.</td></tr>";
+  q("fundingRows").innerHTML=state.funding.length?state.funding.map(x=>"<tr><td><b>"+esc(x.id)+"</b><br/><span style='font-size:7px;color:#8c9590'>"+new Date(x.created_at).toLocaleDateString("es-EC")+"</span></td><td>"+esc(x.program_name||"—")+"</td><td>"+Number(x.employee_count||0)+"</td><td>"+status(x.status)+"</td><td class='amount'>"+money(x.amount)+"</td></tr>").join(""):"<tr><td colspan='5'>Todavía no hay solicitudes de fondeo.</td></tr>"
+}
+function programCard(p){
+  const roll=p.rollover_policy==="no_rollover"?"No acumulable":p.rollover_policy==="full_rollover"?"Acumulable":"Acumulación limitada";
+  return "<div class='program-card'><div class='program-top'><div><div class='eyebrow'>"+esc(p.benefit_type||"beneficio")+"</div><h3>"+esc(p.name)+"</h3><p>"+esc(p.allocation_frequency)+" · "+roll+"</p></div><span class='status "+(p.active?"ok":"neutral")+"'>"+(p.active?"Activo":"Inactivo")+"</span></div><div class='program-stats'><div class='mini'><span>Asignación</span><b>"+money(p.allocation_amount)+"</b></div><div class='mini'><span>Colaboradores</span><b>"+Number(p.active_employees||0)+"</b></div><div class='mini'><span>Moneda</span><b>"+esc(String(p.currency||"USD").trim())+"</b></div></div><div class='program-actions'><button class='btn btn-secondary' onclick='openProgramModal("+JSON.stringify(p.id)+")'>Configurar</button><button class='btn btn-ghost' onclick='openRulesModal("+JSON.stringify(p.id)+")'>Reglas</button></div></div>"
+}
+function showHome(){hideScreens();q("homeScreen").classList.remove("hidden");nav("navHome");q("topTitle").textContent="Inicio · "+(state.principal?.employerName||"ReVale Empresas")}
+function showPrograms(){hideScreens();q("programsScreen").classList.remove("hidden");nav("navPrograms");q("topTitle").textContent="Programas · "+state.principal.employerName}
+function showEmployees(){hideScreens();q("employeesScreen").classList.remove("hidden");nav("navEmployees");q("topTitle").textContent="Colaboradores · "+state.principal.employerName}
+function showFunding(){hideScreens();q("fundingScreen").classList.remove("hidden");nav("navFunding");q("topTitle").textContent="Fondeos · "+state.principal.employerName}
+function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]))}
+function closeModal(){q("modalRoot").innerHTML=""}
+
+function openProgramModal(id){
+  const p=state.programs.find(x=>x.id===id);if(!p)return;
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Programa</div><h3>"+esc(p.name)+"</h3><p>Define la asignación estándar y la política de acumulación.</p><div class='form'><label>Monto por colaborador<input id='programAmount' class='input' type='number' step='0.01' value='"+Number(p.allocation_amount||0)+"'/></label><label>Frecuencia<select id='programFreq' class='input'><option value='monthly'>Mensual</option><option value='biweekly'>Quincenal</option><option value='weekly'>Semanal</option><option value='one_time'>Única</option></select></label><label>Acumulación<select id='programRoll' class='input'><option value='no_rollover'>No acumulable</option><option value='full_rollover'>Acumulable</option><option value='capped_rollover'>Acumulación limitada</option></select></label></div><div class='modal-actions'><button class='btn btn-secondary' onclick='closeModal()'>Cancelar</button><button class='btn btn-primary' onclick='saveProgram("+JSON.stringify(id)+")'>Guardar cambios</button></div></div></div>";
+  q("programFreq").value=p.allocation_frequency;q("programRoll").value=p.rollover_policy
+}
+async function saveProgram(id){
+  try{
+    await api("update-program",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({program_id:id,allocation_amount:Number(q("programAmount").value),allocation_frequency:q("programFreq").value,rollover_policy:q("programRoll").value})});
+    closeModal();await loadAll();toast("Programa actualizado")
+  }catch(e){toast(e.message)}
+}
+
+async function openRulesModal(id){
+  try{
+    const d=await api("rules&program_id="+encodeURIComponent(id));const rules=d.rules||[];
+    const max=rules.find(r=>r.rule_type==="max_transaction_amount")?.rule_value?.amount||"";
+    const daily=rules.find(r=>r.rule_type==="daily_limit")?.rule_value?.amount||"";
+    const allowed=rules.find(r=>r.rule_type==="merchant_allowlist")?.rule_value?.merchant_ids||[];
+    q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Rules Engine</div><h3>Reglas de uso</h3><p>Estas reglas se validan en tiempo real antes de aprobar cada consumo.</p><div class='form'><label>Máximo por transacción<input id='ruleMax' class='input' type='number' step='0.01' value='"+esc(max)+"' placeholder='Sin límite'/></label><label>Límite diario por colaborador<input id='ruleDaily' class='input' type='number' step='0.01' value='"+esc(daily)+"' placeholder='Sin límite'/></label><label>Comercios habilitados<div class='check-grid'>"+state.merchants.map(m=>"<label class='check-row'><input type='checkbox' class='merchantCheck' value='"+esc(m.id)+"' "+(allowed.includes(m.id)?"checked":"")+"/><span>"+esc(m.name)+"</span></label>").join("")+"</div></label></div><div class='modal-actions'><button class='btn btn-secondary' onclick='closeModal()'>Cancelar</button><button class='btn btn-primary' onclick='saveRules("+JSON.stringify(id)+")'>Guardar reglas</button></div></div></div>"
+  }catch(e){toast(e.message)}
+}
+async function saveRules(id){
+  try{
+    const max=Number(q("ruleMax").value),daily=Number(q("ruleDaily").value),merchant_ids=[...document.querySelectorAll(".merchantCheck:checked")].map(x=>x.value);
+    if(Number.isFinite(max)&&max>0)await api("upsert-rule",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({program_id:id,rule_type:"max_transaction_amount",rule_value:{amount:max}})});
+    if(Number.isFinite(daily)&&daily>0)await api("upsert-rule",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({program_id:id,rule_type:"daily_limit",rule_value:{amount:daily}})});
+    await api("upsert-rule",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({program_id:id,rule_type:"merchant_allowlist",rule_value:{merchant_ids}})});
+    closeModal();toast("Reglas actualizadas")
+  }catch(e){toast(e.message)}
+}
+
+function openFundingModal(){
+  if(!state.programs.length){toast("Primero configura un programa");return}
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Funding Engine</div><h3>Solicitar fondeo</h3><p>ReVale preparará una asignación para todos los colaboradores activos del programa. Los saldos se acreditarán únicamente después de validar los fondos.</p><div class='form'><label>Programa<select id='fundProgram' class='input'>"+state.programs.map(p=>"<option value='"+esc(p.id)+"'>"+esc(p.name)+" · "+Number(p.active_employees||0)+" colaboradores</option>").join("")+"</select></label><label>Monto por colaborador<input id='fundAmount' class='input' type='number' step='0.01' value='"+Number(state.programs[0].allocation_amount||0)+"'/></label><label>Referencia interna<input id='fundRef' class='input' placeholder='Ej. Alimentación octubre 2026'/></label></div><div id='fundPreview' style='margin-top:14px;padding:13px;border-radius:14px;background:#f6f8f7;font-size:9px'></div><div class='modal-actions'><button class='btn btn-secondary' onclick='closeModal()'>Cancelar</button><button id='fundBtn' class='btn btn-primary' onclick='requestFunding()'>Enviar solicitud</button></div></div></div>";
+  function preview(){const p=state.programs.find(x=>x.id===q("fundProgram").value)||state.programs[0],a=Number(q("fundAmount").value||0),n=Number(p.active_employees||0);q("fundPreview").innerHTML="<b>"+n+" colaboradores × "+money(a)+"</b><br/><span style='font-size:7px;color:#7d8782'>Total solicitado: "+money(a*n)+"</span>"}
+  q("fundProgram").addEventListener("change",()=>{const p=state.programs.find(x=>x.id===q("fundProgram").value);q("fundAmount").value=Number(p?.allocation_amount||0);preview()});q("fundAmount").addEventListener("input",preview);preview()
+}
+async function requestFunding(){
+  const b=q("fundBtn");b.disabled=true;b.textContent="Enviando…";
+  try{
+    const d=await api("request-funding",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({program_id:q("fundProgram").value,amount_per_employee:Number(q("fundAmount").value),external_reference:(q("fundRef").value||"").trim()})});
+    closeModal();await loadAll();showFunding();toast("Solicitud de fondeo creada · "+money(d.batch.total))
+  }catch(e){toast(e.message);b.disabled=false;b.textContent="Enviar solicitud"}
+}
+
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&!q("login").classList.contains("hidden"))login()});
+(async function init(){const p=new URLSearchParams(location.search);if(p.get("demo")==="1"){q("demoHint").classList.remove("hidden");q("loginEmail").value="beneficios@demo.revale.app";q("loginPassword").value="beneficios-demo"}await restoreSession()})();
+</script>
+</body>
+</html>
