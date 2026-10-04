@@ -46,6 +46,8 @@ button,input{font:inherit}.hidden{display:none!important}.word{font-weight:950;l
     <div class="nav-title">Red</div>
     <button id="navMerchants" class="nav" onclick="showMerchants()">Comercios</button>
     <button id="navEmployers" class="nav" onclick="showEmployers()">Empresas</button>
+    <div class="nav-title">Finanzas</div>
+    <button id="navAccounting" class="nav" onclick="showAccounting()">Contabilidad</button>
     <button id="navAudit" class="nav" onclick="showAudit()">Auditoría</button>
     <div class="grow"></div>
     <div class="side-note">Toda aprobación crítica queda registrada en auditoría.</div>
@@ -84,23 +86,45 @@ button,input{font:inherit}.hidden{display:none!important}.word{font-weight:950;l
 
     <div id="merchantsScreen" class="content hidden"><div class="head"><div><div class="eyebrow">Red</div><h1>Comercios.</h1><p>Estado de la red de aceptación.</p></div></div><section class="card" style="overflow:hidden"><table class="table"><thead><tr><th>Comercio</th><th>RUC</th><th>Sucursales</th><th>Usuarios</th><th>Estado</th></tr></thead><tbody id="merchantRows"></tbody></table></section></div>
     <div id="employersScreen" class="content hidden"><div class="head"><div><div class="eyebrow">B2B</div><h1>Empresas.</h1><p>Clientes corporativos y población beneficiaria.</p></div></div><section class="card" style="overflow:hidden"><table class="table"><thead><tr><th>Empresa</th><th>RUC</th><th>Programas</th><th>Colaboradores</th><th>Estado</th></tr></thead><tbody id="employerRows"></tbody></table></section></div>
+    <div id="accountingScreen" class="content hidden">
+      <div class="head">
+        <div><div class="eyebrow">NIIF · Subledger ReVale</div><h1>Contabilidad.</h1><p>Partida doble para fondos de beneficios, obligaciones con comercios, comisiones e IVA.</p></div>
+        <button class="btn primary" onclick="reconcileAccounting()">Conciliar eventos</button>
+      </div>
+      <div class="kpis">
+        <div class="card kpi"><span>Eventos posteados</span><b id="kGlPosted">0</b><small>Con asiento contable</small></div>
+        <div class="card kpi"><span>Pendientes</span><b id="kGlPending">0</b><small>Por postear</small></div>
+        <div class="card kpi"><span>Errores</span><b id="kGlErrors">0</b><small>Requieren revisión</small></div>
+        <div class="card kpi"><span>Modelo</span><b style="font-size:18px">Agente</b><small>Revenue neto por fee</small></div>
+      </div>
+      <div class="grid">
+        <section class="card" style="overflow:hidden">
+          <div class="section-head"><div><h3>Balance de comprobación</h3><p>Clasificación NIIF con línea de reporte Ecuador configurable.</p></div></div>
+          <table class="table"><thead><tr><th>Código</th><th>Cuenta</th><th>Tipo</th><th>Reporte</th><th style="text-align:right">Débitos</th><th style="text-align:right">Créditos</th><th style="text-align:right">Saldo</th></tr></thead><tbody id="glAccountRows"></tbody></table>
+        </section>
+        <section class="card">
+          <div class="section-head"><div><h3>Asientos recientes</h3><p>Journals posteados por eventos de negocio.</p></div></div>
+          <div id="glJournalRows" class="audit"></div>
+        </section>
+      </div>
+    </div>
     <div id="auditScreen" class="content hidden"><div class="head"><div><div class="eyebrow">Gobierno</div><h1>Auditoría.</h1><p>Registro inmutable de acciones operativas y administrativas.</p></div></div><section class="card"><div id="auditRows" class="audit" style="padding:15px"></div></section></div>
   </main>
 </section>
 <div id="modalRoot"></div>
 <script>
-const s={principal:null,overview:null,funding:[],settlements:[],branches:[],banks:[],merchants:[],employers:[],audit:[]};
+const s={principal:null,overview:null,funding:[],settlements:[],branches:[],banks:[],merchants:[],employers:[],accounting:null,audit:[]};
 const q=id=>document.getElementById(id),money=n=>"$ "+Number(n||0).toFixed(2);
 function toast(m){const t=q("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800)}
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]))}
-function hide(){["homeScreen","fundingScreen","settlementsScreen","onboardingScreen","merchantsScreen","employersScreen","auditScreen"].forEach(x=>q(x).classList.add("hidden"))}
-function nav(id){["navHome","navFunding","navSettlements","navOnboarding","navMerchants","navEmployers","navAudit"].forEach(x=>q(x).classList.remove("active"));q(id).classList.add("active")}
+function hide(){["homeScreen","fundingScreen","settlementsScreen","onboardingScreen","merchantsScreen","employersScreen","accountingScreen","auditScreen"].forEach(x=>q(x).classList.add("hidden"))}
+function nav(id){["navHome","navFunding","navSettlements","navOnboarding","navMerchants","navEmployers","navAccounting","navAudit"].forEach(x=>q(x).classList.remove("active"));q(id).classList.add("active")}
 async function api(action,opts={}){const r=await fetch("/api/admin?action="+encodeURIComponent(action),{cache:"no-store",...opts});const d=await r.json();if(!r.ok)throw new Error(d.error||"No se pudo completar");return d}
 function st(v){return v==="pending"?"<span class='status pending'>Pendiente</span>":v==="approved"||v==="allocated"||v==="verified"?"<span class='status ok'>"+esc(v)+"</span>":v==="rejected"||v==="cancelled"?"<span class='status no'>"+esc(v)+"</span>":"<span class='status neutral'>"+esc(v)+"</span>"}
 async function restore(){try{const r=await fetch("/api/admin-auth?action=session",{cache:"no-store"});if(!r.ok)return false;const d=await r.json();s.principal=d.principal;q("userName").textContent=d.principal.displayName;q("userRole").textContent=d.principal.role;q("login").classList.add("hidden");q("app").classList.remove("hidden");await loadAll();showHome();return true}catch(e){return false}}
 async function login(){const e=(q("email").value||"").trim().toLowerCase(),p=q("password").value||"",b=q("loginBtn");if(!e||!p){toast("Ingresa correo y contraseña");return}b.disabled=true;b.textContent="Ingresando…";try{const r=await fetch("/api/admin-auth?action=login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:e,password:p})});const d=await r.json();if(!r.ok)throw new Error(d.error||"No pudimos ingresar");if(!await restore())throw new Error("No pudimos abrir la sesión")}catch(err){toast(err.message)}finally{b.disabled=false;b.textContent="Ingresar"}}
 async function logout(){try{await fetch("/api/admin-auth?action=logout",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"})}catch(e){}q("app").classList.add("hidden");q("login").classList.remove("hidden");q("password").value=""}
-async function loadAll(){const [o,f,st,bk,ba,m,e,a]=await Promise.all([api("overview"),api("funding-queue"),api("settlements"),api("branch-queue"),api("bank-queue"),api("merchants"),api("employers"),api("audit")]);s.overview=o;s.funding=f.items||[];s.settlements=st.items||[];s.branches=bk.items||[];s.banks=ba.items||[];s.merchants=m.items||[];s.employers=e.items||[];s.audit=a.items||[];render()}
+async function loadAll(){const [o,f,st,bk,ba,m,e,gl,a]=await Promise.all([api("overview"),api("funding-queue"),api("settlements"),api("branch-queue"),api("bank-queue"),api("merchants"),api("employers"),api("accounting"),api("audit")]);s.overview=o;s.funding=f.items||[];s.settlements=st.items||[];s.branches=bk.items||[];s.banks=ba.items||[];s.merchants=m.items||[];s.employers=e.items||[];s.accounting=gl;s.audit=a.items||[];render()}
 function settlementStatus(v){
   var map={closed:["Cerrada","neutral"],scheduled:["Pago programado","pending"],paid:["Pagada","ok"],failed:["Pago fallido","no"],cancelled:["Cancelada","no"],draft:["Borrador","neutral"]};
   var x=map[v]||[v||"—","neutral"];return "<span class='status "+x[1]+"'>"+esc(x[0])+"</span>"
@@ -121,6 +145,9 @@ function render(){const c=s.overview?.counts||{},m=s.overview?.money||{};q("kMer
  q("bankQueue").innerHTML=s.banks.filter(x=>x.status==="pending").map(x=>"<div class='queue-item'><div><b>"+esc(x.merchant_name)+" · "+esc(x.bank_name)+"</b><small>"+esc(x.account_type)+" · "+esc(x.account_number_masked)+" · "+esc(x.holder_name)+"</small></div><div class='actions'><button class='btn secondary' onclick='resolveBank("+x.id+",\"reject\")'>Rechazar</button><button class='btn primary' onclick='resolveBank("+x.id+",\"approve\")'>Verificar</button></div></div>").join("")||"<div class='queue-item'><div><b>Sin pendientes</b><small>No hay cuentas por verificar.</small></div></div>";
  q("merchantRows").innerHTML=s.merchants.map(x=>"<tr><td><b>"+esc(x.name)+"</b><br/><small>"+esc(x.slug||"")+"</small></td><td>"+esc(x.tax_id||"—")+"</td><td>"+Number(x.locations||0)+"</td><td>"+Number(x.users||0)+"</td><td>"+(x.active?"<span class='status ok'>Activo</span>":"<span class='status neutral'>Inactivo</span>")+"</td></tr>").join("");
  q("employerRows").innerHTML=s.employers.map(x=>"<tr><td><b>"+esc(x.name)+"</b><br/><small>"+esc(x.slug||"")+"</small></td><td>"+esc(x.tax_id||"—")+"</td><td>"+Number(x.programs||0)+"</td><td>"+Number(x.employees||0)+"</td><td>"+(x.active?"<span class='status ok'>Activo</span>":"<span class='status neutral'>Inactivo</span>")+"</td></tr>").join("");
+ var gl=s.accounting||{},gs=gl.status||{};q("kGlPosted").textContent=gs.posted||0;q("kGlPending").textContent=gs.pending||0;q("kGlErrors").textContent=gs.errors||0;
+ q("glAccountRows").innerHTML=(gl.accounts||[]).map(x=>"<tr><td><b>"+esc(x.internal_code)+"</b><br/><small>"+esc(x.local_account_code||"Código local por mapear")+"</small></td><td>"+esc(x.name)+"</td><td>"+esc(x.account_type)+"</td><td>"+esc(x.ecuador_reporting_line||x.ifrs_category)+"</td><td class='amount'>"+money(x.debits)+"</td><td class='amount'>"+money(x.credits)+"</td><td class='amount'><b>"+money(x.balance)+"</b></td></tr>").join("")||"<tr><td colspan='7'>Sin cuentas.</td></tr>";
+ q("glJournalRows").innerHTML=(gl.journals||[]).slice(0,25).map(x=>"<div class='audit-row'><i></i><div><b>"+esc(x.description)+"</b><span>"+new Date(x.posted_at).toLocaleString("es-EC")+" · "+esc(x.source_type)+" / "+esc(x.source_id)+" · D "+money(x.debits)+" · C "+money(x.credits)+"</span></div></div>").join("")||"<div style='padding:10px;font-size:8px;color:#88928d'>Los nuevos eventos financieros aparecerán aquí.</div>";
  q("auditRows").innerHTML=s.audit.map(auditRow).join("")||"<div style='padding:10px'>Sin eventos.</div>"}
 function card(t,d,fn){return "<div class='queue-item'><div><b>"+esc(t)+"</b><small>"+esc(d)+"</small></div><button class='btn secondary' onclick='"+fn+"'>Revisar</button></div>"}
 function auditRow(x){return "<div class='audit-row'><i></i><div><b>"+esc(x.action)+" · "+esc(x.resource_type)+"</b><span>"+new Date(x.created_at).toLocaleString("es-EC")+" · "+esc(x.actor_id||x.actor_type)+"</span></div></div>"}
@@ -130,7 +157,16 @@ function showSettlements(){hide();q("settlementsScreen").classList.remove("hidde
 function showOnboarding(){hide();q("onboardingScreen").classList.remove("hidden");nav("navOnboarding");q("topTitle").textContent="Onboarding"}
 function showMerchants(){hide();q("merchantsScreen").classList.remove("hidden");nav("navMerchants");q("topTitle").textContent="Comercios"}
 function showEmployers(){hide();q("employersScreen").classList.remove("hidden");nav("navEmployers");q("topTitle").textContent="Empresas"}
+function showAccounting(){hide();q("accountingScreen").classList.remove("hidden");nav("navAccounting");q("topTitle").textContent="Contabilidad"}
 function showAudit(){hide();q("auditScreen").classList.remove("hidden");nav("navAudit");q("topTitle").textContent="Auditoría"}
+async function reconcileAccounting(){
+  try{
+    const d=await api("accounting-reconcile",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+    await loadAll();showAccounting();
+    const errors=(d.results||[]).filter(x=>x.code==="error"||x.code==="unbalanced").length;
+    toast(errors?errors+" evento(s) requieren revisión":"Contabilidad conciliada")
+  }catch(e){toast(e.message)}
+}
 async function closeWeeklySettlements(){
   openConfirm("Cerrar semana anterior","ReVale congelará el período semanal completado para todos los comercios con actividad. Los pagos no se ejecutan automáticamente.",async()=>{
     var d=await api("close-settlements",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
