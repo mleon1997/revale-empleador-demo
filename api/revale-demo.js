@@ -10,7 +10,38 @@ import {
 } from "../lib/revale-db.js";
 import { getMerchantPrincipal, getEmployeePrincipal, roleAllowed } from "../lib/revale-auth.js";
 import { evaluateRedemptionRules } from "../lib/revale-benefits.js";
+import { emitAndPostAccountingEvent } from "../lib/revale-accounting.js";
 
+
+async function postReversalAccounting(sql, tx, result) {
+  const [ctx] = await sql.query(
+    `SELECT t.merchant_id,t.location_id,t.person_id,t.account_id,t.program_id,
+            bp.employer_id
+     FROM revale.transactions t
+     LEFT JOIN revale.benefit_programs bp ON bp.id=t.program_id
+     WHERE t.id=$1
+     LIMIT 1`,
+    [tx]
+  );
+  if(!ctx) return null;
+  return emitAndPostAccountingEvent(sql,{
+    eventType:"redemption_reversed",
+    sourceType:"transaction",
+    sourceId:tx,
+    eventKey:"reversed",
+    amount:result.amount,
+    merchantId:ctx.merchant_id,
+    employerId:ctx.employer_id||null,
+    personId:ctx.person_id||null,
+    benefitAccountId:ctx.account_id||null,
+    transactionId:tx,
+    payload:{
+      program_id:ctx.program_id||null,
+      location_id:ctx.location_id||null,
+      balance_after:result.newBalance
+    }
+  });
+}
 
 async function getMerchantConfig(sql, slug = "el-hornero") {
   const [merchant] = await sql`
@@ -586,6 +617,7 @@ export default async function handler(req, res) {
       if (result.code !== "ok") {
         return json(res, 409, { ok: false, error: "La transacción ya no puede reversarse", status: result.status });
       }
+      await postReversalAccounting(sql,request.transaction_id,result);
       const [row] = await sql`
         UPDATE revale.reversal_requests
         SET status='approved', reviewed_by=${reviewedBy}, reviewed_at=now()
@@ -624,6 +656,8 @@ export default async function handler(req, res) {
           status: result.status
         });
       }
+
+      await postReversalAccounting(sql,tx,result);
 
       return json(res, 200, {
         message: "RVL-000",
@@ -858,6 +892,25 @@ export default async function handler(req, res) {
           status: result.code
         });
       }
+
+      await emitAndPostAccountingEvent(sql,{
+        eventType:"redemption_approved",
+        sourceType:"transaction",
+        sourceId:tx,
+        eventKey:"approved",
+        amount:chargeContext.amount,
+        merchantId:chargeContext.merchant_id,
+        employerId:employeePrincipal.benefit.employer_id||null,
+        personId:employeePrincipal.personId,
+        benefitAccountId:employeePrincipal.benefit.account_id,
+        transactionId:tx,
+        payload:{
+          program_id:employeePrincipal.benefit.program_id,
+          location_id:chargeContext.location_id,
+          balance_before:result.balanceBefore,
+          balance_after:result.balanceAfter
+        }
+      });
 
       return json(res, 200, {
         ok: true,
