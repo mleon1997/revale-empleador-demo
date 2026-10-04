@@ -77,6 +77,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS settlement_adjustments_source_unique
 CREATE INDEX IF NOT EXISTS settlement_adjustments_settlement_idx
   ON revale.settlement_adjustments(settlement_id,created_at);
 
+INSERT INTO revale.merchant_fee_invoices (
+  id,settlement_id,merchant_id,subtotal,vat_amount,total_amount,currency,status,metadata
+)
+SELECT
+  'feeinv_'||regexp_replace(s.id,'[^a-zA-Z0-9_]','','g'),
+  s.id,s.merchant_id,s.fee_amount,s.tax_amount,(s.fee_amount+s.tax_amount),s.currency,'pending_issue',
+  jsonb_build_object('source','settlement_backfill','period_start',s.period_start,'period_end',s.period_end)
+FROM revale.settlements s
+WHERE NOT EXISTS (
+  SELECT 1 FROM revale.merchant_fee_invoices fi WHERE fi.settlement_id=s.id
+)
+ON CONFLICT (settlement_id) DO NOTHING;
+
 INSERT INTO revale.gl_accounts (
   id,internal_code,local_account_code,name,account_type,normal_balance,
   ifrs_category,ecuador_reporting_line,active
