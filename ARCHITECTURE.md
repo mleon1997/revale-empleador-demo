@@ -64,6 +64,8 @@ The current stack is a modular-monolith target:
 - treasury_bank_balance_snapshots
 - treasury_internal_transfers
 - safeguarding_settings
+- bank_statement_imports
+- bank_statement_entries
 
 ### Platform controls
 - idempotency_keys
@@ -89,6 +91,11 @@ The current stack is a modular-monolith target:
 16. Safeguarding coverage compares physically reported/rolled-forward client-funds bank balances against positive third-party obligations without netting receivables across counterparties.
 17. When safeguarding enforcement is enabled, merchant payouts and employer refunds are blocked unless bank balances are current and coverage is at least 100%.
 18. Excess sweeps from segregated accounts are limited to the lower of physical bank excess and ledger-supported excess; top-ups move ReVale own cash into the client-funds account through double-entry accounting.
+19. Bank statement imports retain normalized transaction fields and a file hash, not the original file or arbitrary raw bank columns.
+20. Automatic reconciliation produces suggestions only. A Finance or Superadmin user must confirm a suggested or manually selected match before it can create/repair a funding receipt, payout posting, or settlement reconciliation.
+21. A bank statement is evidence of what physically happened. If an already-executed payout is observed while safeguarding is below threshold, ReVale records the payment and emits a specific safeguarding override audit event instead of hiding the real bank movement.
+22. Bank import idempotency is based on account, normalized bank fields and occurrence order so repeated legitimate movements with identical amount/date/descriptions are not collapsed.
+23. Imported closing balances may anchor safeguarding only when Finance explicitly opts to use the mapped balance column.
 
 ## Immediate production backlog
 
