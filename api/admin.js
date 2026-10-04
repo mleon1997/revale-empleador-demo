@@ -7,6 +7,10 @@ import {
   markSettlementPaid,
   markSettlementFailed
 } from "../lib/revale-settlements.js";
+import {
+  emitAndPostAccountingEvent,
+  processPendingAccountingEvents
+} from "../lib/revale-accounting.js";
 
 function json(res,code,body){
   res.status(code).setHeader("Content-Type","application/json; charset=utf-8").setHeader("Cache-Control","no-store").json(body);
@@ -94,6 +98,26 @@ export default async function handler(req,res){
       for(const merchant of merchants){
         const result=await closeLastCompletedWeeklySettlement(sql,merchant.id,principal.adminUserId);
         results.push({merchant_id:merchant.id,merchant_name:merchant.name,...result});
+        if(result.code==="ok"){
+          await emitAndPostAccountingEvent(sql,{
+            eventType:"settlement_closed",
+            sourceType:"settlement",
+            sourceId:result.settlement.id,
+            eventKey:"closed",
+            amount:Number(result.settlement.fee_amount||0)+Number(result.settlement.tax_amount||0),
+            merchantId:merchant.id,
+            settlementId:result.settlement.id,
+            payload:{
+              gross_amount:result.settlement.gross_amount,
+              adjustment_amount:result.settlement.adjustment_amount,
+              fee_amount:result.settlement.fee_amount,
+              tax_amount:result.settlement.tax_amount,
+              net_amount:result.settlement.net_amount,
+              period_start:result.settlement.period_start,
+              period_end:result.settlement.period_end
+            }
+          });
+        }
         if(result.code==="ok" && !result.idempotent){
           await sql.query(
             `INSERT INTO revale.audit_events (merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata)
@@ -136,7 +160,18 @@ export default async function handler(req,res){
       if(result.code!=="ok"){
         return json(res,409,{ok:false,error:result.code==="reference_required"?"Ingresa la referencia de la transferencia":"La liquidación no puede marcarse como pagada",detail:result});
       }
-      const [settlement]=await sql.query("SELECT merchant_id FROM revale.settlements WHERE id=$1",[id]);
+      const [settlement]=await sql.query("SELECT merchant_id,net_amount::float8 AS net_amount,currency FROM revale.settlements WHERE id=$1",[id]);
+      await emitAndPostAccountingEvent(sql,{
+        eventType:"merchant_payout_paid",
+        sourceType:"settlement",
+        sourceId:id,
+        eventKey:"paid",
+        amount:settlement?.net_amount||0,
+        currency:String(settlement?.currency||"USD").trim(),
+        merchantId:settlement?.merchant_id||null,
+        settlementId:id,
+        payload:{payout_reference:reference}
+      });
       await sql.query(
         `INSERT INTO revale.audit_events (merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata)
          VALUES ($1,'revale_admin',$2,'settlement.paid','settlement',$3,$4::jsonb)`,
@@ -160,6 +195,51 @@ export default async function handler(req,res){
         [settlement?.merchant_id||null,principal.adminUserId,id,JSON.stringify({reason})]
       );
       return json(res,200,{ok:true,result});
+    }
+
+    if(req.method==="GET" && action==="accounting"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const [status]=await sql.query(
+        `SELECT
+          COUNT(*) FILTER (WHERE status='pending')::int AS pending,
+          COUNT(*) FILTER (WHERE status='error')::int AS errors,
+          COUNT(*) FILTER (WHERE status='posted')::int AS posted
+         FROM revale.accounting_events`
+      );
+      const accounts=await sql.query(
+        `SELECT
+           a.id,a.internal_code,a.local_account_code,a.name,a.account_type,a.normal_balance,a.ifrs_category,a.ecuador_reporting_line,
+           COALESCE(SUM(l.debit),0)::float8 AS debits,
+           COALESCE(SUM(l.credit),0)::float8 AS credits,
+           CASE
+             WHEN a.normal_balance='debit' THEN (COALESCE(SUM(l.debit),0)-COALESCE(SUM(l.credit),0))::float8
+             ELSE (COALESCE(SUM(l.credit),0)-COALESCE(SUM(l.debit),0))::float8
+           END AS balance
+         FROM revale.gl_accounts a
+         LEFT JOIN revale.gl_journal_lines l ON l.account_id=a.id
+         LEFT JOIN revale.gl_journals j ON j.id=l.journal_id AND j.status='posted'
+         WHERE a.active=true
+         GROUP BY a.id
+         ORDER BY a.internal_code`
+      );
+      const journals=await sql.query(
+        `SELECT j.id,j.source_type,j.source_id,j.event_key,j.journal_date,j.currency,j.description,j.status,
+                j.merchant_id,j.employer_id,j.person_id,j.settlement_id,j.transaction_id,j.posted_at,
+                COALESCE(SUM(l.debit),0)::float8 AS debits,
+                COALESCE(SUM(l.credit),0)::float8 AS credits
+         FROM revale.gl_journals j
+         LEFT JOIN revale.gl_journal_lines l ON l.journal_id=j.id
+         GROUP BY j.id
+         ORDER BY j.posted_at DESC
+         LIMIT 100`
+      );
+      return json(res,200,{ok:true,status:status||{},accounts,journals});
+    }
+
+    if(req.method==="POST" && action==="accounting-reconcile"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const results=await processPendingAccountingEvents(sql,200);
+      return json(res,200,{ok:true,results});
     }
 
     if(req.method==="GET" && action==="funding-queue"){
@@ -243,13 +323,23 @@ export default async function handler(req,res){
     if(req.method==="POST" && action==="approve-funding"){
       if(!requireRoles(["superadmin","finance"]))return;
       const id=String(req.body?.id||"");
-      const [batch]=await sql.query("SELECT id,employer_id,status FROM revale.funding_batches WHERE id=$1 LIMIT 1",[id]);
+      const [batch]=await sql.query("SELECT id,employer_id,program_id,amount::float8 AS amount,currency,status FROM revale.funding_batches WHERE id=$1 LIMIT 1",[id]);
       if(!batch)return json(res,404,{ok:false,error:"Fondeo no encontrado"});
       const result=await confirmFundingBatchAtomic(sql,id);
       if(result.code!=="ok"){
         const messages={no_items:"El fondeo no tiene colaboradores preparados",insufficient_funding:"El monto no cubre las asignaciones",invalid_status:"El fondeo no puede procesarse"};
         return json(res,409,{ok:false,error:messages[result.code]||"No se pudo acreditar el fondeo",detail:result});
       }
+      await emitAndPostAccountingEvent(sql,{
+        eventType:"funding_received",
+        sourceType:"funding_batch",
+        sourceId:id,
+        eventKey:"allocated",
+        amount:batch.amount,
+        currency:String(batch.currency||"USD").trim(),
+        employerId:batch.employer_id,
+        payload:{program_id:batch.program_id,allocated_by:principal.adminUserId}
+      });
       await sql.query(
         `INSERT INTO revale.audit_events (employer_id,actor_type,actor_id,action,resource_type,resource_id,metadata)
          VALUES ($1,'revale_admin',$2,'funding.allocated','funding_batch',$3,$4::jsonb)`,
