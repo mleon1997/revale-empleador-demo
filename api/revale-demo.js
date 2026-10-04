@@ -8,7 +8,7 @@ import {
   reverseCharge,
   matchInvoice
 } from "../lib/revale-db.js";
-import { getMerchantPrincipal, roleAllowed } from "../lib/revale-auth.js";
+import { getMerchantPrincipal, getEmployeePrincipal, roleAllowed } from "../lib/revale-auth.js";
 
 
 async function getMerchantConfig(sql, slug = "el-hornero") {
@@ -682,7 +682,8 @@ export default async function handler(req, res) {
     ) {
       const tx = String(req.query?.tx || "");
       const token = String(req.query?.token || "");
-      const row = await getCharge(sql, tx, token);
+      const employeePrincipal = action === "get" ? await getEmployeePrincipal(sql, req) : null;
+      const row = await getCharge(sql, tx, token, employeePrincipal);
 
       if (!row) {
         return json(res, 404, {
@@ -697,7 +698,21 @@ export default async function handler(req, res) {
     if (req.method === "POST" && action === "confirm") {
       const tx = String(req.body?.tx || "");
       const token = String(req.body?.token || "");
-      const result = await confirmCharge(sql, tx, token);
+      const employeePrincipal = await getEmployeePrincipal(sql, req);
+      if (!employeePrincipal) {
+        return json(res, 401, {
+          message: "RVL-017",
+          error: "Inicia sesión para confirmar este consumo"
+        });
+      }
+      if (!employeePrincipal.benefit) {
+        return json(res, 403, {
+          message: "RVL-018",
+          error: "No tienes un beneficio activo para realizar este consumo"
+        });
+      }
+
+      const result = await confirmCharge(sql, tx, token, employeePrincipal);
 
       if (result.code === "not_found") {
         return json(res, 404, {
@@ -720,6 +735,13 @@ export default async function handler(req, res) {
         });
       }
 
+      if (result.code === "already_claimed") {
+        return json(res, 409, {
+          message: "RVL-019",
+          error: "Esta transacción ya fue confirmada por otro beneficiario"
+        });
+      }
+
       if (result.code !== "ok") {
         return json(res, 409, {
           message: "RVL-013",
@@ -733,7 +755,10 @@ export default async function handler(req, res) {
         message: "RVL-000",
         status: result.status,
         balanceBefore: result.balanceBefore,
-        balanceAfter: result.balanceAfter
+        balanceAfter: result.balanceAfter,
+        personId: result.personId,
+        accountId: result.accountId,
+        programId: result.programId
       });
     }
 
