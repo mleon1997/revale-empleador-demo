@@ -78,6 +78,12 @@ export default async function handler(req,res){
            s.fee_amount::float8 AS fee_amount,
            s.tax_amount::float8 AS tax_amount,
            s.net_amount::float8 AS net_amount,
+           COALESCE(sa.adjustment_total,0)::float8 AS payout_adjustment_amount,
+           (s.net_amount+COALESCE(sa.adjustment_total,0))::float8 AS transfer_amount,
+           COALESCE(wh.pending_count,0)::int AS pending_withholdings,
+           COALESCE(wh.verified_total,0)::float8 AS verified_withholding_amount,
+           fi.id AS fee_invoice_id,fi.invoice_number,fi.status AS fee_invoice_status,
+           fi.total_amount::float8 AS fee_invoice_total,
            s.currency,s.status,s.closed_at,s.scheduled_at,s.paid_at,s.payout_reference,
            mba.bank_name,mba.account_type,
            CASE WHEN mba.account_number IS NULL THEN NULL ELSE '•••• '||right(mba.account_number,4) END AS account_number_masked,
@@ -85,6 +91,19 @@ export default async function handler(req,res){
          FROM revale.settlements s
          JOIN revale.merchants m ON m.id=s.merchant_id
          LEFT JOIN revale.merchant_bank_accounts mba ON mba.id=s.bank_account_id
+         LEFT JOIN revale.merchant_fee_invoices fi ON fi.settlement_id=s.id
+         LEFT JOIN LATERAL (
+           SELECT COALESCE(SUM(amount),0) AS adjustment_total
+           FROM revale.settlement_adjustments
+           WHERE settlement_id=s.id
+         ) sa ON true
+         LEFT JOIN LATERAL (
+           SELECT
+             COUNT(*) FILTER (WHERE status='reported') AS pending_count,
+             COALESCE(SUM(total_amount) FILTER (WHERE status='verified'),0) AS verified_total
+           FROM revale.merchant_withholdings
+           WHERE settlement_id=s.id
+         ) wh ON true
          LEFT JOIN LATERAL (
            SELECT id,attempt_no,status,failure_reason
            FROM revale.settlement_payouts
@@ -147,6 +166,7 @@ export default async function handler(req,res){
           invalid_status:"La liquidación no puede programarse en su estado actual",
           non_positive_net:"El neto de esta liquidación no requiere transferencia",
           bank_missing:"El comercio no tiene una cuenta bancaria verificada",
+          fee_invoice_pending:"Registra primero la factura ReVale emitida para esta liquidación",
           withholding_pending:"Existe una retención reportada pendiente de verificación"
         };
         return json(res,409,{ok:false,error:messages[result.code]||"No se pudo programar el pago",detail:result});
