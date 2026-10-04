@@ -504,7 +504,10 @@ export default async function handler(req,res){
            mba.bank_name,mba.account_type,
            CASE WHEN mba.account_number IS NULL THEN NULL ELSE '•••• '||right(mba.account_number,4) END AS account_number_masked,
            lp.id AS payout_id,lp.attempt_no,lp.status AS payout_status,lp.failure_reason,
-           lp.amount::float8 AS payout_amount
+           lp.amount::float8 AS payout_amount,
+           apr.id AS payout_approval_id,apr.status AS payout_approval_status,
+           apr.required_approvals AS payout_required_approvals,
+           apr.approval_count AS payout_approval_count
          FROM revale.settlements s
          JOIN revale.merchants m ON m.id=s.merchant_id
          LEFT JOIN revale.merchant_bank_accounts mba ON mba.id=s.bank_account_id
@@ -542,6 +545,20 @@ export default async function handler(req,res){
            ORDER BY attempt_no DESC
            LIMIT 1
          ) lp ON true
+         LEFT JOIN LATERAL (
+           SELECT r.id,r.status,r.required_approvals,
+                  COALESCE((
+                    SELECT COUNT(*) FROM revale.financial_approval_decisions d
+                    WHERE d.request_id=r.id AND d.decision='approved'
+                  ),0)::int AS approval_count
+           FROM revale.financial_approval_requests r
+           WHERE r.action_type='merchant_payout'
+             AND r.entity_type='settlement'
+             AND r.entity_id=s.id
+             AND r.status IN ('pending','approved','executing','execution_failed')
+           ORDER BY r.created_at DESC
+           LIMIT 1
+         ) apr ON true
          ORDER BY s.period_end DESC,m.name
          LIMIT 200`
       );
@@ -740,11 +757,43 @@ export default async function handler(req,res){
            cn.withholding_resolution_note,cn.resolved_by,cn.resolved_at,cn.issued_at,cn.created_at,
            fi.invoice_number,fi.total_amount::float8 AS invoice_total,
            s.period_start,s.period_end,s.status AS settlement_status,
+           (
+             SELECT r.id FROM revale.financial_approval_requests r
+             WHERE r.action_type='withholding_verification'
+               AND r.entity_type='merchant_withholding'
+               AND r.entity_id=w.id
+               AND r.status IN ('pending','approved','executing','execution_failed')
+             ORDER BY r.created_at DESC LIMIT 1
+           ) AS approval_request_id,
+           (
+             SELECT r.status FROM revale.financial_approval_requests r
+             WHERE r.action_type='withholding_verification'
+               AND r.entity_type='merchant_withholding'
+               AND r.entity_id=w.id
+               AND r.status IN ('pending','approved','executing','execution_failed')
+             ORDER BY r.created_at DESC LIMIT 1
+           ) AS approval_status,
            COALESCE((
              SELECT SUM(w.total_amount)
              FROM revale.merchant_withholdings w
              WHERE w.fee_invoice_id=cn.fee_invoice_id AND w.status='verified'
-           ),0)::float8 AS verified_withholding_total
+           ),0)::float8 AS verified_withholding_total,
+           (
+             SELECT r.id FROM revale.financial_approval_requests r
+             WHERE r.action_type='credit_note_withholding'
+               AND r.entity_type='merchant_fee_credit_note'
+               AND r.entity_id=cn.id
+               AND r.status IN ('pending','approved','executing','execution_failed')
+             ORDER BY r.created_at DESC LIMIT 1
+           ) AS withholding_approval_id,
+           (
+             SELECT r.status FROM revale.financial_approval_requests r
+             WHERE r.action_type='credit_note_withholding'
+               AND r.entity_type='merchant_fee_credit_note'
+               AND r.entity_id=cn.id
+               AND r.status IN ('pending','approved','executing','execution_failed')
+             ORDER BY r.created_at DESC LIMIT 1
+           ) AS withholding_approval_status
          FROM revale.merchant_fee_credit_notes cn
          JOIN revale.merchants m ON m.id=cn.merchant_id
          JOIN revale.merchant_fee_invoices fi ON fi.id=cn.fee_invoice_id
@@ -1468,7 +1517,39 @@ export default async function handler(req,res){
              SELECT SUM(i.amount)
              FROM revale.funding_batch_items i
              WHERE i.funding_batch_id=fb.id AND i.status='allocated'
-           ),0)::float8 AS allocated_amount
+           ),0)::float8 AS allocated_amount,
+           (
+             SELECT r.id FROM revale.financial_approval_requests r
+             WHERE r.action_type='funding_allocation'
+               AND r.entity_type='funding_batch'
+               AND r.entity_id=fb.id
+               AND r.status IN ('pending','approved','executing','execution_failed')
+             ORDER BY r.created_at DESC LIMIT 1
+           ) AS allocation_approval_id,
+           (
+             SELECT r.status FROM revale.financial_approval_requests r
+             WHERE r.action_type='funding_allocation'
+               AND r.entity_type='funding_batch'
+               AND r.entity_id=fb.id
+               AND r.status IN ('pending','approved','executing','execution_failed')
+             ORDER BY r.created_at DESC LIMIT 1
+           ) AS allocation_approval_status,
+           (
+             SELECT r.id FROM revale.financial_approval_requests r
+             WHERE r.action_type='employer_refund'
+               AND r.entity_type='funding_batch'
+               AND r.entity_id=fb.id
+               AND r.status IN ('pending','approved','executing','execution_failed')
+             ORDER BY r.created_at DESC LIMIT 1
+           ) AS refund_approval_id,
+           (
+             SELECT r.status FROM revale.financial_approval_requests r
+             WHERE r.action_type='employer_refund'
+               AND r.entity_type='funding_batch'
+               AND r.entity_id=fb.id
+               AND r.status IN ('pending','approved','executing','execution_failed')
+             ORDER BY r.created_at DESC LIMIT 1
+           ) AS refund_approval_status
          FROM revale.funding_batches fb
          JOIN revale.employers e ON e.id=fb.employer_id
          LEFT JOIN revale.benefit_programs bp ON bp.id=fb.program_id
