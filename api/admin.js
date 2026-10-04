@@ -790,53 +790,50 @@ export default async function handler(req,res){
       const id=String(req.body?.id||"");
       const adjustmentAmount=Number(req.body?.withholding_adjustment_amount||0);
       const note=String(req.body?.resolution_note||"").trim().slice(0,500);
-      const result=await resolveFeeCreditNoteWithholding(sql,{
-        creditNoteId:id,
-        withholdingAdjustmentAmount:adjustmentAmount,
-        resolutionNote:note,
-        actorId:principal.adminUserId
+      if(adjustmentAmount<0)return json(res,400,{ok:false,error:"El ajuste de retención no puede ser negativo"});
+      const [cn]=await sql.query(
+        `SELECT cn.id,cn.merchant_id,cn.settlement_id,cn.transaction_id,
+                cn.status,cn.withholding_status,cn.total_amount::float8 AS total_amount,
+                COALESCE((
+                  SELECT SUM(w.total_amount)
+                  FROM revale.merchant_withholdings w
+                  WHERE w.fee_invoice_id=cn.fee_invoice_id AND w.status='verified'
+                ),0)::float8 AS verified_withholding_total
+         FROM revale.merchant_fee_credit_notes cn
+         WHERE cn.id=$1
+         LIMIT 1`,
+        [id]
+      );
+      if(!cn)return json(res,404,{ok:false,error:"Nota de crédito no encontrada"});
+      if(cn.status!=="issued"||cn.withholding_status!=="review_required"){
+        return json(res,409,{ok:false,error:"La nota de crédito no está lista para resolver retención"});
+      }
+      const maximum=Math.min(Number(cn.total_amount||0),Number(cn.verified_withholding_total||0));
+      if(adjustmentAmount>maximum+0.00001){
+        return json(res,409,{ok:false,error:"El ajuste supera el máximo reversible de la retención"});
+      }
+      const result=await createFinancialApprovalRequest(sql,{
+        actionType:"credit_note_withholding",
+        entityType:"merchant_fee_credit_note",
+        entityId:id,
+        amount:adjustmentAmount,
+        currency:"USD",
+        payload:{
+          resolution_note:note||null,merchant_id:cn.merchant_id,
+          settlement_id:cn.settlement_id,transaction_id:cn.transaction_id||null
+        },
+        requestNote:note||null,
+        requestedBy:principal.adminUserId,
+        requestedByName:principal.displayName
       });
       if(result.code!=="ok"){
-        const messages={
-          not_found:"Nota de crédito no encontrada",
-          invalid_amount:"El ajuste de retención no puede ser negativo",
-          credit_note_not_issued:"Registra primero la nota de crédito emitida",
-          amount_exceeds_withholding:"El ajuste supera la retención verificada de la factura",
-          invalid_status:"La revisión tributaria ya fue resuelta"
-        };
-        return json(res,409,{ok:false,error:messages[result.code]||"No se pudo resolver la retención",detail:result});
+        return json(res,409,{ok:false,error:result.code==="maker_not_allowed"?"Tu usuario no tiene permiso para crear solicitudes financieras":"No se pudo crear la aprobación del ajuste",detail:result});
       }
-      const cn=result.creditNote;
-      if(Number(result.withholdingAdjustmentAmount||0)>0){
-        await emitAndPostAccountingEvent(sql,{
-          eventType:"merchant_withholding_credit_reversed",
-          sourceType:"fee_credit_note",
-          sourceId:cn.id,
-          eventKey:"withholding_credit_reversed",
-          amount:Number(result.withholdingAdjustmentAmount||0),
-          merchantId:cn.merchant_id,
-          settlementId:cn.settlement_id,
-          transactionId:cn.transaction_id||null,
-          payload:{
-            credit_note_number:cn.credit_note_number||null,
-            resolution_note:cn.withholding_resolution_note||null
-          }
-        });
-      }
-      await sql.query(
-        `INSERT INTO revale.audit_events (
-           merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata
-         ) VALUES ($1,'revale_admin',$2,'fee_credit_note.withholding_resolved','merchant_fee_credit_note',$3,$4::jsonb)`,
-        [
-          cn.merchant_id,principal.adminUserId,cn.id,
-          JSON.stringify({
-            settlementId:cn.settlement_id,
-            withholdingAdjustmentAmount:Number(result.withholdingAdjustmentAmount||0),
-            resolutionNote:cn.withholding_resolution_note||null
-          })
-        ]
-      );
-      return json(res,200,{ok:true,result});
+      await auditFinancialRequest(sql,{
+        principal,request:result.request,action:"financial_approval.requested",
+        metadata:{eligibleApprovers:result.eligibleApprovers,hasEnoughApprovers:result.hasEnoughApprovers}
+      });
+      return json(res,200,{ok:true,approvalRequired:true,result});
     }
 
     if(req.method==="POST" && action==="reconcile-settlement"){
@@ -910,43 +907,52 @@ export default async function handler(req,res){
       if(!withholdingId || !["verify","reject"].includes(decision)){
         return json(res,400,{ok:false,error:"Solicitud de retención inválida"});
       }
+
+      if(decision==="verify"){
+        const [w]=await sql.query(
+          `SELECT id,settlement_id,merchant_id,total_amount::float8 AS total_amount,status
+           FROM revale.merchant_withholdings WHERE id=$1 LIMIT 1`,
+          [withholdingId]
+        );
+        if(!w)return json(res,404,{ok:false,error:"Retención no encontrada"});
+        if(w.status!=="reported")return json(res,409,{ok:false,error:"La retención ya no está pendiente de verificación"});
+        const result=await createFinancialApprovalRequest(sql,{
+          actionType:"withholding_verification",
+          entityType:"merchant_withholding",
+          entityId:withholdingId,
+          amount:Number(w.total_amount||0),
+          currency:"USD",
+          payload:{settlement_id:w.settlement_id,merchant_id:w.merchant_id},
+          requestNote:req.body?.note||null,
+          requestedBy:principal.adminUserId,
+          requestedByName:principal.displayName
+        });
+        if(result.code!=="ok"){
+          return json(res,409,{ok:false,error:result.code==="maker_not_allowed"?"Tu usuario no tiene permiso para crear solicitudes financieras":"No se pudo crear la aprobación de retención",detail:result});
+        }
+        await auditFinancialRequest(sql,{
+          principal,request:result.request,action:"financial_approval.requested",
+          metadata:{eligibleApprovers:result.eligibleApprovers,hasEnoughApprovers:result.hasEnoughApprovers}
+        });
+        return json(res,200,{ok:true,approvalRequired:true,result});
+      }
+
       const result=await reviewMerchantWithholding(sql,{
         withholdingId,
-        decision,
+        decision:"reject",
         actorId:principal.adminUserId,
         rejectionReason
       });
       if(result.code!=="ok"){
         return json(res,409,{ok:false,error:result.code==="not_found"?"Retención no encontrada":"La retención ya fue resuelta",detail:result});
       }
-
       const w=result.withholding;
-      if(decision==="verify"){
-        await emitAndPostAccountingEvent(sql,{
-          eventType:"merchant_withholding_verified",
-          sourceType:"merchant_withholding",
-          sourceId:w.id,
-          eventKey:"verified",
-          amount:w.total_amount,
-          merchantId:w.merchant_id,
-          settlementId:w.settlement_id,
-          payload:{
-            document_number:w.document_number||null,
-            income_tax_amount:w.income_tax_amount||0,
-            vat_withheld_amount:w.vat_withheld_amount||0
-          }
-        });
-      }
-
       await sql.query(
         `INSERT INTO revale.audit_events (
            merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata
-         ) VALUES ($1,'revale_admin',$2,$3,'merchant_withholding',$4,$5::jsonb)`,
+         ) VALUES ($1,'revale_admin',$2,'withholding.rejected','merchant_withholding',$3,$4::jsonb)`,
         [
-          w.merchant_id||null,
-          principal.adminUserId,
-          decision==="verify"?"withholding.verified":"withholding.rejected",
-          w.id,
+          w.merchant_id||null,principal.adminUserId,w.id,
           JSON.stringify({settlementId:w.settlement_id,totalAmount:w.total_amount,rejectionReason:rejectionReason||null})
         ]
       );
@@ -1099,62 +1105,41 @@ export default async function handler(req,res){
 
     if(req.method==="POST" && action==="treasury-transfer"){
       if(!requireRoles(["superadmin","finance"]))return;
-      const result=await registerTreasuryTransfer(sql,{
-        transferType:req.body?.transfer_type,
-        amount:req.body?.amount,
-        bankReference:req.body?.bank_reference,
-        bankPostedOn:req.body?.bank_posted_on,
-        fromAccountId:req.body?.from_account_id||null,
-        toAccountId:req.body?.to_account_id||null,
-        actorId:principal.adminUserId
+      const transferType=String(req.body?.transfer_type||"");
+      const amount=Number(req.body?.amount||0);
+      const bankReference=String(req.body?.bank_reference||"").trim().slice(0,160);
+      const bankPostedOn=String(req.body?.bank_posted_on||"");
+      const fromAccountId=req.body?.from_account_id?String(req.body.from_account_id):null;
+      const toAccountId=req.body?.to_account_id?String(req.body.to_account_id):null;
+      if(!["safeguarding_topup","excess_sweep"].includes(transferType)){
+        return json(res,400,{ok:false,error:"Tipo de transferencia inválido"});
+      }
+      if(!(amount>0)||!bankReference||!/^\d{4}-\d{2}-\d{2}$/.test(bankPostedOn)){
+        return json(res,400,{ok:false,error:"Completa monto, referencia y fecha bancaria"});
+      }
+      const actionType=transferType==="safeguarding_topup"?"safeguarding_topup":"safeguarding_sweep";
+      const result=await createFinancialApprovalRequest(sql,{
+        actionType,
+        entityType:"treasury_transfer",
+        entityId:transferType+":"+bankReference+":"+bankPostedOn,
+        amount,
+        currency:"USD",
+        payload:{
+          transfer_type:transferType,bank_reference:bankReference,
+          bank_posted_on:bankPostedOn,from_account_id:fromAccountId,to_account_id:toAccountId
+        },
+        requestNote:req.body?.note||null,
+        requestedBy:principal.adminUserId,
+        requestedByName:principal.displayName
       });
       if(result.code!=="ok"){
-        const messages={
-          invalid_type:"Tipo de transferencia inválido",
-          invalid_amount:"Ingresa un monto válido",
-          reference_required:"Ingresa la referencia bancaria",
-          date_required:"Ingresa la fecha bancaria",
-          account_missing:"Configura cuentas primaria segregada y operativa",
-          account_inactive:"Una de las cuentas está inactiva",
-          currency_mismatch:"Las cuentas deben usar la misma moneda",
-          invalid_direction:"Las cuentas no corresponden al tipo de movimiento",
-          same_account:"Origen y destino no pueden ser la misma cuenta",
-          sweep_exceeds_excess:"El barrido supera el excedente liberable sin afectar safeguarding",
-          source_balance_missing:"Actualiza primero el saldo de la cuenta origen",
-          insufficient_source_balance:"La cuenta origen no tiene saldo suficiente según el último control",
-          duplicate_reference:"La referencia bancaria ya fue utilizada"
-        };
-        return json(res,409,{ok:false,error:messages[result.code]||"No se pudo registrar la transferencia",detail:result});
+        return json(res,409,{ok:false,error:result.code==="maker_not_allowed"?"Tu usuario no tiene permiso para crear solicitudes financieras":"No se pudo crear la aprobación de tesorería",detail:result});
       }
-      const t=result.transfer;
-      await emitAndPostAccountingEvent(sql,{
-        eventType:t.transfer_type==="safeguarding_topup"?"safeguarding_topup":"safeguarding_sweep",
-        sourceType:"treasury_internal_transfer",
-        sourceId:t.id,
-        eventKey:"confirmed",
-        amount:t.amount,
-        currency:String(t.currency||"USD").trim(),
-        payload:{
-          from_account_id:t.from_account_id,
-          to_account_id:t.to_account_id,
-          bank_reference:t.bank_reference,
-          bank_posted_on:t.bank_posted_on
-        }
+      await auditFinancialRequest(sql,{
+        principal,request:result.request,action:"financial_approval.requested",
+        metadata:{eligibleApprovers:result.eligibleApprovers,hasEnoughApprovers:result.hasEnoughApprovers}
       });
-      if(!result.idempotent){
-        await sql.query(
-          `INSERT INTO revale.audit_events (
-             actor_type,actor_id,action,resource_type,resource_id,metadata
-           ) VALUES ('revale_admin',$1,$2,'treasury_internal_transfer',$3,$4::jsonb)`,
-          [
-            principal.adminUserId,
-            t.transfer_type==="safeguarding_topup"?"safeguarding.topup":"safeguarding.sweep",
-            t.id,
-            JSON.stringify({amount:t.amount,from:t.from_account_id,to:t.to_account_id,bankReference:t.bank_reference})
-          ]
-        );
-      }
-      return json(res,200,{ok:true,result:{...result,control:await safeguardingControl(sql)}});
+      return json(res,200,{ok:true,approvalRequired:true,result});
     }
 
     if(req.method==="POST" && action==="bank-statement-preview"){
