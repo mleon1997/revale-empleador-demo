@@ -227,7 +227,7 @@ export default async function handler(req, res) {
       return true;
     };
 
-    if (["merchant-settlements","settlement-detail","report-withholding"].includes(action)) {
+    if (["merchant-settlements","settlement-detail","report-withholding","reverse","resolve-reversal"].includes(action)) {
       await ensureSettlementTaxSchema(sql);
     }
 
