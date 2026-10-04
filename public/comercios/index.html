@@ -1492,6 +1492,18 @@ body.role-admin .operations-grid{display:none!important}
     </div>
     <div class="phone-body">
       <div id="employeeLoading" class="pay-card"><div class="muted" style="font-size:9px;text-align:center;padding:26px">Cargando transacción…</div></div>
+      <div id="employeeLogin" class="pay-card hidden">
+        <div class="merchant-mini"><div class="merchant-logo" aria-label="Comercio"></div><div><b id="employeeLoginMerchant">Comercio</b><span>Beneficio corporativo ReVale</span></div></div>
+        <div style="padding:24px 0 8px">
+          <div class="small" style="font-size:8px;color:#7d8983;text-transform:uppercase;letter-spacing:.1em;font-weight:850">Identifica tu beneficio</div>
+          <h3 style="font-size:22px;letter-spacing:-.04em;margin:8px 0 7px">Inicia sesión para pagar</h3>
+          <p style="font-size:9px;color:#74817b;line-height:1.5;margin:0 0 16px">ReVale validará tu saldo y las reglas de tu beneficio antes de aprobar el consumo.</p>
+          <input id="employeeLoginEmail" class="ref-input" type="email" autocomplete="email" placeholder="Correo corporativo"/>
+          <input id="employeeLoginPassword" class="ref-input" type="password" autocomplete="current-password" placeholder="Contraseña"/>
+          <button id="employeeLoginBtn" class="confirm" style="margin-top:12px" onclick="loginEmployee()">Continuar</button>
+          <div class="secure">◉ Tu saldo se valida de forma segura</div>
+        </div>
+      </div>
       <div id="employeePay" class="pay-card hidden">
         <div class="merchant-mini"><div class="merchant-logo" aria-label="Comercio"></div><div><b id="employeeMerchantName">El Hornero</b><span id="employeeMerchantLocation">Cumbayá · Caja 01</span></div></div>
         <div class="pay-copy"><div class="small">Estás por pagar</div><div id="employeeAmount" class="amt mono">$ 0.00</div><div id="employeeAfter" class="after"></div></div>
@@ -2228,28 +2240,76 @@ async function resolveReversalRequest(id,decision){
 function closeModal(){q("modalRoot").innerHTML=""}
 
 /* EMPLOYEE */
-var emp={tx:"",token:"",amount:0,balanceBefore:null,balanceAfter:null,currentBalance:null};
+var emp={tx:"",token:"",amount:0,balanceBefore:null,balanceAfter:null,currentBalance:null,authenticated:false,programName:""};
+async function fetchEmployeeCharge(){
+  var r=await fetch("/api/revale-demo?action=get&tx="+encodeURIComponent(emp.tx)+"&token="+encodeURIComponent(emp.token),{cache:"no-store"});
+  var d=await r.json();if(!r.ok)throw new Error(d.error||"No encontramos la transacción");return d
+}
+async function employeeSession(){
+  try{
+    var r=await fetch("/api/employee-auth?action=session",{cache:"no-store"});
+    if(!r.ok)return null;return await r.json()
+  }catch(e){return null}
+}
 async function loadEmployee(){
   q("login").classList.add("hidden");q("employeeView").classList.remove("hidden");
   var p=new URLSearchParams(location.search);emp.tx=p.get("tx")||"";emp.token=p.get("token")||"";
+  q("employeeLoading").classList.remove("hidden");q("employeeLogin").classList.add("hidden");q("employeePay").classList.add("hidden");q("employeeError").classList.add("hidden");
   try{
-    var r=await fetch("/api/revale-demo?action=get&tx="+encodeURIComponent(emp.tx)+"&token="+encodeURIComponent(emp.token),{cache:"no-store"});var d=await r.json();
-    if(!r.ok)throw new Error(d.error||"No encontramos la transacción");
-    emp.amount=Number(d.amount||0);emp.currentBalance=Number(d.currentBalance??0);emp.balanceBefore=d.balanceBefore==null?emp.currentBalance:Number(d.balanceBefore);emp.balanceAfter=d.balanceAfter==null?null:Number(d.balanceAfter);
-    if(d.merchant){state.merchant={id:d.merchant.id,name:d.merchant.name,shortName:d.merchant.name,logoUrl:d.merchant.logoUrl,brandPrimary:d.merchant.brandPrimary};state.location={id:d.merchant.locationId,name:d.merchant.locationName,terminal:"Caja 01"};applyMerchantConfig()}
-    var first=d.employee?.firstName||"Andrea";
-    q("employeeHello").textContent="Hola, "+first;q("employeeBalance").textContent=money(emp.currentBalance);q("employeeAmount").textContent=money(emp.amount);q("employeeAfter").textContent="Saldo después de la compra: "+money(emp.currentBalance-emp.amount);
+    var publicCharge=await fetchEmployeeCharge();
+    emp.amount=Number(publicCharge.amount||0);
+    if(publicCharge.merchant){
+      state.merchant={id:publicCharge.merchant.id,name:publicCharge.merchant.name,shortName:publicCharge.merchant.name,logoUrl:publicCharge.merchant.logoUrl,brandPrimary:publicCharge.merchant.brandPrimary};
+      state.location={id:publicCharge.merchant.locationId,name:publicCharge.merchant.locationName,terminal:"Caja 01"};applyMerchantConfig()
+    }
+    q("employeeLoginMerchant").textContent=merchantName();
+    q("employeeAmount").textContent=money(emp.amount);
+
+    var session=await employeeSession();
+    if(!session?.principal){
+      emp.authenticated=false;
+      q("employeeHello").textContent="Hola";
+      q("employeeBalance").textContent="—";
+      q("employeeLoading").classList.add("hidden");q("employeeLogin").classList.remove("hidden");
+      return
+    }
+
+    emp.authenticated=true;
+    var d=await fetchEmployeeCharge();
+    emp.currentBalance=Number(d.currentBalance??session.principal?.benefit?.balance??0);
+    emp.balanceBefore=d.balanceBefore==null?emp.currentBalance:Number(d.balanceBefore);
+    emp.balanceAfter=d.balanceAfter==null?null:Number(d.balanceAfter);
+    emp.programName=d.employee?.programName||session.principal?.benefit?.program_name||"Alimentación";
+    var first=d.employee?.firstName||session.principal?.firstName||"";
+    q("employeeHello").textContent="Hola, "+first;
+    document.querySelector(".balance-label").textContent="Saldo de "+String(emp.programName||"alimentación").toLowerCase();
+    q("employeeBalance").textContent=money(emp.currentBalance);
+    q("employeeAfter").textContent="Saldo después de la compra: "+money(emp.currentBalance-emp.amount);
     q("employeeLoading").classList.add("hidden");q("employeePay").classList.remove("hidden");
     if(d.status==="approved"){if(emp.balanceAfter==null)emp.balanceAfter=emp.currentBalance;employeeSuccess()}
-  }catch(e){q("employeeLoading").classList.add("hidden");q("employeeError").classList.remove("hidden");q("employeeError").innerHTML="<b>No pudimos abrir este cobro.</b><br/>El QR pudo expirar o la conexión se interrumpió. Vuelve a generar el QR en la caja."}
+  }catch(e){
+    q("employeeLoading").classList.add("hidden");q("employeeLogin").classList.add("hidden");q("employeePay").classList.add("hidden");q("employeeError").classList.remove("hidden");
+    q("employeeError").innerHTML="<b>No pudimos abrir este cobro.</b><br/>El QR pudo expirar o la conexión se interrumpió. Vuelve a generar el QR en la caja."
+  }
+}
+async function loginEmployee(){
+  var email=(q("employeeLoginEmail").value||"").trim().toLowerCase(),password=q("employeeLoginPassword").value||"",b=q("employeeLoginBtn");
+  if(!email||!password){toast("Ingresa correo y contraseña");return}
+  b.disabled=true;b.textContent="Validando…";
+  try{
+    var r=await fetch("/api/employee-auth?action=login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email,password:password})});
+    var d=await r.json();if(!r.ok)throw new Error(d.error||"No pudimos iniciar sesión");
+    await loadEmployee()
+  }catch(e){toast(e.message||"No pudimos iniciar sesión");b.disabled=false;b.textContent="Continuar"}
 }
 async function confirmEmployee(){
   var b=q("confirmBtn");b.disabled=true;b.textContent="Confirmando…";
   try{
     var r=await fetch("/api/revale-demo?action=confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tx:emp.tx,token:emp.token})});var d=await r.json();
+    if(r.status===401){await loadEmployee();throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.")}
     if(!r.ok)throw new Error(d.error||"No se pudo confirmar");
     emp.balanceBefore=d.balanceBefore==null?emp.currentBalance:Number(d.balanceBefore);emp.balanceAfter=d.balanceAfter==null?(emp.balanceBefore-emp.amount):Number(d.balanceAfter);emp.currentBalance=emp.balanceAfter;employeeSuccess()
-  }catch(e){b.disabled=false;b.textContent="Confirmar pago";toast(e.message||"Intenta nuevamente")}
+  }catch(e){if(q("confirmBtn")){b.disabled=false;b.textContent="Confirmar pago"}toast(e.message||"Intenta nuevamente")}
 }
 function employeeSuccess(){
   var remaining=emp.balanceAfter==null?emp.currentBalance:emp.balanceAfter;
