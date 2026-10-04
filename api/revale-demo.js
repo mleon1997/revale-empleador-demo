@@ -15,7 +15,8 @@ import {
   ensureSettlementTaxSchema,
   ensureFeeInvoiceForSettlement,
   getSettlementTaxDocuments,
-  reportMerchantWithholding
+  reportMerchantWithholding,
+  ensureFeeCreditNoteForReversal
 } from "../lib/revale-settlement-tax.js";
 
 
@@ -42,7 +43,7 @@ async function postReversalAccounting(sql, tx, result) {
   if(!ctx) return null;
 
   const amount=Math.round((Number(result.amount||ctx.amount||0)+Number.EPSILON)*100)/100;
-  const isPostClose=Boolean(ctx.settlement_id)&&["closed","failed","paid","cancelled"].includes(ctx.settlement_status);
+  const isPostClose=Boolean(ctx.settlement_id)&&["closed","failed","paid","reconciled","cancelled"].includes(ctx.settlement_status);
   if(isPostClose){
     const discountRate=Number(ctx.settlement_metadata?.discount_rate||0);
     const taxRate=Number(ctx.settlement_metadata?.tax_rate||0);
@@ -73,6 +74,35 @@ async function postReversalAccounting(sql, tx, result) {
         balance_after:result.newBalance
       }
     });
+
+    const fiscalCorrection=await ensureFeeCreditNoteForReversal(sql,{
+      settlementId:ctx.settlement_id,
+      merchantId:ctx.merchant_id,
+      transactionId:tx,
+      feeReversal,
+      taxReversal,
+      reason:"Reverso de consumo "+tx
+    });
+
+    if(fiscalCorrection?.creditNote && !fiscalCorrection.idempotent){
+      await sql.query(
+        `INSERT INTO revale.audit_events (
+           merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata
+         ) VALUES ($1,'system',$2,'fee_credit_note.pending','merchant_fee_credit_note',$3,$4::jsonb)`,
+        [
+          ctx.merchant_id,
+          "merchant_reversal",
+          fiscalCorrection.creditNote.id,
+          JSON.stringify({
+            settlementId:ctx.settlement_id,
+            transactionId:tx,
+            subtotal:fiscalCorrection.creditNote.subtotal,
+            vatAmount:fiscalCorrection.creditNote.vat_amount,
+            totalAmount:fiscalCorrection.creditNote.total_amount
+          })
+        ]
+      );
+    }
 
     await sql.query(
       `INSERT INTO revale.settlement_items (
