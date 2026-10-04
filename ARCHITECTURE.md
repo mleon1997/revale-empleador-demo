@@ -59,6 +59,12 @@ The current stack is a modular-monolith target:
 - merchant_fee_credit_notes
 - merchant_withholdings
 
+### Treasury & safeguarding
+- treasury_bank_accounts
+- treasury_bank_balance_snapshots
+- treasury_internal_transfers
+- safeguarding_settings
+
 ### Platform controls
 - idempotency_keys
 - audit_events
@@ -79,6 +85,10 @@ The current stack is a modular-monolith target:
 12. Merchant payout is constrained by the posted merchant payable ledger, not only by settlement arithmetic.
 13. Paid settlements are not final until bank reconciliation reaches matched/reconciled status.
 14. Issued fiscal documents are never overwritten; post-issue corrections use linked credit notes and immutable adjustments.
+15. Every new employer bank receipt, employer refund and merchant payout must identify the ReVale treasury account used.
+16. Safeguarding coverage compares physically reported/rolled-forward client-funds bank balances against positive third-party obligations without netting receivables across counterparties.
+17. When safeguarding enforcement is enabled, merchant payouts and employer refunds are blocked unless bank balances are current and coverage is at least 100%.
+18. Excess sweeps from segregated accounts are limited to the lower of physical bank excess and ledger-supported excess; top-ups move ReVale own cash into the client-funds account through double-entry accounting.
 
 ## Immediate production backlog
 
