@@ -13,7 +13,8 @@ import {
 } from "../lib/revale-accounting.js";
 import {
   ensureSettlementTaxSchema,
-  reviewMerchantWithholding
+  reviewMerchantWithholding,
+  registerIssuedFeeInvoice
 } from "../lib/revale-settlement-tax.js";
 
 function json(res,code,body){
@@ -203,6 +204,37 @@ export default async function handler(req,res){
         [settlement?.merchant_id||null,principal.adminUserId,id,JSON.stringify({reason})]
       );
       return json(res,200,{ok:true,result});
+    }
+
+    if(req.method==="POST" && action==="register-fee-invoice"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const settlementId=String(req.body?.settlement_id||"");
+      const invoiceNumber=String(req.body?.invoice_number||"").trim().slice(0,80);
+      const accessKey=String(req.body?.access_key||"").trim().slice(0,160);
+      const issuedAt=req.body?.issued_at?String(req.body.issued_at):null;
+      const result=await registerIssuedFeeInvoice(sql,{
+        settlementId,invoiceNumber,accessKey,issuedAt,actorId:principal.adminUserId
+      });
+      if(result.code!=="ok"){
+        const messages={
+          not_found:"Liquidación no encontrada",
+          invoice_number_required:"Ingresa el número de factura",
+          duplicate_access_key:"La clave de acceso ya está registrada",
+          invalid_status:"La factura ya no puede modificarse"
+        };
+        return json(res,409,{ok:false,error:messages[result.code]||"No se pudo registrar la factura",detail:result});
+      }
+      const fi=result.invoice;
+      await sql.query(
+        `INSERT INTO revale.audit_events (
+           merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata
+         ) VALUES ($1,'revale_admin',$2,'fee_invoice.issued','merchant_fee_invoice',$3,$4::jsonb)`,
+        [
+          fi.merchant_id,principal.adminUserId,fi.id,
+          JSON.stringify({settlementId:fi.settlement_id,invoiceNumber:fi.invoice_number,accessKey:fi.access_key||null})
+        ]
+      );
+      return json(res,200,{ok:true,invoice:fi});
     }
 
     if(req.method==="GET" && action==="withholdings"){
