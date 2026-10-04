@@ -579,31 +579,60 @@ export default async function handler(req,res){
     if(req.method==="POST" && action==="schedule-payout"){
       if(!requireRoles(["superadmin","finance"]))return;
       const id=String(req.body?.id||"");
-      const result=await scheduleSettlementPayout(sql,id,principal.adminUserId);
+      const [row]=await sql.query(
+        `SELECT s.id,s.merchant_id,s.status,s.currency,
+                s.net_amount::float8 AS net_amount,
+                COALESCE((
+                  SELECT SUM(sa.amount) FROM revale.settlement_adjustments sa
+                  WHERE sa.settlement_id=s.id
+                ),0)::float8 AS adjustment_total,
+                COALESCE((
+                  SELECT SUM(l.credit-l.debit)
+                  FROM revale.gl_journal_lines l
+                  JOIN revale.gl_journals j ON j.id=l.journal_id AND j.status='posted'
+                  WHERE l.account_id='gl_merchant_payable' AND l.merchant_id=s.merchant_id
+                ),0)::float8 AS ledger_payable,
+                (SELECT COUNT(*) FROM revale.gl_journal_lines l
+                 JOIN revale.gl_journals j ON j.id=l.journal_id AND j.status='posted'
+                 WHERE l.account_id='gl_merchant_payable' AND l.merchant_id=s.merchant_id)::int AS ledger_lines
+         FROM revale.settlements s
+         WHERE s.id=$1
+         LIMIT 1`,
+        [id]
+      );
+      if(!row)return json(res,404,{ok:false,error:"Liquidación no encontrada"});
+      if(!["closed","failed"].includes(row.status)){
+        return json(res,409,{ok:false,error:"La liquidación no puede solicitar pago en su estado actual"});
+      }
+      const calculated=Math.round((Number(row.net_amount||0)+Number(row.adjustment_total||0)+Number.EPSILON)*100)/100;
+      const payable=Number(row.ledger_lines||0)>0
+        ? Math.max(0,Math.min(calculated,Number(row.ledger_payable||0)))
+        : calculated;
+      if(!(payable>0))return json(res,409,{ok:false,error:"La liquidación no tiene saldo pagable"});
+
+      const result=await createFinancialApprovalRequest(sql,{
+        actionType:"merchant_payout",
+        entityType:"settlement",
+        entityId:id,
+        amount:payable,
+        currency:String(row.currency||"USD").trim(),
+        payload:{merchant_id:row.merchant_id,calculated_payout:calculated},
+        requestNote:req.body?.note||null,
+        requestedBy:principal.adminUserId,
+        requestedByName:principal.displayName
+      });
       if(result.code!=="ok"){
         const messages={
-          not_found:"Liquidación no encontrada",
-          already_paid:"Esta liquidación ya está pagada",
-          invalid_status:"La liquidación no puede programarse en su estado actual",
-          non_positive_net:"El neto de esta liquidación no requiere transferencia",
-          bank_missing:"El comercio no tiene una cuenta bancaria verificada",
-          fee_invoice_pending:"Registra primero la factura ReVale emitida para esta liquidación",
-          withholding_pending:"Existe una retención reportada pendiente de verificación",
-          merchant_balance_offset:"El mayor contable del comercio no tiene saldo pagable; existe un reverso o saldo anterior que compensa esta liquidación",
-          credit_note_pending:"Existe una nota de crédito ReVale pendiente de emisión para este comercio",
-          credit_note_withholding_review_pending:"Existe una nota de crédito cuya retención asociada requiere revisión de Finanzas",
-          safeguarding_blocked:"Safeguarding está bloqueando pagos porque la cobertura no está saludable",
-          safeguarding_account_missing:"Configura una cuenta segregada primaria para pagos a comercios"
+          maker_not_allowed:"Tu usuario no tiene permiso para crear solicitudes financieras",
+          policy_disabled:"La política de aprobación para payouts está deshabilitada"
         };
-        return json(res,409,{ok:false,error:messages[result.code]||"No se pudo programar el pago",detail:result});
+        return json(res,409,{ok:false,error:messages[result.code]||"No se pudo crear la solicitud de pago",detail:result});
       }
-      const [settlement]=await sql.query("SELECT merchant_id FROM revale.settlements WHERE id=$1",[id]);
-      await sql.query(
-        `INSERT INTO revale.audit_events (merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata)
-         VALUES ($1,'revale_admin',$2,'settlement.payout_scheduled','settlement',$3,$4::jsonb)`,
-        [settlement?.merchant_id||null,principal.adminUserId,id,JSON.stringify({payoutId:result.payout.id,attemptNo:result.payout.attempt_no})]
-      );
-      return json(res,200,{ok:true,result});
+      await auditFinancialRequest(sql,{
+        principal,request:result.request,action:"financial_approval.requested",
+        metadata:{eligibleApprovers:result.eligibleApprovers,hasEnoughApprovers:result.hasEnoughApprovers}
+      });
+      return json(res,200,{ok:true,approvalRequired:true,result});
     }
 
     if(req.method==="POST" && action==="mark-payout-paid"){
@@ -1542,53 +1571,39 @@ export default async function handler(req,res){
       const bankReference=String(req.body?.bank_reference||"").trim().slice(0,160);
       const bankPostedOn=String(req.body?.bank_posted_on||"");
       const reason=String(req.body?.reason||"").trim().slice(0,500);
-      const result=await refundFundingExcess(sql,{
-        fundingBatchId:id,amount,bankReference,bankPostedOn,reason,
-        treasuryAccountId:req.body?.treasury_account_id||null,
-        actorId:principal.adminUserId
+      const treasuryAccountId=String(req.body?.treasury_account_id||"");
+      const summary=await fundingBatchMoneySummary(sql,id);
+      if(!summary)return json(res,404,{ok:false,error:"Fondeo no encontrado"});
+      if(!(amount>0))return json(res,400,{ok:false,error:"Ingresa un monto de devolución válido"});
+      if(amount>Number(summary.cash_available||0)+0.00001){
+        return json(res,409,{ok:false,error:"La devolución supera los fondos empresariales no asignados"});
+      }
+      if(!bankReference||!/^\d{4}-\d{2}-\d{2}$/.test(bankPostedOn)||!treasuryAccountId){
+        return json(res,400,{ok:false,error:"Completa cuenta de salida, referencia y fecha bancaria"});
+      }
+      const result=await createFinancialApprovalRequest(sql,{
+        actionType:"employer_refund",
+        entityType:"funding_batch",
+        entityId:id,
+        amount,
+        currency:String(summary.currency||"USD").trim(),
+        payload:{
+          bank_reference:bankReference,bank_posted_on:bankPostedOn,
+          reason:reason||null,treasury_account_id:treasuryAccountId,
+          employer_id:summary.employer_id
+        },
+        requestNote:reason||null,
+        requestedBy:principal.adminUserId,
+        requestedByName:principal.displayName
       });
       if(result.code!=="ok"){
-        const messages={
-          not_found:"Fondeo no encontrado",
-          invalid_status:"El fondeo no tiene fondos disponibles para devolución",
-          invalid_amount:"Ingresa un monto de devolución válido",
-          reference_required:"Ingresa la referencia bancaria",
-          date_required:"Ingresa la fecha del débito bancario",
-          refund_exceeds_available:"La devolución supera los fondos empresariales no asignados",
-          duplicate_reference:"La referencia bancaria ya está utilizada",
-          treasury_account_not_found:"La cuenta de tesorería no existe",
-          invalid_treasury_account:"Selecciona una cuenta activa de fondos de clientes",
-          treasury_account_required:"Configura una cuenta segregada para esta devolución",
-          safeguarding_blocked:"Safeguarding está bloqueando salidas hasta recuperar cobertura suficiente"
-        };
-        return json(res,409,{ok:false,error:messages[result.code]||"No se pudo registrar la devolución",detail:result});
+        return json(res,409,{ok:false,error:result.code==="maker_not_allowed"?"Tu usuario no tiene permiso para crear solicitudes financieras":"No se pudo crear la solicitud de devolución",detail:result});
       }
-      await emitAndPostAccountingEvent(sql,{
-          eventType:"funding_refunded",
-          sourceType:"funding_refund",
-          sourceId:result.refund.id,
-          eventKey:"confirmed",
-          amount:result.refund.amount,
-          currency:String(result.refund.currency||"USD").trim(),
-          employerId:result.refund.employer_id,
-          payload:{
-            funding_batch_id:id,
-            bank_reference:result.refund.bank_reference,
-            reason:result.refund.reason||null
-          }
-        });
-      if(!result.idempotent){
-        await sql.query(
-          `INSERT INTO revale.audit_events (
-             employer_id,actor_type,actor_id,action,resource_type,resource_id,metadata
-           ) VALUES ($1,'revale_admin',$2,'funding.refunded','employer_funding_refund',$3,$4::jsonb)`,
-          [
-            result.refund.employer_id,principal.adminUserId,result.refund.id,
-            JSON.stringify({fundingBatchId:id,amount:result.refund.amount,bankReference:result.refund.bank_reference})
-          ]
-        );
-      }
-      return json(res,200,{ok:true,result});
+      await auditFinancialRequest(sql,{
+        principal,request:result.request,action:"financial_approval.requested",
+        metadata:{eligibleApprovers:result.eligibleApprovers,hasEnoughApprovers:result.hasEnoughApprovers}
+      });
+      return json(res,200,{ok:true,approvalRequired:true,result});
     }
 
     if(req.method==="GET" && action==="branch-queue"){
@@ -1655,57 +1670,35 @@ export default async function handler(req,res){
     if(req.method==="POST" && action==="approve-funding"){
       if(!requireRoles(["superadmin","finance"]))return;
       const id=String(req.body?.id||"");
-      const [batch]=await sql.query(
-        "SELECT id,employer_id,program_id,amount::float8 AS amount,currency,status FROM revale.funding_batches WHERE id=$1 LIMIT 1",
-        [id]
-      );
-      if(!batch)return json(res,404,{ok:false,error:"Fondeo no encontrado"});
-
-      const result=await confirmFundingBatchAtomic(sql,id);
+      const summary=await fundingBatchMoneySummary(sql,id);
+      if(!summary)return json(res,404,{ok:false,error:"Fondeo no encontrado"});
+      if(summary.status!=="received"){
+        return json(res,409,{ok:false,error:"Primero confirma que el dinero ingresó al banco"});
+      }
+      const amount=Number(summary.pending_allocation||0);
+      if(!(amount>0))return json(res,409,{ok:false,error:"El fondeo no tiene asignaciones pendientes"});
+      if(Number(summary.cash_available||0)+0.00001<amount){
+        return json(res,409,{ok:false,error:"Los fondos bancarios verificados no cubren las asignaciones"});
+      }
+      const result=await createFinancialApprovalRequest(sql,{
+        actionType:"funding_allocation",
+        entityType:"funding_batch",
+        entityId:id,
+        amount,
+        currency:String(summary.currency||"USD").trim(),
+        payload:{employer_id:summary.employer_id,program_id:summary.program_id},
+        requestNote:req.body?.note||null,
+        requestedBy:principal.adminUserId,
+        requestedByName:principal.displayName
+      });
       if(result.code!=="ok"){
-        const messages={
-          no_items:"El fondeo no tiene colaboradores preparados",
-          funds_not_received:"Primero confirma que el dinero ingresó al banco",
-          insufficient_received_funds:"Los fondos bancarios verificados no cubren las asignaciones",
-          invalid_status:"El fondeo no puede procesarse"
-        };
-        return json(res,409,{ok:false,error:messages[result.code]||"No se pudo acreditar el fondeo",detail:result});
+        return json(res,409,{ok:false,error:result.code==="maker_not_allowed"?"Tu usuario no tiene permiso para crear solicitudes financieras":"No se pudo crear la aprobación del fondeo",detail:result});
       }
-
-      const allocatedAmount=Number(result.allocatedAmount||result.summary?.allocated_amount||0);
-      if(allocatedAmount>0){
-        await emitAndPostAccountingEvent(sql,{
-          eventType:"funding_allocated",
-          sourceType:"funding_batch",
-          sourceId:id,
-          eventKey:"allocated_v2",
-          amount:allocatedAmount,
-          currency:String(batch.currency||"USD").trim(),
-          employerId:batch.employer_id,
-          payload:{
-            program_id:batch.program_id,
-            allocated_by:principal.adminUserId,
-            verified_cash:true,
-            received_amount:result.summary?.received_amount||0,
-            excess_after_allocation:result.summary?.cash_available||0
-          }
-        });
-      }
-      await sql.query(
-        `INSERT INTO revale.audit_events (
-           employer_id,actor_type,actor_id,action,resource_type,resource_id,metadata
-         ) VALUES ($1,'revale_admin',$2,'funding.allocated','funding_batch',$3,$4::jsonb)`,
-        [
-          batch.employer_id,principal.adminUserId,id,
-          JSON.stringify({
-            role:principal.role,
-            allocatedAmount,
-            receivedAmount:result.summary?.received_amount||0,
-            unallocatedCash:result.summary?.cash_available||0
-          })
-        ]
-      );
-      return json(res,200,{ok:true,result});
+      await auditFinancialRequest(sql,{
+        principal,request:result.request,action:"financial_approval.requested",
+        metadata:{eligibleApprovers:result.eligibleApprovers,hasEnoughApprovers:result.hasEnoughApprovers}
+      });
+      return json(res,200,{ok:true,approvalRequired:true,result});
     }
 
     if(req.method==="POST" && action==="reject-funding"){
