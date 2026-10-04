@@ -39,6 +39,21 @@ import {
   ignoreBankStatementEntry
 } from "../lib/revale-bank-reconciliation.js";
 import {
+  ensureFinancialApprovalSchema,
+  financialPermission,
+  listFinancialPolicies,
+  listFinancialUsers,
+  updateFinancialUserPermission,
+  updateFinancialPolicy,
+  createFinancialApprovalRequest,
+  listFinancialApprovalRequests,
+  approvalDecision,
+  getFinancialApprovalRequest,
+  claimFinancialApprovalForExecution,
+  finishFinancialApprovalExecution,
+  pendingApprovalSummary
+} from "../lib/revale-financial-approvals.js";
+import {
   ensureSettlementTaxSchema,
   reviewMerchantWithholding,
   registerIssuedFeeInvoice,
@@ -57,6 +72,221 @@ function safeLocationId(merchantId,name){
   return "location_"+String(merchantId).replace(/^merchant_/,"").replace(/[^a-z0-9_]+/gi,"_")+"_"+slugify(name).replace(/-/g,"_")+"_"+Date.now().toString(36);
 }
 
+async function executeApprovedFinancialAction(sql,request,actorId){
+  const payload=request.payload||{};
+  if(request.action_type==="funding_allocation"){
+    const before=await fundingBatchMoneySummary(sql,request.entity_id);
+    if(!before)return {code:"not_found"};
+    if(Number(before.pending_allocation||0)>Number(request.amount||0)+0.00001){
+      return {code:"approval_amount_exceeded",approved_amount:request.amount,required:before.pending_allocation};
+    }
+    const [batch]=await sql.query(
+      `SELECT id,employer_id,program_id,currency,status
+       FROM revale.funding_batches WHERE id=$1 LIMIT 1`,
+      [request.entity_id]
+    );
+    if(!batch)return {code:"not_found"};
+    const result=await confirmFundingBatchAtomic(sql,request.entity_id);
+    if(result.code!=="ok")return result;
+    const allocatedAmount=Number(result.allocatedAmount||result.summary?.allocated_amount||0);
+    if(allocatedAmount>Number(request.amount||0)+0.00001){
+      return {code:"approval_amount_exceeded",approved_amount:request.amount,allocated_amount:allocatedAmount};
+    }
+    if(allocatedAmount>0){
+      await emitAndPostAccountingEvent(sql,{
+        eventType:"funding_allocated",
+        sourceType:"funding_batch",
+        sourceId:request.entity_id,
+        eventKey:"allocated_v2",
+        amount:allocatedAmount,
+        currency:String(batch.currency||"USD").trim(),
+        employerId:batch.employer_id,
+        payload:{
+          program_id:batch.program_id,
+          allocated_by:actorId,
+          verified_cash:true,
+          financial_approval_request_id:request.id,
+          received_amount:result.summary?.received_amount||0,
+          excess_after_allocation:result.summary?.cash_available||0
+        }
+      });
+    }
+    return {code:"ok",result:{...result,allocatedAmount}};
+  }
+
+  if(request.action_type==="merchant_payout"){
+    const result=await scheduleSettlementPayout(
+      sql,request.entity_id,actorId,{maxApprovedAmount:Number(request.amount||0)}
+    );
+    if(result.code!=="ok")return result;
+    return {code:"ok",result};
+  }
+
+  if(request.action_type==="employer_refund"){
+    const result=await refundFundingExcess(sql,{
+      fundingBatchId:request.entity_id,
+      amount:Number(request.amount||0),
+      bankReference:payload.bank_reference,
+      bankPostedOn:payload.bank_posted_on,
+      reason:payload.reason||null,
+      treasuryAccountId:payload.treasury_account_id||null,
+      actorId
+    });
+    if(result.code!=="ok")return result;
+    await emitAndPostAccountingEvent(sql,{
+      eventType:"funding_refunded",
+      sourceType:"funding_refund",
+      sourceId:result.refund.id,
+      eventKey:"confirmed",
+      amount:result.refund.amount,
+      currency:String(result.refund.currency||request.currency||"USD").trim(),
+      employerId:result.refund.employer_id,
+      payload:{
+        funding_batch_id:request.entity_id,
+        bank_reference:result.refund.bank_reference,
+        reason:result.refund.reason||null,
+        financial_approval_request_id:request.id
+      }
+    });
+    return {code:"ok",result};
+  }
+
+  if(request.action_type==="safeguarding_topup"||request.action_type==="safeguarding_sweep"){
+    const transferType=request.action_type==="safeguarding_topup"?"safeguarding_topup":"excess_sweep";
+    const result=await registerTreasuryTransfer(sql,{
+      transferType,
+      amount:Number(request.amount||0),
+      bankReference:payload.bank_reference,
+      bankPostedOn:payload.bank_posted_on,
+      fromAccountId:payload.from_account_id||null,
+      toAccountId:payload.to_account_id||null,
+      actorId
+    });
+    if(result.code!=="ok")return result;
+    const t=result.transfer;
+    await emitAndPostAccountingEvent(sql,{
+      eventType:t.transfer_type==="safeguarding_topup"?"safeguarding_topup":"safeguarding_sweep",
+      sourceType:"treasury_internal_transfer",
+      sourceId:t.id,
+      eventKey:"confirmed",
+      amount:t.amount,
+      currency:String(t.currency||"USD").trim(),
+      payload:{
+        from_account_id:t.from_account_id,
+        to_account_id:t.to_account_id,
+        bank_reference:t.bank_reference,
+        bank_posted_on:t.bank_posted_on,
+        financial_approval_request_id:request.id
+      }
+    });
+    return {code:"ok",result};
+  }
+
+  if(request.action_type==="withholding_verification"){
+    const result=await reviewMerchantWithholding(sql,{
+      withholdingId:request.entity_id,
+      decision:"verify",
+      actorId,
+      rejectionReason:null
+    });
+    if(result.code!=="ok")return result;
+    const w=result.withholding;
+    if(Number(w.total_amount||request.amount||0)>Number(request.amount||0)+0.00001){
+      return {code:"approval_amount_exceeded",approved_amount:request.amount,actual_amount:w.total_amount};
+    }
+    await emitAndPostAccountingEvent(sql,{
+      eventType:"merchant_withholding_verified",
+      sourceType:"merchant_withholding",
+      sourceId:w.id,
+      eventKey:"verified",
+      amount:Number(w.total_amount||request.amount||0),
+      merchantId:w.merchant_id,
+      settlementId:w.settlement_id,
+      payload:{
+        document_number:w.document_number||null,
+        income_tax_amount:w.income_tax_amount||0,
+        vat_withheld_amount:w.vat_withheld_amount||0,
+        financial_approval_request_id:request.id
+      }
+    });
+    return {code:"ok",result};
+  }
+
+  if(request.action_type==="credit_note_withholding"){
+    const result=await resolveFeeCreditNoteWithholding(sql,{
+      creditNoteId:request.entity_id,
+      withholdingAdjustmentAmount:Number(request.amount||0),
+      resolutionNote:payload.resolution_note||null,
+      actorId
+    });
+    if(result.code!=="ok")return result;
+    const cn=result.creditNote;
+    if(Number(request.amount||0)>0){
+      await emitAndPostAccountingEvent(sql,{
+        eventType:"merchant_withholding_credit_reversed",
+        sourceType:"fee_credit_note",
+        sourceId:cn.id,
+        eventKey:"withholding_credit_reversed",
+        amount:Number(request.amount||0),
+        merchantId:cn.merchant_id,
+        settlementId:cn.settlement_id,
+        transactionId:cn.transaction_id||null,
+        payload:{
+          credit_note_number:cn.credit_note_number||null,
+          resolution_note:payload.resolution_note||null,
+          financial_approval_request_id:request.id
+        }
+      });
+    }
+    return {code:"ok",result};
+  }
+
+  return {code:"unsupported_action"};
+}
+
+async function executeFinancialApprovalRequest(sql,requestId,actorId){
+  const claim=await claimFinancialApprovalForExecution(sql,requestId,actorId);
+  if(claim.code!=="ok")return claim;
+  const request=claim.request;
+  try{
+    const execution=await executeApprovedFinancialAction(sql,request,actorId);
+    if(execution.code!=="ok"){
+      await finishFinancialApprovalExecution(sql,{
+        requestId:request.id,success:false,result:execution,
+        failureReason:execution.code||"domain_error"
+      });
+      return {code:"execution_failed",request,detail:execution};
+    }
+    await finishFinancialApprovalExecution(sql,{
+      requestId:request.id,success:true,result:execution.result||execution
+    });
+    return {code:"ok",request,result:execution.result||execution};
+  }catch(error){
+    await finishFinancialApprovalExecution(sql,{
+      requestId:request.id,success:false,
+      result:{message:String(error?.message||error)},
+      failureReason:String(error?.message||error)
+    });
+    throw error;
+  }
+}
+
+async function auditFinancialRequest(sql,{principal,request,action,metadata={}}){
+  await sql.query(
+    `INSERT INTO revale.audit_events (
+       actor_type,actor_id,action,resource_type,resource_id,metadata
+     ) VALUES ('revale_admin',$1,$2,'financial_approval_request',$3,$4::jsonb)`,
+    [
+      principal.adminUserId,action,request.id,
+      JSON.stringify({
+        actionType:request.action_type,entityType:request.entity_type,
+        entityId:request.entity_id,amount:request.amount,currency:request.currency,
+        ...metadata
+      })
+    ]
+  );
+}
+
 export default async function handler(req,res){
   const action=String(req.query?.action||"");
   try{
@@ -65,6 +295,7 @@ export default async function handler(req,res){
     await ensureFundingTreasurySchema(sql);
     await ensureSafeguardingSchema(sql);
     await ensureBankReconciliationSchema(sql);
+    await ensureFinancialApprovalSchema(sql);
     const principal=await getAdminPrincipal(sql,req);
     if(!principal)return json(res,401,{ok:false,error:"Sesión requerida"});
 
