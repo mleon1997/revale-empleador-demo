@@ -49,7 +49,7 @@ async function postReversalAccounting(sql, tx, result) {
     const feeReversal=Math.round((amount*discountRate+Number.EPSILON)*100)/100;
     const taxReversal=Math.round((feeReversal*taxRate+Number.EPSILON)*100)/100;
     const merchantRecovery=Math.round((amount-feeReversal-taxReversal+Number.EPSILON)*100)/100;
-    return emitAndPostAccountingEvent(sql,{
+    const posting=await emitAndPostAccountingEvent(sql,{
       eventType:"settled_redemption_reversed",
       sourceType:"transaction",
       sourceId:tx,
@@ -73,6 +73,55 @@ async function postReversalAccounting(sql, tx, result) {
         balance_after:result.newBalance
       }
     });
+
+    if(["closed","failed"].includes(ctx.settlement_status)&&merchantRecovery>0){
+      const adjustmentId="adj_rev_"+String(tx).replace(/[^a-z0-9_]/gi,"_");
+      await sql.query(
+        `INSERT INTO revale.settlement_adjustments (
+           id,settlement_id,merchant_id,adjustment_type,source_type,source_id,
+           amount,currency,reason,metadata,created_by
+         ) VALUES (
+           $1,$2,$3,'post_close_reversal','transaction',$4,$5,'USD',
+           'Reverso posterior al cierre antes del pago',
+           jsonb_build_object('gross_amount',$6,'fee_reversal',$7,'tax_reversal',$8),
+           $9
+         )
+         ON CONFLICT (settlement_id,source_type,source_id,adjustment_type) DO NOTHING`,
+        [
+          adjustmentId,ctx.settlement_id,ctx.merchant_id,tx,-merchantRecovery,
+          amount,feeReversal,taxReversal,"merchant_reversal"
+        ]
+      );
+
+      const [remaining]=await sql.query(
+        `SELECT
+           s.net_amount::float8 AS net_amount,
+           COALESCE(SUM(sa.amount),0)::float8 AS adjustments,
+           (s.net_amount+COALESCE(SUM(sa.amount),0))::float8 AS transfer_amount
+         FROM revale.settlements s
+         LEFT JOIN revale.settlement_adjustments sa ON sa.settlement_id=s.id
+         WHERE s.id=$1
+         GROUP BY s.id,s.net_amount`,
+        [ctx.settlement_id]
+      );
+      if(Number(remaining?.transfer_amount||0)<=0){
+        await sql.query(
+          `UPDATE revale.settlements
+           SET status='cancelled',
+               metadata=metadata||jsonb_build_object('cancelled_reason','post_close_reversal'),
+               updated_at=now()
+           WHERE id=$1 AND status IN ('closed','failed')`,
+          [ctx.settlement_id]
+        );
+        await sql.query(
+          `INSERT INTO revale.settlement_events (settlement_id,event_type,actor_id,payload)
+           VALUES ($1,'cancelled',$2,jsonb_build_object('reason','post_close_reversal','transaction_id',$3))
+          `,
+          [ctx.settlement_id,"merchant_reversal",tx]
+        );
+      }
+    }
+    return posting;
   }
 
   return emitAndPostAccountingEvent(sql,{
