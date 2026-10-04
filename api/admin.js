@@ -27,6 +27,17 @@ import {
   registerTreasuryTransfer
 } from "../lib/revale-safeguarding.js";
 import {
+  ensureBankReconciliationSchema,
+  previewBankStatement,
+  importBankStatement,
+  generateBankMatchSuggestions,
+  listBankStatementImports,
+  listBankStatementEntries,
+  getBankStatementEntry,
+  markBankStatementEntryMatched,
+  ignoreBankStatementEntry
+} from "../lib/revale-bank-reconciliation.js";
+import {
   ensureSettlementTaxSchema,
   reviewMerchantWithholding,
   registerIssuedFeeInvoice,
@@ -52,6 +63,7 @@ export default async function handler(req,res){
     await ensureSettlementTaxSchema(sql);
     await ensureFundingTreasurySchema(sql);
     await ensureSafeguardingSchema(sql);
+    await ensureBankReconciliationSchema(sql);
     const principal=await getAdminPrincipal(sql,req);
     if(!principal)return json(res,401,{ok:false,error:"Sesión requerida"});
 
@@ -750,6 +762,291 @@ export default async function handler(req,res){
         );
       }
       return json(res,200,{ok:true,result:{...result,control:await safeguardingControl(sql)}});
+    }
+
+    if(req.method==="POST" && action==="bank-statement-preview"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      try{
+        const result=await previewBankStatement({
+          filename:req.body?.filename,
+          text:req.body?.text||null,
+          dataBase64:req.body?.data_base64||null
+        });
+        if(result.code!=="ok")return json(res,409,{ok:false,error:"No se encontraron filas utilizables en el archivo",detail:result});
+        return json(res,200,{ok:true,preview:result});
+      }catch(error){
+        const code=String(error?.message||error);
+        const messages={
+          FILE_TOO_LARGE:"El archivo supera el máximo de 3 MB",
+          XLSX_DATA_REQUIRED:"No se recibió el contenido XLSX",
+          XLSX_NO_SHEET:"El archivo XLSX no contiene hojas"
+        };
+        return json(res,400,{ok:false,error:messages[code]||"No se pudo leer el extracto bancario"});
+      }
+    }
+
+    if(req.method==="POST" && action==="bank-statement-import"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      try{
+        const result=await importBankStatement(sql,{
+          treasuryAccountId:String(req.body?.treasury_account_id||""),
+          filename:req.body?.filename,
+          text:req.body?.text||null,
+          dataBase64:req.body?.data_base64||null,
+          mapping:req.body?.mapping||{},
+          actorId:principal.adminUserId
+        });
+        if(result.code!=="ok"){
+          const messages={
+            account_not_found:"Cuenta de tesorería no encontrada",
+            account_inactive:"La cuenta de tesorería está inactiva",
+            empty:"El archivo está vacío",
+            date_column_required:"Selecciona la columna de fecha",
+            amount_column_required:"Selecciona monto o columnas débito/crédito",
+            no_valid_rows:"No se encontraron movimientos con fecha y monto válidos"
+          };
+          return json(res,409,{ok:false,error:messages[result.code]||"No se pudo importar el extracto",detail:result});
+        }
+
+        let balanceSnapshot=null;
+        if(req.body?.update_balance && result.closingBalance && !result.idempotent){
+          const bookingDate=result.closingBalance.bookingDate;
+          const balanceResult=await recordTreasuryBalance(sql,{
+            accountId:String(req.body?.treasury_account_id||""),
+            balance:result.closingBalance.balance,
+            availableBalance:result.closingBalance.balance,
+            asOf:bookingDate+"T23:59:59-05:00",
+            source:"bank_import",
+            statementReference:result.closingBalance.reference,
+            actorId:principal.adminUserId
+          });
+          if(balanceResult.code==="ok")balanceSnapshot=balanceResult.snapshot;
+        }
+
+        await sql.query(
+          `INSERT INTO revale.audit_events (
+             actor_type,actor_id,action,resource_type,resource_id,metadata
+           ) VALUES ('revale_admin',$1,'bank_statement.imported','bank_statement_import',$2,$3::jsonb)`,
+          [
+            principal.adminUserId,result.importId||result.import?.id,
+            JSON.stringify({
+              filename:req.body?.filename||null,inserted:result.inserted||0,
+              duplicates:result.duplicates||0,suggested:result.suggested||0,
+              balanceUpdated:Boolean(balanceSnapshot)
+            })
+          ]
+        );
+        return json(res,200,{ok:true,result,balanceSnapshot,control:await safeguardingControl(sql)});
+      }catch(error){
+        const code=String(error?.message||error);
+        const messages={
+          FILE_TOO_LARGE:"El archivo supera el máximo de 3 MB",
+          XLSX_DATA_REQUIRED:"No se recibió el contenido XLSX",
+          XLSX_NO_SHEET:"El archivo XLSX no contiene hojas"
+        };
+        return json(res,400,{ok:false,error:messages[code]||"No se pudo importar el extracto bancario"});
+      }
+    }
+
+    if(req.method==="GET" && action==="bank-statement-imports"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const items=await listBankStatementImports(sql,50);
+      return json(res,200,{ok:true,items});
+    }
+
+    if(req.method==="GET" && action==="bank-statement-entries"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const items=await listBankStatementEntries(sql,{
+        importId:req.query?.import_id?String(req.query.import_id):null,
+        status:req.query?.status?String(req.query.status):null,
+        limit:500
+      });
+      return json(res,200,{ok:true,items});
+    }
+
+    if(req.method==="POST" && action==="refresh-bank-matches"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const importId=String(req.body?.import_id||"");
+      const result=await generateBankMatchSuggestions(sql,importId);
+      return json(res,200,{ok:true,result});
+    }
+
+    if(req.method==="POST" && action==="ignore-bank-entry"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const entryId=String(req.body?.id||"");
+      const result=await ignoreBankStatementEntry(sql,{
+        entryId,actorId:principal.adminUserId,reason:req.body?.reason
+      });
+      if(result.code!=="ok")return json(res,409,{ok:false,error:"El movimiento no puede ignorarse",detail:result});
+      await sql.query(
+        `INSERT INTO revale.audit_events (
+           actor_type,actor_id,action,resource_type,resource_id,metadata
+         ) VALUES ('revale_admin',$1,'bank_statement_entry.ignored','bank_statement_entry',$2,$3::jsonb)`,
+        [principal.adminUserId,entryId,JSON.stringify({reason:req.body?.reason||null})]
+      );
+      return json(res,200,{ok:true,result});
+    }
+
+    if(req.method==="POST" && action==="confirm-bank-match"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const entryId=String(req.body?.id||"");
+      const entry=await getBankStatementEntry(sql,entryId);
+      if(!entry)return json(res,404,{ok:false,error:"Movimiento bancario no encontrado"});
+      if(entry.match_status==="matched"){
+        return json(res,200,{ok:true,idempotent:true,entry});
+      }
+
+      const candidateType=String(req.body?.candidate_type||entry.suggested_type||"");
+      const candidateId=String(req.body?.candidate_id||entry.suggested_id||"");
+      if(!candidateType||!candidateId){
+        return json(res,400,{ok:false,error:"Selecciona un match antes de confirmar"});
+      }
+
+      const absoluteAmount=Math.abs(Number(entry.amount||0));
+      const bankReference=String(entry.bank_reference||("STATEMENT-"+entry.id)).slice(0,160);
+      let matchedType=candidateType,matchedId=candidateId,matchMetadata={};
+
+      if(candidateType==="funding_batch"){
+        if(Number(entry.amount)<=0)return json(res,409,{ok:false,error:"Un fondeo debe corresponder a un ingreso bancario"});
+        const result=await registerFundingReceipt(sql,{
+          fundingBatchId:candidateId,
+          amount:absoluteAmount,
+          bankReference,
+          bankPostedOn:entry.booking_date,
+          treasuryAccountId:entry.treasury_account_id,
+          actorId:principal.adminUserId
+        });
+        if(result.code!=="ok"){
+          return json(res,409,{ok:false,error:"No se pudo aplicar el ingreso al fondeo",detail:result});
+        }
+        await emitAndPostAccountingEvent(sql,{
+          eventType:"funding_cash_received",
+          sourceType:"funding_receipt",
+          sourceId:result.receipt.id,
+          eventKey:"confirmed",
+          amount:result.receipt.amount,
+          currency:String(result.receipt.currency||"USD").trim(),
+          employerId:result.receipt.employer_id,
+          payload:{
+            funding_batch_id:candidateId,
+            bank_reference:result.receipt.bank_reference,
+            bank_posted_on:result.receipt.bank_posted_on,
+            bank_statement_entry_id:entry.id,
+            confirmed_by:principal.adminUserId
+          }
+        });
+        matchedType="funding_receipt";matchedId=result.receipt.id;
+        matchMetadata={funding_batch_id:candidateId,created_from_statement:true};
+      }else if(candidateType==="funding_receipt"){
+        const [row]=await sql.query(
+          `SELECT id,treasury_account_id,amount::float8 AS amount
+           FROM revale.employer_funding_receipts WHERE id=$1 AND status='confirmed' LIMIT 1`,
+          [candidateId]
+        );
+        if(!row||row.treasury_account_id!==entry.treasury_account_id||Math.abs(Number(row.amount)-absoluteAmount)>0.01){
+          return json(res,409,{ok:false,error:"El fondeo registrado no coincide con cuenta/monto del extracto"});
+        }
+      }else if(candidateType==="funding_refund"){
+        if(Number(entry.amount)>=0)return json(res,409,{ok:false,error:"Una devolución debe ser un débito bancario"});
+        const [row]=await sql.query(
+          `SELECT id,treasury_account_id,amount::float8 AS amount
+           FROM revale.employer_funding_refunds WHERE id=$1 AND status='confirmed' LIMIT 1`,
+          [candidateId]
+        );
+        if(!row||row.treasury_account_id!==entry.treasury_account_id||Math.abs(Number(row.amount)-absoluteAmount)>0.01){
+          return json(res,409,{ok:false,error:"La devolución registrada no coincide con cuenta/monto del extracto"});
+        }
+      }else if(candidateType==="treasury_transfer"){
+        const [row]=await sql.query(
+          `SELECT id,from_account_id,to_account_id,amount::float8 AS amount
+           FROM revale.treasury_internal_transfers WHERE id=$1 AND status='confirmed' LIMIT 1`,
+          [candidateId]
+        );
+        if(!row||Math.abs(Number(row.amount)-absoluteAmount)>0.01){
+          return json(res,409,{ok:false,error:"La transferencia interna no coincide con el monto del extracto"});
+        }
+        const expectedSign=row.to_account_id===entry.treasury_account_id?1:row.from_account_id===entry.treasury_account_id?-1:0;
+        if(!expectedSign||Math.sign(Number(entry.amount))!==expectedSign){
+          return json(res,409,{ok:false,error:"La transferencia no corresponde a esta cuenta o dirección"});
+        }
+      }else if(candidateType==="settlement_payout"){
+        if(Number(entry.amount)>=0)return json(res,409,{ok:false,error:"Un payout debe corresponder a un débito bancario"});
+        const [payout]=await sql.query(
+          `SELECT p.id::text AS id,p.settlement_id,p.source_treasury_account_id,
+                  p.amount::float8 AS amount,p.currency,p.status,s.merchant_id
+           FROM revale.settlement_payouts p
+           JOIN revale.settlements s ON s.id=p.settlement_id
+           WHERE p.id::text=$1
+           LIMIT 1`,
+          [candidateId]
+        );
+        if(!payout)return json(res,404,{ok:false,error:"Payout no encontrado"});
+        if(payout.source_treasury_account_id!==entry.treasury_account_id||Math.abs(Number(payout.amount)-absoluteAmount)>0.01){
+          return json(res,409,{ok:false,error:"El payout no coincide con cuenta/monto del extracto"});
+        }
+
+        if(["scheduled","processing"].includes(payout.status)){
+          const paid=await markSettlementPaid(
+            sql,payout.settlement_id,bankReference,principal.adminUserId,{bankEvidence:true}
+          );
+          if(paid.code!=="ok")return json(res,409,{ok:false,error:"No se pudo registrar el payout observado en banco",detail:paid});
+          const payoutAmount=Number(paid.settlement?.payout_amount||payout.amount||0);
+          await emitAndPostAccountingEvent(sql,{
+            eventType:"merchant_payout_paid",
+            sourceType:"settlement",
+            sourceId:payout.settlement_id,
+            eventKey:"paid",
+            amount:payoutAmount,
+            currency:String(paid.settlement?.payout_currency||payout.currency||"USD").trim(),
+            merchantId:payout.merchant_id,
+            settlementId:payout.settlement_id,
+            payload:{
+              payout_reference:bankReference,payout_id:payout.id,payout_amount:payoutAmount,
+              bank_statement_entry_id:entry.id,bank_evidence_override:Boolean(paid.bankEvidenceOverride)
+            }
+          });
+          if(paid.bankEvidenceOverride){
+            await sql.query(
+              `INSERT INTO revale.audit_events (
+                 merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata
+               ) VALUES ($1,'revale_admin',$2,'safeguarding.bank_evidence_override','settlement',$3,$4::jsonb)`,
+              [
+                payout.merchant_id,principal.adminUserId,payout.settlement_id,
+                JSON.stringify({bankStatementEntryId:entry.id,coverageStatus:paid.safeguard?.status||null})
+              ]
+            );
+          }
+        }
+
+        const reconciliation=await reconcileSettlementPayout(sql,{
+          settlementId:payout.settlement_id,
+          bankReference,
+          bankPostedOn:entry.booking_date,
+          bankAmount:absoluteAmount,
+          actorId:principal.adminUserId
+        });
+        if(reconciliation.code!=="ok"){
+          return json(res,409,{ok:false,error:"El pago se identificó, pero no pudo conciliarse",detail:reconciliation});
+        }
+        matchMetadata={settlement_id:payout.settlement_id,reconciliation_id:reconciliation.reconciliation?.id||null};
+      }else{
+        return json(res,400,{ok:false,error:"Tipo de match no soportado"});
+      }
+
+      const matched=await markBankStatementEntryMatched(sql,{
+        entryId,matchedType,matchedId,actorId:principal.adminUserId,
+        metadata:{...matchMetadata,confirmed_candidate_type:candidateType,confirmed_candidate_id:candidateId}
+      });
+      await sql.query(
+        `INSERT INTO revale.audit_events (
+           actor_type,actor_id,action,resource_type,resource_id,metadata
+         ) VALUES ('revale_admin',$1,'bank_statement_entry.matched','bank_statement_entry',$2,$3::jsonb)`,
+        [
+          principal.adminUserId,entryId,
+          JSON.stringify({candidateType,candidateId,matchedType,matchedId,amount:entry.amount,bookingDate:entry.booking_date})
+        ]
+      );
+      return json(res,200,{ok:true,matched,control:await safeguardingControl(sql)});
     }
 
     if(req.method==="GET" && action==="funding-queue"){
