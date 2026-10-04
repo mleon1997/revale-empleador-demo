@@ -42,7 +42,7 @@ async function postReversalAccounting(sql, tx, result) {
   if(!ctx) return null;
 
   const amount=Math.round((Number(result.amount||ctx.amount||0)+Number.EPSILON)*100)/100;
-  const isPostClose=Boolean(ctx.settlement_id)&&["closed","failed","paid"].includes(ctx.settlement_status);
+  const isPostClose=Boolean(ctx.settlement_id)&&["closed","failed","paid","cancelled"].includes(ctx.settlement_status);
   if(isPostClose){
     const discountRate=Number(ctx.settlement_metadata?.discount_rate||0);
     const taxRate=Number(ctx.settlement_metadata?.tax_rate||0);
@@ -73,6 +73,23 @@ async function postReversalAccounting(sql, tx, result) {
         balance_after:result.newBalance
       }
     });
+
+    await sql.query(
+      `INSERT INTO revale.settlement_items (
+         settlement_id,transaction_id,item_type,amount,metadata
+       ) VALUES (
+         $1,$2,'reversal',$3,
+         jsonb_build_object(
+           'post_close',true,
+           'processed_at',now(),
+           'merchant_recovery',$4,
+           'fee_reversal',$5,
+           'tax_reversal',$6
+         )
+       )
+       ON CONFLICT (transaction_id,item_type) WHERE transaction_id IS NOT NULL DO NOTHING`,
+      [ctx.settlement_id,tx,-amount,merchantRecovery,feeReversal,taxReversal]
+    );
 
     if(["closed","failed"].includes(ctx.settlement_status)&&merchantRecovery>0){
       const adjustmentId="adj_rev_"+String(tx).replace(/[^a-z0-9_]/gi,"_");
