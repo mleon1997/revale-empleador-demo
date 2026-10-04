@@ -167,7 +167,8 @@ export default async function handler(req,res){
           non_positive_net:"El neto de esta liquidación no requiere transferencia",
           bank_missing:"El comercio no tiene una cuenta bancaria verificada",
           fee_invoice_pending:"Registra primero la factura ReVale emitida para esta liquidación",
-          withholding_pending:"Existe una retención reportada pendiente de verificación"
+          withholding_pending:"Existe una retención reportada pendiente de verificación",
+          merchant_balance_offset:"El mayor contable del comercio no tiene saldo pagable; existe un reverso o saldo anterior que compensa esta liquidación"
         };
         return json(res,409,{ok:false,error:messages[result.code]||"No se pudo programar el pago",detail:result});
       }
