@@ -91,6 +91,18 @@ button,input{font:inherit}.hidden{display:none!important}.word{font-weight:950;l
         <table class="table"><thead><tr><th>Cuenta</th><th>Uso</th><th>Último saldo</th><th>Movimientos posteriores</th><th>Saldo ajustado</th><th>Actualización</th><th></th></tr></thead><tbody id="treasuryAccountRows"><tr><td colspan="7">Sin cuentas configuradas.</td></tr></tbody></table>
         <div id="safeguardingNote" style="padding:12px 18px;border-top:1px solid #edf1ee;font-size:8px;color:#7d8782"></div>
       </section>
+      <section class="card" style="overflow:hidden;margin-bottom:15px">
+        <div class="section-head">
+          <div><h3>Conciliación bancaria</h3><p>Importa CSV/XLSX, revisa los matches sugeridos y confirma antes de afectar el ledger.</p></div>
+          <div class="actions">
+            <button class="btn primary" onclick="openBankStatementImport()">Importar extracto</button>
+            <button class="btn secondary" onclick="refreshLatestBankMatches()">Recalcular matches</button>
+          </div>
+        </div>
+        <table class="table"><thead><tr><th>Extracto</th><th>Cuenta</th><th>Filas</th><th>Matches</th><th>Pendientes</th><th>Estado</th><th></th></tr></thead><tbody id="bankImportRows"><tr><td colspan="7">Sin extractos importados.</td></tr></tbody></table>
+        <div class="section-head" style="border-top:1px solid #edf1ee"><div><h3>Movimientos del extracto</h3><p id="bankEntryMeta">Selecciona un extracto para revisar sus movimientos.</p></div></div>
+        <table class="table"><thead><tr><th>Fecha</th><th>Descripción / referencia</th><th style="text-align:right">Monto</th><th>Sugerencia</th><th>Estado</th><th></th></tr></thead><tbody id="bankEntryRows"><tr><td colspan="6">Sin movimientos cargados.</td></tr></tbody></table>
+      </section>
       <section class="card" style="overflow:hidden">
         <div class="section-head"><div><h3>Solicitudes y movimientos bancarios</h3><p>Solicitud → ingreso bancario → fondos verificados → acreditación.</p></div></div>
         <table class="table"><thead><tr><th>Solicitud</th><th>Empresa</th><th>Programa</th><th style="text-align:right">Asignaciones</th><th style="text-align:right">Banco recibido</th><th style="text-align:right">Faltante / exceso</th><th>Estado</th><th></th></tr></thead><tbody id="fundingRows"></tbody></table>
@@ -147,7 +159,7 @@ button,input{font:inherit}.hidden{display:none!important}.word{font-weight:950;l
 </section>
 <div id="modalRoot"></div>
 <script>
-const s={principal:null,overview:null,funding:[],settlements:[],withholdings:[],creditNotes:[],branches:[],banks:[],merchants:[],employers:[],accounting:null,treasury:null,safeguarding:null,audit:[]};
+const s={principal:null,overview:null,funding:[],settlements:[],withholdings:[],creditNotes:[],branches:[],banks:[],merchants:[],employers:[],accounting:null,treasury:null,safeguarding:null,bankImports:[],bankEntries:[],selectedBankImport:null,audit:[]};
 const q=id=>document.getElementById(id),money=n=>"$ "+Number(n||0).toFixed(2);
 function toast(m){const t=q("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800)}
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]))}
@@ -286,10 +298,17 @@ async function reconcileAccounting(){
 }
 async function loadTreasuryControl(){
   try{
-    const [gl,sg]=await Promise.all([api("treasury-control"),api("safeguarding")]);
-    s.treasury=gl.control||null;s.safeguarding=sg.control||null;renderTreasuryControl()
+    const [gl,sg,bi]=await Promise.all([api("treasury-control"),api("safeguarding"),api("bank-statement-imports")]);
+    s.treasury=gl.control||null;s.safeguarding=sg.control||null;s.bankImports=bi.items||[];
+    if(!s.selectedBankImport&&s.bankImports.length)s.selectedBankImport=s.bankImports[0].id;
+    if(s.selectedBankImport){
+      const be=await api("bank-statement-entries&import_id="+encodeURIComponent(s.selectedBankImport));
+      s.bankEntries=be.items||[]
+    }else s.bankEntries=[];
+    renderTreasuryControl();renderBankReconciliation()
   }catch(e){
-    s.treasury=null;s.safeguarding=null;renderTreasuryControl()
+    s.treasury=null;s.safeguarding=null;s.bankImports=[];s.bankEntries=[];
+    renderTreasuryControl();renderBankReconciliation()
   }
 }
 function safeguardingStatusView(status){
@@ -404,6 +423,122 @@ async function submitTreasuryTransfer(){
     })});
     closeModal();await loadTreasuryControl();toast("Transferencia de tesorería registrada")
   }catch(e){toast(e.message);b.disabled=false;b.textContent="Registrar transferencia"}
+}
+function bankImportStatus(v){
+  var map={imported:["Importado","neutral"],reviewed:["En revisión","pending"],completed:["Conciliado","ok"],failed:["Falló","no"]};
+  var x=map[v]||[v||"—","neutral"];return "<span class='status "+x[1]+"'>"+esc(x[0])+"</span>"
+}
+function bankEntryStatus(v){
+  var map={unmatched:["Sin match","neutral"],suggested:["Sugerido","pending"],matched:["Conciliado","ok"],ignored:["Ignorado","neutral"]};
+  var x=map[v]||[v||"—","neutral"];return "<span class='status "+x[1]+"'>"+esc(x[0])+"</span>"
+}
+function bankMatchLabel(type){
+  var map={funding_batch:"Fondeo pendiente",funding_receipt:"Ingreso registrado",funding_refund:"Devolución",settlement_payout:"Payout comercio",treasury_transfer:"Transferencia interna"};
+  return map[type]||type||"—"
+}
+function renderBankReconciliation(){
+  var imports=s.bankImports||[],body=q("bankImportRows");
+  if(body)body.innerHTML=imports.length?imports.map(x=>"<tr><td><b>"+esc(x.filename)+"</b><br/><small>"+new Date(x.created_at).toLocaleString("es-EC")+"</small></td><td>"+esc(x.bank_name+" · "+x.account_name+(x.account_number_last4?" · •••• "+x.account_number_last4:""))+"</td><td>"+Number(x.row_count||0)+(Number(x.duplicate_count||0)?"<br/><small>"+x.duplicate_count+" duplicada(s)</small>":"")+"</td><td>"+Number(x.matched_count||0)+"</td><td>"+Number(x.unmatched_count||0)+"</td><td>"+bankImportStatus(x.status)+"</td><td><button class='btn secondary' onclick='selectBankImport("+JSON.stringify(x.id)+")'>Revisar</button></td></tr>").join(""):"<tr><td colspan='7'>Sin extractos importados.</td></tr>";
+
+  var selected=imports.find(x=>x.id===s.selectedBankImport),entries=s.bankEntries||[];
+  if(q("bankEntryMeta"))q("bankEntryMeta").textContent=selected?selected.filename+" · "+entries.length+" movimiento(s)":"Selecciona un extracto para revisar sus movimientos.";
+  var rows=q("bankEntryRows");
+  if(rows)rows.innerHTML=entries.length?entries.map(e=>{
+    var suggestion=e.suggested_type?"<b>"+esc(bankMatchLabel(e.suggested_type))+"</b><br/><small>"+esc(e.suggested_id||"")+" · "+Number(e.suggested_score||0)+"% · "+esc(e.suggested_reason||"")+"</small>":"<span class='muted'>Sin sugerencia</span>";
+    var actions="";
+    if(e.match_status==="suggested")actions="<div class='actions'><button class='btn secondary' onclick='ignoreBankEntry("+JSON.stringify(e.id)+")'>Ignorar</button><button class='btn primary' onclick='confirmBankMatch("+JSON.stringify(e.id)+")'>Confirmar</button></div>";
+    else if(e.match_status==="unmatched")actions="<button class='btn secondary' onclick='ignoreBankEntry("+JSON.stringify(e.id)+")'>Ignorar</button>";
+    var desc=esc(e.description||"—")+(e.bank_reference?"<br/><small>Ref. "+esc(e.bank_reference)+"</small>":"");
+    var amount=Number(e.amount||0),amountText=(amount<0?"-":"+")+money(Math.abs(amount));
+    return "<tr><td>"+new Date(String(e.booking_date).slice(0,10)+"T12:00:00").toLocaleDateString("es-EC")+"</td><td><b>"+desc+"</b></td><td class='amount'><b>"+amountText+"</b></td><td>"+suggestion+"</td><td>"+bankEntryStatus(e.match_status)+(e.matched_type?"<br/><small>"+esc(bankMatchLabel(e.matched_type))+" · "+esc(e.matched_id||"")+"</small>":"")+"</td><td>"+actions+"</td></tr>"
+  }).join(""):"<tr><td colspan='6'>Sin movimientos cargados.</td></tr>"
+}
+async function selectBankImport(id){
+  s.selectedBankImport=id;
+  try{
+    var d=await api("bank-statement-entries&import_id="+encodeURIComponent(id));
+    s.bankEntries=d.items||[];renderBankReconciliation()
+  }catch(e){toast(e.message)}
+}
+function fileToPayload(file){
+  return new Promise((resolve,reject)=>{
+    if(!file)return reject(new Error("Selecciona un archivo"));
+    if(file.size>3000000)return reject(new Error("El archivo supera 3 MB"));
+    var lower=file.name.toLowerCase(),reader=new FileReader();
+    reader.onerror=()=>reject(new Error("No se pudo leer el archivo"));
+    if(lower.endsWith(".xlsx")){
+      reader.onload=()=>{
+        var bytes=new Uint8Array(reader.result),chunk=0x8000,binary="";
+        for(var i=0;i<bytes.length;i+=chunk)binary+=String.fromCharCode.apply(null,bytes.subarray(i,Math.min(i+chunk,bytes.length)));
+        resolve({filename:file.name,data_base64:btoa(binary)})
+      };
+      reader.readAsArrayBuffer(file)
+    }else{
+      reader.onload=()=>resolve({filename:file.name,text:String(reader.result||"")});
+      reader.readAsText(file)
+    }
+  })
+}
+function mappingSelect(id,label,headers,value,optional){
+  var options=(optional?"<option value=''>— No usar —</option>":"")+headers.map(h=>"<option value='"+esc(h)+"' "+(h===value?"selected":"")+">"+esc(h)+"</option>").join("");
+  return "<div class='field'><label>"+esc(label)+"</label><select id='"+id+"' class='input'>"+options+"</select></div>"
+}
+function openBankStatementImport(){
+  var accounts=clientTreasuryAccounts();if(!accounts.length){toast("Configura primero una cuenta de fondos de clientes");return}
+  window._bankFilePayload=null;window._bankPreview=null;
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal' style='max-width:760px'><div class='eyebrow'>Conciliación automática</div><h3>Importar extracto bancario</h3><p>CSV o XLSX, máximo 3 MB. ReVale detectará columnas y sugerirá matches; nada se postea sin confirmación de Finanzas.</p><div class='field'><label>Cuenta ReVale</label><select id='bankImportAccount' class='input'>"+accountOptions(accounts)+"</select></div><div class='field'><label>Archivo</label><input id='bankImportFile' class='input' type='file' accept='.csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'/></div><div id='bankPreviewArea' style='margin-top:12px'></div><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button id='bankPreviewBtn' class='btn secondary' onclick='previewBankImport()'>Detectar columnas</button><button id='bankImportBtn' class='btn primary' onclick='submitBankImport()' disabled>Importar</button></div></div></div>"
+}
+async function previewBankImport(){
+  var b=q("bankPreviewBtn"),file=q("bankImportFile").files?.[0];b.disabled=true;b.textContent="Leyendo…";
+  try{
+    var payload=await fileToPayload(file);window._bankFilePayload=payload;
+    var d=await api("bank-statement-preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    var p=d.preview||{},h=p.headers||[],m=p.mapping||{};window._bankPreview=p;
+    var sample=(p.sample||[]).slice(0,3).map(r=>"<div style='font-size:7px;color:#7d8782;margin-top:4px'>Fila "+r.rowNumber+": "+esc(Object.values(r.values||{}).slice(0,5).join(" · "))+"</div>").join("");
+    q("bankPreviewArea").innerHTML="<div style='padding:12px;border-radius:14px;background:#f6f8f7'><b style='font-size:9px'>"+p.totalRows+" filas · encabezado en fila "+p.headerRow+"</b>"+sample+"</div><div class='grid' style='margin-top:10px'>"+mappingSelect("mapDate","Fecha",h,m.booking_date,false)+mappingSelect("mapDescription","Descripción",h,m.description,true)+mappingSelect("mapReference","Referencia",h,m.reference,true)+mappingSelect("mapAmount","Monto firmado",h,m.amount,true)+mappingSelect("mapDebit","Débito / cargos",h,m.debit,true)+mappingSelect("mapCredit","Crédito / abonos",h,m.credit,true)+mappingSelect("mapBalance","Saldo",h,m.balance,true)+"</div><div class='field'><label><input id='bankUpdateBalance' type='checkbox' "+(m.balance?"checked":"")+" /> Usar el último saldo del extracto para actualizar safeguarding</label></div>";
+    q("bankImportBtn").disabled=false
+  }catch(e){toast(e.message)}finally{b.disabled=false;b.textContent="Detectar columnas"}
+}
+async function submitBankImport(){
+  var b=q("bankImportBtn"),payload=window._bankFilePayload;if(!payload){toast("Primero detecta las columnas");return}
+  var mapping={
+    booking_date:q("mapDate")?.value||null,
+    description:q("mapDescription")?.value||null,
+    reference:q("mapReference")?.value||null,
+    amount:q("mapAmount")?.value||null,
+    debit:q("mapDebit")?.value||null,
+    credit:q("mapCredit")?.value||null,
+    balance:q("mapBalance")?.value||null
+  };
+  if(!mapping.booking_date){toast("Selecciona la columna de fecha");return}
+  if(!mapping.amount&&!mapping.debit&&!mapping.credit){toast("Selecciona monto o débito/crédito");return}
+  b.disabled=true;b.textContent="Importando…";
+  try{
+    var body={...payload,treasury_account_id:q("bankImportAccount").value,mapping:mapping,update_balance:Boolean(q("bankUpdateBalance")?.checked)};
+    var d=await api("bank-statement-import",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    closeModal();s.selectedBankImport=d.result?.importId||d.result?.import?.id||null;await loadTreasuryControl();
+    toast((d.result?.inserted||0)+" movimiento(s) importado(s) · "+(d.result?.suggested||0)+" match(es) sugerido(s)")
+  }catch(e){toast(e.message);b.disabled=false;b.textContent="Importar"}
+}
+async function refreshLatestBankMatches(){
+  if(!s.selectedBankImport){toast("No hay extracto seleccionado");return}
+  try{
+    var d=await api("refresh-bank-matches",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({import_id:s.selectedBankImport})});
+    await selectBankImport(s.selectedBankImport);toast((d.result?.suggested||0)+" match(es) sugerido(s)")
+  }catch(e){toast(e.message)}
+}
+function confirmBankMatch(id){
+  var e=(s.bankEntries||[]).find(x=>x.id===id);if(!e||!e.suggested_type){toast("No hay sugerencia para confirmar");return}
+  openConfirm("Confirmar match",bankMatchLabel(e.suggested_type)+" · "+(e.suggested_id||"")+" · "+Number(e.suggested_score||0)+"% de confianza. Esta confirmación puede registrar el movimiento contable asociado.",async()=>{
+    await api("confirm-bank-match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id,candidate_type:e.suggested_type,candidate_id:e.suggested_id})});
+    await loadAll();await loadTreasuryControl();showFunding();toast("Movimiento conciliado")
+  })
+}
+function ignoreBankEntry(id){
+  openReason("Ignorar movimiento bancario",async reason=>{
+    await api("ignore-bank-entry",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id,reason:reason})});
+    await selectBankImport(s.selectedBankImport);toast("Movimiento ignorado")
+  })
 }
 function fundingStatus(x){
   if(x.status==="pending"){
