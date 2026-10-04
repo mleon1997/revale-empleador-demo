@@ -1,6 +1,12 @@
 import { getSql } from "../lib/revale-db.js";
 import { getAdminPrincipal, roleAllowed } from "../lib/revale-auth.js";
 import { confirmFundingBatchAtomic } from "../lib/revale-admin-funding.js";
+import {
+  closeLastCompletedWeeklySettlement,
+  scheduleSettlementPayout,
+  markSettlementPaid,
+  markSettlementFailed
+} from "../lib/revale-settlements.js";
 
 function json(res,code,body){
   res.status(code).setHeader("Content-Type","application/json; charset=utf-8").setHeader("Cache-Control","no-store").json(body);
@@ -32,7 +38,9 @@ export default async function handler(req,res){
           (SELECT COUNT(*)::int FROM revale.transactions WHERE status='approved') AS approved_transactions,
           (SELECT COUNT(*)::int FROM revale.funding_batches WHERE status='pending') AS pending_funding,
           (SELECT COUNT(*)::int FROM revale.merchant_location_requests WHERE status='pending') AS pending_branches,
-          (SELECT COUNT(*)::int FROM revale.merchant_bank_account_requests WHERE status='pending') AS pending_banks`
+          (SELECT COUNT(*)::int FROM revale.merchant_bank_account_requests WHERE status='pending') AS pending_banks,
+          (SELECT COUNT(*)::int FROM revale.settlements WHERE status IN ('closed','failed')) AS settlement_action_required,
+          (SELECT COUNT(*)::int FROM revale.settlements WHERE status='scheduled') AS payouts_scheduled`
       );
       const [money]=await sql.query(
         `SELECT
@@ -47,6 +55,111 @@ export default async function handler(req,res){
          LIMIT 12`
       );
       return json(res,200,{ok:true,counts:counts||{},money:money||{},recent});
+    }
+
+    if(req.method==="GET" && action==="settlements"){
+      const rows=await sql.query(
+        `SELECT
+           s.id,s.merchant_id,m.name AS merchant_name,
+           s.period_start,s.period_end,
+           s.gross_amount::float8 AS gross_amount,
+           s.adjustment_amount::float8 AS adjustment_amount,
+           s.fee_amount::float8 AS fee_amount,
+           s.tax_amount::float8 AS tax_amount,
+           s.net_amount::float8 AS net_amount,
+           s.currency,s.status,s.closed_at,s.scheduled_at,s.paid_at,s.payout_reference,
+           mba.bank_name,mba.account_type,
+           CASE WHEN mba.account_number IS NULL THEN NULL ELSE '•••• '||right(mba.account_number,4) END AS account_number_masked,
+           lp.id AS payout_id,lp.attempt_no,lp.status AS payout_status,lp.failure_reason
+         FROM revale.settlements s
+         JOIN revale.merchants m ON m.id=s.merchant_id
+         LEFT JOIN revale.merchant_bank_accounts mba ON mba.id=s.bank_account_id
+         LEFT JOIN LATERAL (
+           SELECT id,attempt_no,status,failure_reason
+           FROM revale.settlement_payouts
+           WHERE settlement_id=s.id
+           ORDER BY attempt_no DESC
+           LIMIT 1
+         ) lp ON true
+         ORDER BY s.period_end DESC,m.name
+         LIMIT 200`
+      );
+      return json(res,200,{ok:true,items:rows});
+    }
+
+    if(req.method==="POST" && action==="close-settlements"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const merchants=await sql.query("SELECT id,name FROM revale.merchants WHERE active=true ORDER BY name");
+      const results=[];
+      for(const merchant of merchants){
+        const result=await closeLastCompletedWeeklySettlement(sql,merchant.id,principal.adminUserId);
+        results.push({merchant_id:merchant.id,merchant_name:merchant.name,...result});
+        if(result.code==="ok" && !result.idempotent){
+          await sql.query(
+            `INSERT INTO revale.audit_events (merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata)
+             VALUES ($1,'revale_admin',$2,'settlement.closed','settlement',$3,$4::jsonb)`,
+            [merchant.id,principal.adminUserId,result.settlement.id,JSON.stringify({periodStart:result.settlement.period_start,periodEnd:result.settlement.period_end})]
+          );
+        }
+      }
+      return json(res,200,{ok:true,results});
+    }
+
+    if(req.method==="POST" && action==="schedule-payout"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const id=String(req.body?.id||"");
+      const result=await scheduleSettlementPayout(sql,id,principal.adminUserId);
+      if(result.code!=="ok"){
+        const messages={
+          not_found:"Liquidación no encontrada",
+          already_paid:"Esta liquidación ya está pagada",
+          invalid_status:"La liquidación no puede programarse en su estado actual",
+          non_positive_net:"El neto de esta liquidación no requiere transferencia",
+          bank_missing:"El comercio no tiene una cuenta bancaria verificada"
+        };
+        return json(res,409,{ok:false,error:messages[result.code]||"No se pudo programar el pago",detail:result});
+      }
+      const [settlement]=await sql.query("SELECT merchant_id FROM revale.settlements WHERE id=$1",[id]);
+      await sql.query(
+        `INSERT INTO revale.audit_events (merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata)
+         VALUES ($1,'revale_admin',$2,'settlement.payout_scheduled','settlement',$3,$4::jsonb)`,
+        [settlement?.merchant_id||null,principal.adminUserId,id,JSON.stringify({payoutId:result.payout.id,attemptNo:result.payout.attempt_no})]
+      );
+      return json(res,200,{ok:true,result});
+    }
+
+    if(req.method==="POST" && action==="mark-payout-paid"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const id=String(req.body?.id||"");
+      const reference=String(req.body?.payout_reference||"").trim().slice(0,160);
+      const result=await markSettlementPaid(sql,id,reference,principal.adminUserId);
+      if(result.code!=="ok"){
+        return json(res,409,{ok:false,error:result.code==="reference_required"?"Ingresa la referencia de la transferencia":"La liquidación no puede marcarse como pagada",detail:result});
+      }
+      const [settlement]=await sql.query("SELECT merchant_id FROM revale.settlements WHERE id=$1",[id]);
+      await sql.query(
+        `INSERT INTO revale.audit_events (merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata)
+         VALUES ($1,'revale_admin',$2,'settlement.paid','settlement',$3,$4::jsonb)`,
+        [settlement?.merchant_id||null,principal.adminUserId,id,JSON.stringify({payoutReference:reference})]
+      );
+      return json(res,200,{ok:true,result});
+    }
+
+    if(req.method==="POST" && action==="mark-payout-failed"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const id=String(req.body?.id||"");
+      const reason=String(req.body?.reason||"").trim().slice(0,500);
+      const result=await markSettlementFailed(sql,id,reason,principal.adminUserId);
+      if(result.code!=="ok"){
+        return json(res,409,{ok:false,error:"La liquidación no tiene un pago programado activo",detail:result});
+      }
+      const [settlement]=await sql.query("SELECT merchant_id FROM revale.settlements WHERE id=$1",[id]);
+      await sql.query(
+        `INSERT INTO revale.audit_events (merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata)
+         VALUES ($1,'revale_admin',$2,'settlement.payout_failed','settlement',$3,$4::jsonb)`,
+        [settlement?.merchant_id||null,principal.adminUserId,id,JSON.stringify({reason})]
+      );
+      return json(res,200,{ok:true,result});
     }
 
     if(req.method==="GET" && action==="funding-queue"){
