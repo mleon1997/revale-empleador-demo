@@ -446,8 +446,8 @@ function renderBankReconciliation(){
   if(rows)rows.innerHTML=entries.length?entries.map(e=>{
     var suggestion=e.suggested_type?"<b>"+esc(bankMatchLabel(e.suggested_type))+"</b><br/><small>"+esc(e.suggested_id||"")+" · "+Number(e.suggested_score||0)+"% · "+esc(e.suggested_reason||"")+"</small>":"<span class='muted'>Sin sugerencia</span>";
     var actions="";
-    if(e.match_status==="suggested")actions="<div class='actions'><button class='btn secondary' onclick='ignoreBankEntry("+JSON.stringify(e.id)+")'>Ignorar</button><button class='btn primary' onclick='confirmBankMatch("+JSON.stringify(e.id)+")'>Confirmar</button></div>";
-    else if(e.match_status==="unmatched")actions="<button class='btn secondary' onclick='ignoreBankEntry("+JSON.stringify(e.id)+")'>Ignorar</button>";
+    if(e.match_status==="suggested")actions="<div class='actions'><button class='btn secondary' onclick='openBankMatchCandidates("+JSON.stringify(e.id)+")'>Cambiar</button><button class='btn primary' onclick='confirmBankMatch("+JSON.stringify(e.id)+")'>Confirmar</button></div>";
+    else if(e.match_status==="unmatched")actions="<div class='actions'><button class='btn secondary' onclick='ignoreBankEntry("+JSON.stringify(e.id)+")'>Ignorar</button><button class='btn primary' onclick='openBankMatchCandidates("+JSON.stringify(e.id)+")'>Buscar match</button></div>";
     var desc=esc(e.description||"—")+(e.bank_reference?"<br/><small>Ref. "+esc(e.bank_reference)+"</small>":"");
     var amount=Number(e.amount||0),amountText=(amount<0?"-":"+")+money(Math.abs(amount));
     return "<tr><td>"+new Date(String(e.booking_date).slice(0,10)+"T12:00:00").toLocaleDateString("es-EC")+"</td><td><b>"+desc+"</b></td><td class='amount'><b>"+amountText+"</b></td><td>"+suggestion+"</td><td>"+bankEntryStatus(e.match_status)+(e.matched_type?"<br/><small>"+esc(bankMatchLabel(e.matched_type))+" · "+esc(e.matched_id||"")+"</small>":"")+"</td><td>"+actions+"</td></tr>"
@@ -526,6 +526,19 @@ async function refreshLatestBankMatches(){
     var d=await api("refresh-bank-matches",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({import_id:s.selectedBankImport})});
     await selectBankImport(s.selectedBankImport);toast((d.result?.suggested||0)+" match(es) sugerido(s)")
   }catch(e){toast(e.message)}
+}
+async function openBankMatchCandidates(id){
+  try{
+    var d=await api("bank-match-candidates&id="+encodeURIComponent(id)),items=d.result?.items||[],entry=d.result?.entry;
+    if(!items.length){toast("No encontré candidatos razonables por monto y fecha");return}
+    q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal' style='max-width:760px'><div class='eyebrow'>Match manual asistido</div><h3>Seleccionar movimiento relacionado</h3><p>"+esc(entry?.description||"Movimiento bancario")+" · "+money(Math.abs(Number(entry?.amount||0)))+". Elige solo si corresponde al mismo movimiento económico.</p><div class='queue'>"+items.map((x,i)=>"<div class='queue-item'><div><b>"+esc(bankMatchLabel(x.type))+" · "+esc(x.id)+"</b><small>"+money(Math.abs(Number(x.signedAmount||0)))+" · "+esc(x.partyName||x.externalRef||"")+" · "+Number(x.score||0)+"% · "+esc(x.reason||"")+"</small></div><button class='btn "+(i===0?"primary":"secondary")+"' onclick='confirmSpecificBankMatch("+JSON.stringify(id)+","+JSON.stringify(x.type)+","+JSON.stringify(x.id)+")'>Seleccionar</button></div>").join("")+"</div><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cerrar</button></div></div></div>"
+  }catch(e){toast(e.message)}
+}
+function confirmSpecificBankMatch(entryId,type,candidateId){
+  openConfirm("Confirmar match manual",bankMatchLabel(type)+" · "+candidateId+". Finanzas confirma que corresponde al movimiento del extracto.",async()=>{
+    await api("confirm-bank-match",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:entryId,candidate_type:type,candidate_id:candidateId})});
+    closeModal();await loadAll();await loadTreasuryControl();showFunding();toast("Movimiento conciliado")
+  })
 }
 function confirmBankMatch(id){
   var e=(s.bankEntries||[]).find(x=>x.id===id);if(!e||!e.suggested_type){toast("No hay sugerencia para confirmar");return}
