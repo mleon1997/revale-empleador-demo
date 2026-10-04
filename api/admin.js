@@ -652,8 +652,7 @@ export default async function handler(req,res){
         };
         return json(res,409,{ok:false,error:messages[result.code]||"No se pudo registrar el ingreso",detail:result});
       }
-      if(!result.idempotent){
-        await emitAndPostAccountingEvent(sql,{
+      await emitAndPostAccountingEvent(sql,{
           eventType:"funding_cash_received",
           sourceType:"funding_receipt",
           sourceId:result.receipt.id,
@@ -668,6 +667,7 @@ export default async function handler(req,res){
             confirmed_by:principal.adminUserId
           }
         });
+      if(!result.idempotent){
         await sql.query(
           `INSERT INTO revale.audit_events (
              employer_id,actor_type,actor_id,action,resource_type,resource_id,metadata
@@ -706,8 +706,7 @@ export default async function handler(req,res){
         };
         return json(res,409,{ok:false,error:messages[result.code]||"No se pudo registrar la devolución",detail:result});
       }
-      if(!result.idempotent){
-        await emitAndPostAccountingEvent(sql,{
+      await emitAndPostAccountingEvent(sql,{
           eventType:"funding_refunded",
           sourceType:"funding_refund",
           sourceId:result.refund.id,
@@ -721,6 +720,7 @@ export default async function handler(req,res){
             reason:result.refund.reason||null
           }
         });
+      if(!result.idempotent){
         await sql.query(
           `INSERT INTO revale.audit_events (
              employer_id,actor_type,actor_id,action,resource_type,resource_id,metadata
@@ -816,7 +816,7 @@ export default async function handler(req,res){
       }
 
       const allocatedAmount=Number(result.allocatedAmount||result.summary?.allocated_amount||0);
-      if(!result.idempotent && allocatedAmount>0){
+      if(allocatedAmount>0){
         await emitAndPostAccountingEvent(sql,{
           eventType:"funding_allocated",
           sourceType:"funding_batch",
