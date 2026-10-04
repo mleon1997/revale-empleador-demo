@@ -26,6 +26,8 @@ The current stack is a modular-monolith target:
 - benefit_programs
 - employee_enrollments
 - funding_batches
+- employer_funding_receipts
+- employer_funding_refunds
 - benefit_allocations
 - benefit_rules
 
@@ -50,6 +52,12 @@ The current stack is a modular-monolith target:
 ### Settlement
 - settlements
 - settlement_items
+- settlement_payouts
+- settlement_adjustments
+- settlement_reconciliations
+- merchant_fee_invoices
+- merchant_fee_credit_notes
+- merchant_withholdings
 
 ### Platform controls
 - idempotency_keys
@@ -64,6 +72,13 @@ The current stack is a modular-monolith target:
 5. Merchant commercial terms are effective-dated and server-side.
 6. Administrative changes generate immutable audit events.
 7. Bank account changes require ReVale verification before becoming payout destinations.
+8. An employer funding request never creates employee balance. Bank cash receipt and benefit allocation are separate events.
+9. Employer cash receipts are third-party funds: receipt posts to employer prefunding liability, allocation reclassifies that liability to employee benefit liability, and neither event recognizes revenue.
+10. Benefit allocation cannot exceed confirmed cash net of refunds for the funding batch.
+11. Unallocated employer cash remains a liability to the employer until allocated or refunded.
+12. Merchant payout is constrained by the posted merchant payable ledger, not only by settlement arithmetic.
+13. Paid settlements are not final until bank reconciliation reaches matched/reconciled status.
+14. Issued fiscal documents are never overwritten; post-issue corrections use linked credit notes and immutable adjustments.
 
 ## Immediate production backlog
 
