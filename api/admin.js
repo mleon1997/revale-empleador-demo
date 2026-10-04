@@ -994,27 +994,14 @@ export default async function handler(req,res){
           return json(res,409,{ok:false,error:"El payout no coincide con cuenta/monto del extracto"});
         }
 
+        let bankEvidenceOverride=false;
         if(["scheduled","processing"].includes(payout.status)){
           const paid=await markSettlementPaid(
             sql,payout.settlement_id,bankReference,principal.adminUserId,{bankEvidence:true}
           );
           if(paid.code!=="ok")return json(res,409,{ok:false,error:"No se pudo registrar el payout observado en banco",detail:paid});
-          const payoutAmount=Number(paid.settlement?.payout_amount||payout.amount||0);
-          await emitAndPostAccountingEvent(sql,{
-            eventType:"merchant_payout_paid",
-            sourceType:"settlement",
-            sourceId:payout.settlement_id,
-            eventKey:"paid",
-            amount:payoutAmount,
-            currency:String(paid.settlement?.payout_currency||payout.currency||"USD").trim(),
-            merchantId:payout.merchant_id,
-            settlementId:payout.settlement_id,
-            payload:{
-              payout_reference:bankReference,payout_id:payout.id,payout_amount:payoutAmount,
-              bank_statement_entry_id:entry.id,bank_evidence_override:Boolean(paid.bankEvidenceOverride)
-            }
-          });
-          if(paid.bankEvidenceOverride){
+          bankEvidenceOverride=Boolean(paid.bankEvidenceOverride);
+          if(bankEvidenceOverride){
             await sql.query(
               `INSERT INTO revale.audit_events (
                  merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata
@@ -1026,6 +1013,21 @@ export default async function handler(req,res){
             );
           }
         }
+
+        await emitAndPostAccountingEvent(sql,{
+          eventType:"merchant_payout_paid",
+          sourceType:"settlement",
+          sourceId:payout.settlement_id,
+          eventKey:"paid",
+          amount:Number(payout.amount||0),
+          currency:String(payout.currency||"USD").trim(),
+          merchantId:payout.merchant_id,
+          settlementId:payout.settlement_id,
+          payload:{
+            payout_reference:bankReference,payout_id:payout.id,payout_amount:Number(payout.amount||0),
+            bank_statement_entry_id:entry.id,bank_evidence_override:bankEvidenceOverride
+          }
+        });
 
         const reconciliation=await reconcileSettlementPayout(sql,{
           settlementId:payout.settlement_id,
