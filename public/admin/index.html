@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ReVale Back Office</title>
+<style>
+:root{--g:#51c878;--n:#29294b;--bg:#f6f8f7;--line:#e5ebe7;--muted:#7c8781;--ink:#20213e;--soft:#eef8f1;--warn:#fff3d9;--danger:#faece9}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+button,input{font:inherit}.hidden{display:none!important}.word{font-weight:950;letter-spacing:-.06em;font-size:25px}.word b{color:var(--g)}
+.login{min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 20% 20%,rgba(81,200,120,.14),transparent 25%),linear-gradient(145deg,#29294b,#1f203a);padding:28px}
+.login-card{width:min(420px,100%);background:#fff;border-radius:26px;padding:30px;box-shadow:0 30px 100px rgba(0,0,0,.2)}.login-card h1{font-size:30px;letter-spacing:-.05em;margin:20px 0 7px}.login-card p{font-size:10px;color:var(--muted);line-height:1.55}.field{margin-top:13px}.field label{display:block;font-size:8px;font-weight:900;color:#69736e;margin-bottom:6px}.input{width:100%;border:1px solid var(--line);border-radius:13px;padding:12px 13px;outline:0}.btn{border:0;border-radius:13px;padding:11px 14px;font-size:9px;font-weight:900;cursor:pointer}.primary{background:var(--g);color:#fff}.secondary{background:#fff;border:1px solid var(--line);color:var(--n)}.danger{background:#fff4f1;color:#8a5048;border:1px solid #f1d9d4}.login-card .primary{width:100%;margin-top:18px;padding:14px}
+.app{display:grid;grid-template-columns:235px 1fr;min-height:100vh}.side{background:var(--n);color:#fff;padding:24px 16px;display:flex;flex-direction:column;height:100vh;position:sticky;top:0}.side .word{padding:0 10px 22px}.tag{font-size:7px;color:#858aa3;letter-spacing:.13em;text-transform:uppercase;margin-top:4px}.nav-title{font-size:7px;color:#7b8099;letter-spacing:.12em;text-transform:uppercase;font-weight:900;padding:10px 11px 6px}.nav{border:0;background:transparent;color:#b8bdce;border-radius:11px;padding:11px 12px;text-align:left;font-size:9px;font-weight:850;margin:2px 0}.nav:hover,.nav.active{background:rgba(255,255,255,.08);color:#fff}.grow{flex:1}.side-note{border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px;font-size:7px;color:#999fb3;line-height:1.45}
+.main{min-width:0}.top{height:68px;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:20}.top-title{font-size:10px;font-weight:900}.user{display:flex;align-items:center;gap:8px}.avatar{width:30px;height:30px;border-radius:10px;background:var(--soft);color:#2f8050;display:grid;place-items:center;font-size:8px;font-weight:950}.user b{font-size:8px}.user small{display:block;font-size:7px;color:#8b948f;margin-top:2px}
+.content{padding:30px;max-width:1380px;margin:0 auto}.head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:22px}.head h1{font-size:36px;letter-spacing:-.055em;margin:6px 0}.head p{font-size:10px;color:var(--muted);margin:0}.eyebrow{font-size:8px;text-transform:uppercase;letter-spacing:.14em;font-weight:900;color:#65766c}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}.card{background:#fff;border:1px solid var(--line);border-radius:22px;box-shadow:0 7px 28px rgba(41,41,75,.035)}.kpi{padding:18px}.kpi span{font-size:7px;text-transform:uppercase;letter-spacing:.1em;color:#8a948f;font-weight:900}.kpi b{display:block;font-size:26px;letter-spacing:-.05em;margin-top:7px;color:var(--n)}.kpi small{display:block;font-size:7px;color:#919a95;margin-top:3px}
+.grid{display:grid;grid-template-columns:1.15fr .85fr;gap:15px}.section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:18px 20px 12px}.section-head h3{font-size:15px;margin:4px 0}.section-head p{font-size:8px;color:#87918c;margin:0}.table{width:100%;border-collapse:collapse}.table th{font-size:7px;text-transform:uppercase;letter-spacing:.09em;color:#909994;text-align:left;padding:10px 16px;border-top:1px solid #edf1ee;border-bottom:1px solid #edf1ee}.table td{font-size:9px;padding:13px 16px;border-bottom:1px solid #eff2f0;vertical-align:middle}.table tr:last-child td{border-bottom:0}.amount{text-align:right;font-weight:900}.status{display:inline-flex;padding:6px 9px;border-radius:999px;font-size:7px;font-weight:900}.pending{background:var(--warn);color:#825f1d}.ok{background:#eaf8ef;color:#2f7a4d}.no{background:var(--danger);color:#8c5047}.neutral{background:#eef1ef;color:#69746e}
+.queue{display:grid;gap:9px;padding:0 15px 15px}.queue-item{border:1px solid #e9ecea;border-radius:15px;padding:13px;display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center}.queue-item b{font-size:9px}.queue-item small{display:block;font-size:7px;color:#858f89;line-height:1.45;margin-top:3px}.actions{display:flex;gap:6px}.actions .btn{padding:8px 10px;font-size:7px}.audit{display:grid;gap:7px;padding:0 15px 15px}.audit-row{display:grid;grid-template-columns:8px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid #eff2f0}.audit-row i{width:8px;height:8px;border-radius:50%;background:var(--g);margin-top:3px}.audit-row b{font-size:8px}.audit-row span{display:block;font-size:7px;color:#89928d;margin-top:2px}
+.modal-bg{position:fixed;inset:0;background:rgba(20,21,40,.46);backdrop-filter:blur(5px);display:grid;place-items:center;padding:20px;z-index:300}.modal{width:min(460px,100%);background:#fff;border-radius:24px;padding:24px}.modal h3{font-size:23px;letter-spacing:-.04em;margin:8px 0}.modal p{font-size:9px;color:#7d8782;line-height:1.55}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+#toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);opacity:0;background:#22243f;color:#fff;padding:11px 15px;border-radius:12px;font-size:9px;font-weight:850;z-index:500;transition:.2s}#toast.show{opacity:1;transform:translate(-50%,0)}
+@media(max-width:1000px){.kpis{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}}@media(max-width:760px){.app{grid-template-columns:1fr}.side{display:none}.content{padding:20px}.kpis{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+<section id="login" class="login">
+  <div class="login-card">
+    <div class="word">re<b>vale</b></div>
+    <div class="eyebrow" style="margin-top:22px">Back Office</div>
+    <h1>Operaciones ReVale.</h1>
+    <p>Administra fondeos, onboarding de comercios y verificaciones desde una sola consola.</p>
+    <div class="field"><label>Correo</label><input id="email" class="input" type="email" placeholder="ops@revale.app"/></div>
+    <div class="field"><label>Contraseña</label><input id="password" class="input" type="password" placeholder="••••••••"/></div>
+    <button id="loginBtn" class="btn primary" onclick="login()">Ingresar</button>
+    <div id="demo" class="hidden" style="margin-top:14px;padding:10px;border-radius:12px;background:#f6f8f7;font-size:8px;color:#7e8883"><b>Demo</b><br/>ops@demo.revale.app · ops-demo</div>
+  </div>
+</section>
+
+<section id="app" class="app hidden">
+  <aside class="side">
+    <div class="word">re<b>vale</b><div class="tag">Back Office</div></div>
+    <div class="nav-title">Operaciones</div>
+    <button id="navHome" class="nav active" onclick="showHome()">Inicio</button>
+    <button id="navFunding" class="nav" onclick="showFunding()">Fondeos</button>
+    <button id="navOnboarding" class="nav" onclick="showOnboarding()">Onboarding</button>
+    <div class="nav-title">Red</div>
+    <button id="navMerchants" class="nav" onclick="showMerchants()">Comercios</button>
+    <button id="navEmployers" class="nav" onclick="showEmployers()">Empresas</button>
+    <button id="navAudit" class="nav" onclick="showAudit()">Auditoría</button>
+    <div class="grow"></div>
+    <div class="side-note">Toda aprobación crítica queda registrada en auditoría.</div>
+  </aside>
+  <main class="main">
+    <header class="top"><div id="topTitle" class="top-title">Back Office ReVale</div><div class="user"><div class="avatar">RV</div><div><b id="userName">Operaciones ReVale</b><small id="userRole">Superadmin</small></div><button class="btn secondary" onclick="logout()">Cerrar sesión</button></div></header>
+
+    <div id="homeScreen" class="content">
+      <div class="head"><div><div class="eyebrow">Control central</div><h1>Operación en una vista.</h1><p>Lo que requiere acción de ReVale hoy.</p></div></div>
+      <div class="kpis">
+        <div class="card kpi"><span>Comercios</span><b id="kMerchants">0</b><small>Activos</small></div>
+        <div class="card kpi"><span>Empresas</span><b id="kEmployers">0</b><small>Clientes corporativos</small></div>
+        <div class="card kpi"><span>Fondeos pendientes</span><b id="kFunding">0</b><small>Por validar</small></div>
+        <div class="card kpi"><span>Volumen aprobado</span><b id="kVolume">$ 0.00</b><small>Redenciones históricas</small></div>
+      </div>
+      <div class="grid">
+        <section class="card"><div class="section-head"><div><div class="eyebrow">Atención</div><h3>Cola operativa</h3><p>Solicitudes que necesitan revisión.</p></div></div><div id="homeQueue" class="queue"></div></section>
+        <section class="card"><div class="section-head"><div><div class="eyebrow">Trazabilidad</div><h3>Actividad reciente</h3><p>Acciones administrativas.</p></div></div><div id="homeAudit" class="audit"></div></section>
+      </div>
+    </div>
+
+    <div id="fundingScreen" class="content hidden"><div class="head"><div><div class="eyebrow">Tesorería</div><h1>Fondeos.</h1><p>Valida fondos antes de acreditar saldos a colaboradores.</p></div></div><section class="card" style="overflow:hidden"><table class="table"><thead><tr><th>Solicitud</th><th>Empresa</th><th>Programa</th><th>Empleados</th><th>Estado</th><th style="text-align:right">Monto</th><th></th></tr></thead><tbody id="fundingRows"></tbody></table></section></div>
+
+    <div id="onboardingScreen" class="content hidden"><div class="head"><div><div class="eyebrow">Merchant Ops</div><h1>Onboarding.</h1><p>Sucursales y cuentas bancarias pendientes de aprobación.</p></div></div><div class="grid"><section class="card"><div class="section-head"><div><h3>Nuevas sucursales</h3><p>Activa puntos de operación solicitados por el comercio.</p></div></div><div id="branchQueue" class="queue"></div></section><section class="card"><div class="section-head"><div><h3>Cuentas bancarias</h3><p>Verifica destino antes de habilitar liquidaciones.</p></div></div><div id="bankQueue" class="queue"></div></section></div></div>
+
+    <div id="merchantsScreen" class="content hidden"><div class="head"><div><div class="eyebrow">Red</div><h1>Comercios.</h1><p>Estado de la red de aceptación.</p></div></div><section class="card" style="overflow:hidden"><table class="table"><thead><tr><th>Comercio</th><th>RUC</th><th>Sucursales</th><th>Usuarios</th><th>Estado</th></tr></thead><tbody id="merchantRows"></tbody></table></section></div>
+    <div id="employersScreen" class="content hidden"><div class="head"><div><div class="eyebrow">B2B</div><h1>Empresas.</h1><p>Clientes corporativos y población beneficiaria.</p></div></div><section class="card" style="overflow:hidden"><table class="table"><thead><tr><th>Empresa</th><th>RUC</th><th>Programas</th><th>Colaboradores</th><th>Estado</th></tr></thead><tbody id="employerRows"></tbody></table></section></div>
+    <div id="auditScreen" class="content hidden"><div class="head"><div><div class="eyebrow">Gobierno</div><h1>Auditoría.</h1><p>Registro inmutable de acciones operativas y administrativas.</p></div></div><section class="card"><div id="auditRows" class="audit" style="padding:15px"></div></section></div>
+  </main>
+</section>
+<div id="modalRoot"></div>
+<script>
+const s={principal:null,overview:null,funding:[],branches:[],banks:[],merchants:[],employers:[],audit:[]};
+const q=id=>document.getElementById(id),money=n=>"$ "+Number(n||0).toFixed(2);
+function toast(m){const t=q("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800)}
+function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]))}
+function hide(){["homeScreen","fundingScreen","onboardingScreen","merchantsScreen","employersScreen","auditScreen"].forEach(x=>q(x).classList.add("hidden"))}
+function nav(id){["navHome","navFunding","navOnboarding","navMerchants","navEmployers","navAudit"].forEach(x=>q(x).classList.remove("active"));q(id).classList.add("active")}
+async function api(action,opts={}){const r=await fetch("/api/admin?action="+encodeURIComponent(action),{cache:"no-store",...opts});const d=await r.json();if(!r.ok)throw new Error(d.error||"No se pudo completar");return d}
+function st(v){return v==="pending"?"<span class='status pending'>Pendiente</span>":v==="approved"||v==="allocated"||v==="verified"?"<span class='status ok'>"+esc(v)+"</span>":v==="rejected"||v==="cancelled"?"<span class='status no'>"+esc(v)+"</span>":"<span class='status neutral'>"+esc(v)+"</span>"}
+async function restore(){try{const r=await fetch("/api/admin-auth?action=session",{cache:"no-store"});if(!r.ok)return false;const d=await r.json();s.principal=d.principal;q("userName").textContent=d.principal.displayName;q("userRole").textContent=d.principal.role;q("login").classList.add("hidden");q("app").classList.remove("hidden");await loadAll();showHome();return true}catch(e){return false}}
+async function login(){const e=(q("email").value||"").trim().toLowerCase(),p=q("password").value||"",b=q("loginBtn");if(!e||!p){toast("Ingresa correo y contraseña");return}b.disabled=true;b.textContent="Ingresando…";try{const r=await fetch("/api/admin-auth?action=login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:e,password:p})});const d=await r.json();if(!r.ok)throw new Error(d.error||"No pudimos ingresar");if(!await restore())throw new Error("No pudimos abrir la sesión")}catch(err){toast(err.message)}finally{b.disabled=false;b.textContent="Ingresar"}}
+async function logout(){try{await fetch("/api/admin-auth?action=logout",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"})}catch(e){}q("app").classList.add("hidden");q("login").classList.remove("hidden");q("password").value=""}
+async function loadAll(){const [o,f,bk,ba,m,e,a]=await Promise.all([api("overview"),api("funding-queue"),api("branch-queue"),api("bank-queue"),api("merchants"),api("employers"),api("audit")]);s.overview=o;s.funding=f.items||[];s.branches=bk.items||[];s.banks=ba.items||[];s.merchants=m.items||[];s.employers=e.items||[];s.audit=a.items||[];render()}
+function render(){const c=s.overview?.counts||{},m=s.overview?.money||{};q("kMerchants").textContent=c.merchants||0;q("kEmployers").textContent=c.employers||0;q("kFunding").textContent=c.pending_funding||0;q("kVolume").textContent=money(m.approved_volume);
+ const queue=[];if(c.pending_funding)queue.push(card("Fondeos",c.pending_funding+" solicitud(es) esperando validación.","showFunding()"));if(c.pending_branches)queue.push(card("Sucursales",c.pending_branches+" solicitud(es) de activación.","showOnboarding()"));if(c.pending_banks)queue.push(card("Cuentas bancarias",c.pending_banks+" cuenta(s) por verificar.","showOnboarding()"));q("homeQueue").innerHTML=queue.length?queue.join(""):"<div class='queue-item'><div><b>Todo al día</b><small>No hay solicitudes pendientes.</small></div></div>";
+ q("homeAudit").innerHTML=(s.overview?.recent||[]).map(auditRow).join("")||"<div style='padding:10px;font-size:8px;color:#88928d'>Sin actividad todavía.</div>";
+ q("fundingRows").innerHTML=s.funding.length?s.funding.map(x=>"<tr><td><b>"+esc(x.id)+"</b><br/><small>"+new Date(x.created_at).toLocaleDateString("es-EC")+"</small></td><td>"+esc(x.employer_name)+"</td><td>"+esc(x.program_name||"—")+"</td><td>"+Number(x.employee_count||0)+"</td><td>"+st(x.status)+"</td><td class='amount'>"+money(x.amount)+"</td><td>"+(x.status==="pending"?"<div class='actions'><button class='btn secondary' onclick='rejectFunding("+JSON.stringify(x.id)+")'>Rechazar</button><button class='btn primary' onclick='approveFunding("+JSON.stringify(x.id)+")'>Acreditar</button></div>":"")+"</td></tr>").join(""):"<tr><td colspan='7'>Sin fondeos.</td></tr>";
+ q("branchQueue").innerHTML=s.branches.filter(x=>x.status==="pending").map(x=>"<div class='queue-item'><div><b>"+esc(x.merchant_name)+" · "+esc(x.name)+"</b><small>"+esc(x.address||"Sin dirección")+" · "+x.requested_terminals+" caja(s)</small></div><div class='actions'><button class='btn secondary' onclick='resolveBranch("+x.id+",\"reject\")'>Rechazar</button><button class='btn primary' onclick='resolveBranch("+x.id+",\"approve\")'>Aprobar</button></div></div>").join("")||"<div class='queue-item'><div><b>Sin pendientes</b><small>No hay nuevas sucursales por revisar.</small></div></div>";
+ q("bankQueue").innerHTML=s.banks.filter(x=>x.status==="pending").map(x=>"<div class='queue-item'><div><b>"+esc(x.merchant_name)+" · "+esc(x.bank_name)+"</b><small>"+esc(x.account_type)+" · "+esc(x.account_number_masked)+" · "+esc(x.holder_name)+"</small></div><div class='actions'><button class='btn secondary' onclick='resolveBank("+x.id+",\"reject\")'>Rechazar</button><button class='btn primary' onclick='resolveBank("+x.id+",\"approve\")'>Verificar</button></div></div>").join("")||"<div class='queue-item'><div><b>Sin pendientes</b><small>No hay cuentas por verificar.</small></div></div>";
+ q("merchantRows").innerHTML=s.merchants.map(x=>"<tr><td><b>"+esc(x.name)+"</b><br/><small>"+esc(x.slug||"")+"</small></td><td>"+esc(x.tax_id||"—")+"</td><td>"+Number(x.locations||0)+"</td><td>"+Number(x.users||0)+"</td><td>"+(x.active?"<span class='status ok'>Activo</span>":"<span class='status neutral'>Inactivo</span>")+"</td></tr>").join("");
+ q("employerRows").innerHTML=s.employers.map(x=>"<tr><td><b>"+esc(x.name)+"</b><br/><small>"+esc(x.slug||"")+"</small></td><td>"+esc(x.tax_id||"—")+"</td><td>"+Number(x.programs||0)+"</td><td>"+Number(x.employees||0)+"</td><td>"+(x.active?"<span class='status ok'>Activo</span>":"<span class='status neutral'>Inactivo</span>")+"</td></tr>").join("");
+ q("auditRows").innerHTML=s.audit.map(auditRow).join("")||"<div style='padding:10px'>Sin eventos.</div>"}
+function card(t,d,fn){return "<div class='queue-item'><div><b>"+esc(t)+"</b><small>"+esc(d)+"</small></div><button class='btn secondary' onclick='"+fn+"'>Revisar</button></div>"}
+function auditRow(x){return "<div class='audit-row'><i></i><div><b>"+esc(x.action)+" · "+esc(x.resource_type)+"</b><span>"+new Date(x.created_at).toLocaleString("es-EC")+" · "+esc(x.actor_id||x.actor_type)+"</span></div></div>"}
+function showHome(){hide();q("homeScreen").classList.remove("hidden");nav("navHome");q("topTitle").textContent="Inicio · Back Office"}
+function showFunding(){hide();q("fundingScreen").classList.remove("hidden");nav("navFunding");q("topTitle").textContent="Fondeos"}
+function showOnboarding(){hide();q("onboardingScreen").classList.remove("hidden");nav("navOnboarding");q("topTitle").textContent="Onboarding"}
+function showMerchants(){hide();q("merchantsScreen").classList.remove("hidden");nav("navMerchants");q("topTitle").textContent="Comercios"}
+function showEmployers(){hide();q("employersScreen").classList.remove("hidden");nav("navEmployers");q("topTitle").textContent="Empresas"}
+function showAudit(){hide();q("auditScreen").classList.remove("hidden");nav("navAudit");q("topTitle").textContent="Auditoría"}
+async function approveFunding(id){openConfirm("Acreditar fondeo","Esta acción acreditará saldo a todos los colaboradores preparados. Solo hazlo después de validar la recepción de fondos.",async()=>{await api("approve-funding",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});await loadAll();showFunding();toast("Fondeo acreditado")})}
+async function rejectFunding(id){openReason("Rechazar fondeo",async reason=>{await api("reject-funding",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,reason})});await loadAll();showFunding();toast("Fondeo rechazado")})}
+async function resolveBranch(id,decision){openConfirm(decision==="approve"?"Aprobar sucursal":"Rechazar sucursal",decision==="approve"?"Se creará la nueva sucursal y quedará activa en ReVale Comercios.":"La solicitud quedará rechazada.",async()=>{await api("resolve-branch",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,decision})});await loadAll();showOnboarding();toast(decision==="approve"?"Sucursal activada":"Solicitud rechazada")})}
+async function resolveBank(id,decision){if(decision==="reject"){openReason("Rechazar cuenta",async reason=>{await api("resolve-bank",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,decision,reason})});await loadAll();showOnboarding();toast("Cuenta rechazada")});return}openConfirm("Verificar cuenta bancaria","La cuenta pasará a ser el destino activo para futuras liquidaciones del comercio.",async()=>{await api("resolve-bank",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,decision})});await loadAll();showOnboarding();toast("Cuenta verificada")})}
+function openConfirm(title,desc,fn){window._modalAction=fn;q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Confirmación</div><h3>"+esc(title)+"</h3><p>"+esc(desc)+"</p><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button id='confirmAction' class='btn primary' onclick='runModalAction()'>Confirmar</button></div></div></div>"}
+function openReason(title,fn){window._reasonAction=fn;q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Revisión</div><h3>"+esc(title)+"</h3><p>Deja una observación para trazabilidad interna.</p><input id='reason' class='input' placeholder='Motivo / observación'/><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button class='btn danger' onclick='runReasonAction()'>Rechazar</button></div></div></div>"}
+async function runModalAction(){const b=q("confirmAction");b.disabled=true;b.textContent="Procesando…";try{await window._modalAction();closeModal()}catch(e){toast(e.message);b.disabled=false;b.textContent="Confirmar"}}
+async function runReasonAction(){try{await window._reasonAction((q("reason").value||"").trim());closeModal()}catch(e){toast(e.message)}}
+function closeModal(){q("modalRoot").innerHTML=""}
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&!q("login").classList.contains("hidden"))login()});
+(async function init(){const p=new URLSearchParams(location.search);if(p.get("demo")==="1"){q("demo").classList.remove("hidden");q("email").value="ops@demo.revale.app";q("password").value="ops-demo"}await restore()})();
+</script>
+</body>
+</html>
