@@ -74,11 +74,23 @@ button,input{font:inherit}.hidden{display:none!important}.word{font-weight:950;l
         <div><div class="eyebrow">Tesorería · fondos de terceros</div><h1>Fondeos.</h1><p>El dinero debe existir y estar conciliado antes de convertirse en saldo de un colaborador.</p></div>
       </div>
       <div class="kpis">
-        <div class="card kpi"><span>Fondos de clientes</span><b id="kTreasuryCash">$ 0.00</b><small>Saldo contable en cuenta de clientes</small></div>
-        <div class="card kpi"><span>Obligaciones terceros</span><b id="kTreasuryThirdParty">$ 0.00</b><small>Empresas + empleados + comercios</small></div>
-        <div class="card kpi"><span>Control contable</span><b id="kTreasuryGap">$ 0.00</b><small>Debe permanecer en cero</small></div>
-        <div class="card kpi"><span>Estado</span><b id="kTreasuryStatus" style="font-size:18px">—</b><small>Conciliación del subledger</small></div>
+        <div class="card kpi"><span>Disponible segregado</span><b id="kTreasuryCash">$ 0.00</b><small>Saldo físico estimado en cuentas de clientes</small></div>
+        <div class="card kpi"><span>Safeguarding requerido</span><b id="kTreasuryThirdParty">$ 0.00</b><small>Obligaciones con empresas, empleados y comercios</small></div>
+        <div class="card kpi"><span>Cobertura</span><b id="kTreasuryGap">—</b><small>Objetivo mínimo 100%</small></div>
+        <div class="card kpi"><span>Estado</span><b id="kTreasuryStatus" style="font-size:18px">—</b><small>Protección de fondos de terceros</small></div>
       </div>
+      <section class="card" style="overflow:hidden;margin-bottom:15px">
+        <div class="section-head">
+          <div><h3>Cuentas de tesorería</h3><p>Ubicación física de fondos de clientes y caja propia ReVale.</p></div>
+          <div class="actions">
+            <button class="btn secondary" onclick="openTreasuryAccount()">+ Cuenta</button>
+            <button class="btn secondary" onclick="openTreasuryTransfer()">Transferencia interna</button>
+            <button id="safeguardingEnforcementBtn" class="btn primary" onclick="toggleSafeguarding()">Activar enforcement</button>
+          </div>
+        </div>
+        <table class="table"><thead><tr><th>Cuenta</th><th>Uso</th><th>Último saldo</th><th>Movimientos posteriores</th><th>Saldo ajustado</th><th>Actualización</th><th></th></tr></thead><tbody id="treasuryAccountRows"><tr><td colspan="7">Sin cuentas configuradas.</td></tr></tbody></table>
+        <div id="safeguardingNote" style="padding:12px 18px;border-top:1px solid #edf1ee;font-size:8px;color:#7d8782"></div>
+      </section>
       <section class="card" style="overflow:hidden">
         <div class="section-head"><div><h3>Solicitudes y movimientos bancarios</h3><p>Solicitud → ingreso bancario → fondos verificados → acreditación.</p></div></div>
         <table class="table"><thead><tr><th>Solicitud</th><th>Empresa</th><th>Programa</th><th style="text-align:right">Asignaciones</th><th style="text-align:right">Banco recibido</th><th style="text-align:right">Faltante / exceso</th><th>Estado</th><th></th></tr></thead><tbody id="fundingRows"></tbody></table>
@@ -135,7 +147,7 @@ button,input{font:inherit}.hidden{display:none!important}.word{font-weight:950;l
 </section>
 <div id="modalRoot"></div>
 <script>
-const s={principal:null,overview:null,funding:[],settlements:[],withholdings:[],creditNotes:[],branches:[],banks:[],merchants:[],employers:[],accounting:null,treasury:null,audit:[]};
+const s={principal:null,overview:null,funding:[],settlements:[],withholdings:[],creditNotes:[],branches:[],banks:[],merchants:[],employers:[],accounting:null,treasury:null,safeguarding:null,audit:[]};
 const q=id=>document.getElementById(id),money=n=>"$ "+Number(n||0).toFixed(2);
 function toast(m){const t=q("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800)}
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]))}
@@ -257,7 +269,7 @@ function render(){const c=s.overview?.counts||{},m=s.overview?.money||{};q("kMer
 function card(t,d,fn){return "<div class='queue-item'><div><b>"+esc(t)+"</b><small>"+esc(d)+"</small></div><button class='btn secondary' onclick='"+fn+"'>Revisar</button></div>"}
 function auditRow(x){return "<div class='audit-row'><i></i><div><b>"+esc(x.action)+" · "+esc(x.resource_type)+"</b><span>"+new Date(x.created_at).toLocaleString("es-EC")+" · "+esc(x.actor_id||x.actor_type)+"</span></div></div>"}
 function showHome(){hide();q("homeScreen").classList.remove("hidden");nav("navHome");q("topTitle").textContent="Inicio · Back Office"}
-function showFunding(){hide();q("fundingScreen").classList.remove("hidden");nav("navFunding");q("topTitle").textContent="Fondeos";loadTreasuryControl()}
+async function showFunding(){hide();q("fundingScreen").classList.remove("hidden");nav("navFunding");q("topTitle").textContent="Fondeos";await loadTreasuryControl()}
 function showSettlements(){hide();q("settlementsScreen").classList.remove("hidden");nav("navSettlements");q("topTitle").textContent="Liquidaciones"}
 function showOnboarding(){hide();q("onboardingScreen").classList.remove("hidden");nav("navOnboarding");q("topTitle").textContent="Onboarding"}
 function showMerchants(){hide();q("merchantsScreen").classList.remove("hidden");nav("navMerchants");q("topTitle").textContent="Comercios"}
@@ -274,15 +286,124 @@ async function reconcileAccounting(){
 }
 async function loadTreasuryControl(){
   try{
-    var d=await api("treasury-control");s.treasury=d.control||null;renderTreasuryControl()
-  }catch(e){s.treasury=null;renderTreasuryControl()}
+    const [gl,sg]=await Promise.all([api("treasury-control"),api("safeguarding")]);
+    s.treasury=gl.control||null;s.safeguarding=sg.control||null;renderTreasuryControl()
+  }catch(e){
+    s.treasury=null;s.safeguarding=null;renderTreasuryControl()
+  }
+}
+function safeguardingStatusView(status){
+  var map={
+    healthy:["Cobertura saludable","ok"],
+    underfunded:["Shortfall","no"],
+    stale:["Saldo desactualizado","pending"],
+    missing_balance:["Falta saldo bancario","pending"],
+    not_configured:["Sin configurar","neutral"]
+  };
+  return map[status]||[status||"—","neutral"]
+}
+function treasuryPurposeLabel(v){
+  return v==="client_funds"?"Fondos de clientes":v==="operating"?"Caja propia":v==="tax"?"Impuestos":v
 }
 function renderTreasuryControl(){
-  var t=s.treasury||{};
-  if(q("kTreasuryCash"))q("kTreasuryCash").textContent=money(t.clientCash||0);
-  if(q("kTreasuryThirdParty"))q("kTreasuryThirdParty").textContent=money(t.thirdPartyObligations||0);
-  if(q("kTreasuryGap"))q("kTreasuryGap").textContent=money(t.controlGap||0);
-  if(q("kTreasuryStatus"))q("kTreasuryStatus").innerHTML=t.isBalanced?"<span class='status ok'>Cuadra</span>":"<span class='status no'>Revisar</span>"
+  var sg=s.safeguarding||{},gl=s.treasury||{},view=safeguardingStatusView(sg.status);
+  if(q("kTreasuryCash"))q("kTreasuryCash").textContent=money(sg.physicalClientFunds||0);
+  if(q("kTreasuryThirdParty"))q("kTreasuryThirdParty").textContent=money(sg.requiredSafeguarded||0);
+  if(q("kTreasuryGap"))q("kTreasuryGap").textContent=(Number(sg.coveragePercent||0)).toFixed(2)+"%";
+  if(q("kTreasuryStatus"))q("kTreasuryStatus").innerHTML="<span class='status "+view[1]+"'>"+esc(view[0])+"</span>";
+
+  var accounts=sg.accounts||[],body=q("treasuryAccountRows");
+  if(body)body.innerHTML=accounts.length?accounts.map(a=>{
+    var last=a.account_number_last4?"•••• "+esc(a.account_number_last4):"";
+    var latest=a.snapshot?money(a.reportedBalance)+"<br/><small>"+new Date(a.snapshot.as_of).toLocaleString("es-EC")+"</small>":"<span class='status pending'>Sin saldo</span>";
+    var movement=Number(a.knownMovementsAfterSnapshot||0);
+    var moveText=(movement>=0?"+":"-")+money(Math.abs(movement));
+    var adjusted=a.adjustedBalance===null||a.adjustedBalance===undefined?"—":money(a.adjustedBalance);
+    return "<tr><td><b>"+esc(a.bank_name)+" · "+esc(a.account_name)+"</b><br/><small>"+last+(a.is_primary?" · Principal":"")+"</small></td><td>"+esc(treasuryPurposeLabel(a.purpose))+"</td><td>"+latest+"</td><td class='amount'>"+moveText+"</td><td class='amount'><b>"+adjusted+"</b></td><td>"+(a.snapshot?"<span class='status "+(((Date.now()-new Date(a.snapshot.as_of).getTime())/3600000)>(sg.settings?.staleAfterHours||24)?"pending":"ok")+"'>"+(a.snapshot.source==="api"?"API":a.snapshot.source==="bank_import"?"Importado":"Manual")+"</span>":"—")+"</td><td><button class='btn secondary' onclick='openTreasuryBalance("+JSON.stringify(a.id)+")'>Actualizar saldo</button></td></tr>"
+  }).join(""):"<tr><td colspan='7'>Sin cuentas configuradas. Crea primero una cuenta de fondos de clientes y una cuenta operativa.</td></tr>";
+
+  var btn=q("safeguardingEnforcementBtn");
+  if(btn){
+    var enabled=Boolean(sg.settings?.enforcementEnabled);
+    btn.textContent=enabled?"Desactivar enforcement":"Activar enforcement";
+    btn.className="btn "+(enabled?"secondary":"primary")
+  }
+  var note=q("safeguardingNote");
+  if(note){
+    var msg="Libro cliente: "+money(gl.clientCash||0)+" · físico vs libro: "+money(sg.physicalVsLedger||0)+". ";
+    if(sg.status==="healthy")msg+="Excedente liberable máximo: "+money(sg.sweepable||0)+".";
+    else if(sg.status==="underfunded")msg+="Top-up requerido: "+money(sg.shortfall||0)+".";
+    else if(sg.status==="stale")msg+="Actualiza los saldos bancarios antes de confiar en el coverage.";
+    else if(sg.status==="missing_balance")msg+="Registra saldo de todas las cuentas segregadas activas.";
+    else if(sg.status==="not_configured")msg+="Configura al menos una cuenta activa de fondos de clientes.";
+    note.textContent=msg
+  }
+}
+function clientTreasuryAccounts(){
+  return (s.safeguarding?.accounts||[]).filter(a=>a.purpose==="client_funds"&&a.active!==false)
+}
+function accountOptions(accounts){
+  return accounts.map(a=>"<option value='"+esc(a.id)+"'>"+esc(a.bank_name+" · "+a.account_name+(a.account_number_last4?" · •••• "+a.account_number_last4:""))+"</option>").join("")
+}
+function openTreasuryAccount(){
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Tesorería ReVale</div><h3>Configurar cuenta bancaria</h3><p>ReVale guarda únicamente alias y últimos 4 dígitos para operación. No necesitamos exponer el número completo.</p><div class='field'><label>Banco</label><input id='treasuryBankName' class='input' placeholder='Ej. Banco Pichincha'/></div><div class='field'><label>Nombre / alias</label><input id='treasuryAccountName' class='input' placeholder='Ej. Cuenta segregada clientes'/></div><div class='field'><label>Últimos 4 dígitos</label><input id='treasuryLast4' class='input' maxlength='4' placeholder='1234'/></div><div class='field'><label>Uso</label><select id='treasuryPurpose' class='input'><option value='client_funds'>Fondos de clientes</option><option value='operating'>Caja propia ReVale</option><option value='tax'>Impuestos</option></select></div><div class='field'><label><input id='treasuryPrimary' type='checkbox' checked/> Cuenta principal para este uso</label></div><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button id='treasuryAccountBtn' class='btn primary' onclick='submitTreasuryAccount()'>Guardar cuenta</button></div></div></div>"
+}
+async function submitTreasuryAccount(){
+  var b=q("treasuryAccountBtn");b.disabled=true;b.textContent="Guardando…";
+  try{
+    await api("treasury-account",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      bank_name:(q("treasuryBankName").value||"").trim(),
+      account_name:(q("treasuryAccountName").value||"").trim(),
+      account_number_last4:(q("treasuryLast4").value||"").trim(),
+      purpose:q("treasuryPurpose").value,
+      currency:"USD",
+      is_primary:q("treasuryPrimary").checked
+    })});
+    closeModal();await loadTreasuryControl();toast("Cuenta de tesorería configurada")
+  }catch(e){toast(e.message);b.disabled=false;b.textContent="Guardar cuenta"}
+}
+function openTreasuryBalance(id){
+  var a=(s.safeguarding?.accounts||[]).find(x=>x.id===id);if(!a){toast("Cuenta no encontrada");return}
+  var now=new Date().toISOString().slice(0,16);
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Conciliación de tesorería</div><h3>Actualizar saldo bancario</h3><p>"+esc(a.bank_name+" · "+a.account_name)+". Registra el saldo mostrado por el banco; ReVale lo usa como ancla física del safeguarding.</p><div class='field'><label>Saldo contable</label><input id='treasuryBalance' class='input' type='number' step='0.01' min='0' value='"+Number(a.snapshot?.balance||a.reportedBalance||0).toFixed(2)+"'/></div><div class='field'><label>Saldo disponible</label><input id='treasuryAvailable' class='input' type='number' step='0.01' min='0' value='"+Number(a.snapshot?.available_balance??a.reportedBalance??0).toFixed(2)+"'/></div><div class='field'><label>Fecha / hora del saldo</label><input id='treasuryAsOf' class='input' type='datetime-local' value='"+now+"'/></div><div class='field'><label>Referencia de estado de cuenta</label><input id='treasuryStatement' class='input' placeholder='Opcional'/></div><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button id='treasuryBalanceBtn' class='btn primary' onclick='submitTreasuryBalance("+JSON.stringify(id)+")'>Actualizar</button></div></div></div>"
+}
+async function submitTreasuryBalance(id){
+  var b=q("treasuryBalanceBtn");b.disabled=true;b.textContent="Guardando…";
+  try{
+    await api("treasury-balance",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      account_id:id,balance:Number(q("treasuryBalance").value||0),
+      available_balance:Number(q("treasuryAvailable").value||0),
+      as_of:new Date(q("treasuryAsOf").value).toISOString(),
+      statement_reference:(q("treasuryStatement").value||"").trim(),
+      source:"manual"
+    })});
+    closeModal();await loadTreasuryControl();toast("Saldo bancario actualizado")
+  }catch(e){toast(e.message);b.disabled=false;b.textContent="Actualizar"}
+}
+async function toggleSafeguarding(){
+  var current=Boolean(s.safeguarding?.settings?.enforcementEnabled),label=current?"desactivar":"activar";
+  openConfirm((current?"Desactivar":"Activar")+" enforcement","Al "+label+" enforcement, ReVale "+(current?"dejará de bloquear":"bloqueará")+" pagos y devoluciones cuando la cobertura sea insuficiente, falten saldos o estén desactualizados.",async()=>{
+    await api("safeguarding-enforcement",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({enabled:!current})});
+    await loadTreasuryControl();toast(!current?"Safeguarding enforcement activo":"Safeguarding enforcement desactivado")
+  })
+}
+function openTreasuryTransfer(){
+  var accounts=s.safeguarding?.accounts||[],client=accounts.filter(a=>a.purpose==="client_funds"),operating=accounts.filter(a=>a.purpose==="operating");
+  if(!client.length||!operating.length){toast("Configura una cuenta de clientes y una cuenta operativa");return}
+  var sg=s.safeguarding||{},suggested=Number(sg.shortfall||0)>0?Number(sg.shortfall):Number(sg.sweepable||0);
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Movimiento entre cuentas ReVale</div><h3>Top-up / barrido de excedente</h3><p>Top-up lleva caja propia a safeguarding. Barrido retira únicamente el excedente que no respalda obligaciones de terceros.</p><div class='field'><label>Tipo</label><select id='treasuryTransferType' class='input'><option value='safeguarding_topup'>Top-up a cuenta segregada</option><option value='excess_sweep'>Barrido de excedente a caja propia</option></select></div><div class='field'><label>Monto</label><input id='treasuryTransferAmount' class='input' type='number' min='0.01' step='0.01' value='"+suggested.toFixed(2)+"'/></div><div class='field'><label>Referencia bancaria</label><input id='treasuryTransferRef' class='input' placeholder='Referencia / comprobante'/></div><div class='field'><label>Fecha bancaria</label><input id='treasuryTransferDate' class='input' type='date' value='"+new Date().toLocaleDateString("en-CA",{timeZone:"America/Guayaquil"})+"'/></div><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button id='treasuryTransferBtn' class='btn primary' onclick='submitTreasuryTransfer()'>Registrar transferencia</button></div></div></div>"
+}
+async function submitTreasuryTransfer(){
+  var b=q("treasuryTransferBtn");b.disabled=true;b.textContent="Registrando…";
+  try{
+    await api("treasury-transfer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      transfer_type:q("treasuryTransferType").value,
+      amount:Number(q("treasuryTransferAmount").value||0),
+      bank_reference:(q("treasuryTransferRef").value||"").trim(),
+      bank_posted_on:q("treasuryTransferDate").value
+    })});
+    closeModal();await loadTreasuryControl();toast("Transferencia de tesorería registrada")
+  }catch(e){toast(e.message);b.disabled=false;b.textContent="Registrar transferencia"}
 }
 function fundingStatus(x){
   if(x.status==="pending"){
@@ -312,31 +433,34 @@ function fundingActions(x){
 }
 function openFundingReceipt(id){
   var x=(s.funding||[]).find(v=>v.id===id);if(!x){toast("Fondeo no encontrado");return}
-  var suggested=Math.max(Number(x.funding_gap||0),0);
+  var suggested=Math.max(Number(x.funding_gap||0),0),accounts=clientTreasuryAccounts();
+  if(!accounts.length){toast("Configura primero una cuenta de fondos de clientes");return}
   var today=new Date().toLocaleDateString("en-CA",{timeZone:"America/Guayaquil"});
-  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Ingreso bancario</div><h3>Confirmar fondos recibidos</h3><p>"+esc(x.employer_name)+" · "+esc(x.program_name||"")+"<br/>Asignaciones pendientes: "+money(x.pending_allocation)+" · recibido neto: "+money(Number(x.received_amount||0)-Number(x.refunded_amount||0))+".</p><div class='field'><label>Monto recibido</label><input id='fundReceiptAmount' class='input' type='number' min='0.01' step='0.01' value='"+suggested.toFixed(2)+"'/></div><div class='field'><label>Referencia bancaria</label><input id='fundReceiptRef' class='input' placeholder='Referencia / comprobante'/></div><div class='field'><label>Fecha en banco</label><input id='fundReceiptDate' class='input' type='date' value='"+today+"'/></div><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button id='fundReceiptBtn' class='btn primary' onclick='submitFundingReceipt("+JSON.stringify(id)+")'>Confirmar ingreso</button></div></div></div>"
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Ingreso bancario</div><h3>Confirmar fondos recibidos</h3><p>"+esc(x.employer_name)+" · "+esc(x.program_name||"")+"<br/>Asignaciones pendientes: "+money(x.pending_allocation)+" · recibido neto: "+money(Number(x.received_amount||0)-Number(x.refunded_amount||0))+".</p><div class='field'><label>Cuenta ReVale receptora</label><select id='fundReceiptAccount' class='input'>"+accountOptions(accounts)+"</select></div><div class='field'><label>Monto recibido</label><input id='fundReceiptAmount' class='input' type='number' min='0.01' step='0.01' value='"+suggested.toFixed(2)+"'/></div><div class='field'><label>Referencia bancaria</label><input id='fundReceiptRef' class='input' placeholder='Referencia / comprobante'/></div><div class='field'><label>Fecha en banco</label><input id='fundReceiptDate' class='input' type='date' value='"+today+"'/></div><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button id='fundReceiptBtn' class='btn primary' onclick='submitFundingReceipt("+JSON.stringify(id)+")'>Confirmar ingreso</button></div></div></div>"
 }
 async function submitFundingReceipt(id){
   var amount=Number(q("fundReceiptAmount").value||0),ref=(q("fundReceiptRef").value||"").trim(),date=q("fundReceiptDate").value||"",b=q("fundReceiptBtn");
   if(!(amount>0)||!ref||!date){toast("Completa monto, referencia y fecha");return}
   b.disabled=true;b.textContent="Registrando…";
   try{
-    var d=await api("record-funding-receipt",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id,amount:amount,bank_reference:ref,bank_posted_on:date})});
+    var d=await api("record-funding-receipt",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id,amount:amount,bank_reference:ref,bank_posted_on:date,treasury_account_id:q("fundReceiptAccount").value})});
     closeModal();await loadAll();await loadTreasuryControl();showFunding();
     toast(d.result?.ready?"Fondos completos · listo para acreditar":"Ingreso registrado · aún falta "+money(d.result?.summary?.funding_gap||0))
   }catch(e){toast(e.message);b.disabled=false;b.textContent="Confirmar ingreso"}
 }
 function openFundingRefund(id){
   var x=(s.funding||[]).find(v=>v.id===id);if(!x){toast("Fondeo no encontrado");return}
-  var available=Math.max(Number(x.cash_available||0),0),today=new Date().toLocaleDateString("en-CA",{timeZone:"America/Guayaquil"});
-  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Devolución de fondos</div><h3>Registrar devolución a la empresa</h3><p>Disponible no asignado: "+money(available)+". Esta salida reduce la obligación de ReVale con la empresa; no afecta ingresos.</p><div class='field'><label>Monto devuelto</label><input id='fundRefundAmount' class='input' type='number' min='0.01' step='0.01' value='"+available.toFixed(2)+"'/></div><div class='field'><label>Referencia bancaria</label><input id='fundRefundRef' class='input' placeholder='Referencia / comprobante'/></div><div class='field'><label>Fecha en banco</label><input id='fundRefundDate' class='input' type='date' value='"+today+"'/></div><div class='field'><label>Motivo</label><input id='fundRefundReason' class='input' placeholder='Exceso / cancelación / corrección'/></div><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button id='fundRefundBtn' class='btn danger' onclick='submitFundingRefund("+JSON.stringify(id)+")'>Registrar devolución</button></div></div></div>"
+  var available=Math.max(Number(x.cash_available||0),0),accounts=clientTreasuryAccounts();
+  if(!accounts.length){toast("Configura primero una cuenta de fondos de clientes");return}
+  var today=new Date().toLocaleDateString("en-CA",{timeZone:"America/Guayaquil"});
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Devolución de fondos</div><h3>Registrar devolución a la empresa</h3><p>Disponible no asignado: "+money(available)+". Esta salida reduce la obligación de ReVale con la empresa; no afecta ingresos.</p><div class='field'><label>Cuenta ReVale de salida</label><select id='fundRefundAccount' class='input'>"+accountOptions(accounts)+"</select></div><div class='field'><label>Monto devuelto</label><input id='fundRefundAmount' class='input' type='number' min='0.01' step='0.01' value='"+available.toFixed(2)+"'/></div><div class='field'><label>Referencia bancaria</label><input id='fundRefundRef' class='input' placeholder='Referencia / comprobante'/></div><div class='field'><label>Fecha en banco</label><input id='fundRefundDate' class='input' type='date' value='"+today+"'/></div><div class='field'><label>Motivo</label><input id='fundRefundReason' class='input' placeholder='Exceso / cancelación / corrección'/></div><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button id='fundRefundBtn' class='btn danger' onclick='submitFundingRefund("+JSON.stringify(id)+")'>Registrar devolución</button></div></div></div>"
 }
 async function submitFundingRefund(id){
   var amount=Number(q("fundRefundAmount").value||0),ref=(q("fundRefundRef").value||"").trim(),date=q("fundRefundDate").value||"",reason=(q("fundRefundReason").value||"").trim(),b=q("fundRefundBtn");
   if(!(amount>0)||!ref||!date){toast("Completa monto, referencia y fecha");return}
   b.disabled=true;b.textContent="Registrando…";
   try{
-    await api("refund-funding",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id,amount:amount,bank_reference:ref,bank_posted_on:date,reason:reason})});
+    await api("refund-funding",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id,amount:amount,bank_reference:ref,bank_posted_on:date,reason:reason,treasury_account_id:q("fundRefundAccount").value})});
     closeModal();await loadAll();await loadTreasuryControl();showFunding();toast("Devolución registrada")
   }catch(e){toast(e.message);b.disabled=false;b.textContent="Registrar devolución"}
 }
