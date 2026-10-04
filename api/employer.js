@@ -1,6 +1,7 @@
 import { getSql } from "../lib/revale-db.js";
 import { getEmployerPrincipal, roleAllowed } from "../lib/revale-auth.js";
 import { createFundingBatch, prepareFundingItems } from "../lib/revale-benefits.js";
+import { ensureFundingTreasurySchema } from "../lib/revale-admin-funding.js";
 
 function json(res, code, body) {
   res.status(code)
@@ -17,6 +18,7 @@ export default async function handler(req, res) {
   const action = String(req.query?.action || "");
   try {
     const sql = await getSql();
+    await ensureFundingTreasurySchema(sql);
     const principal = await getEmployerPrincipal(sql, req);
     if (!principal) return json(res, 401, { ok:false, error:"Sesión requerida" });
 
@@ -52,10 +54,21 @@ export default async function handler(req, res) {
 
       const [funding] = await sql.query(
         `SELECT
-           COALESCE(SUM(amount) FILTER (WHERE status='pending'),0)::float8 AS pending_funding,
-           COALESCE(SUM(amount) FILTER (WHERE status='allocated'),0)::float8 AS allocated_funding
-         FROM revale.funding_batches
-         WHERE employer_id=$1`,
+           COALESCE(SUM(fb.amount) FILTER (WHERE fb.status='pending'),0)::float8 AS pending_funding,
+           COALESCE(SUM(fb.amount) FILTER (WHERE fb.status='received'),0)::float8 AS received_funding,
+           COALESCE(SUM(fb.amount) FILTER (WHERE fb.status='allocated'),0)::float8 AS allocated_funding,
+           COALESCE((
+             SELECT SUM(r.amount)
+             FROM revale.employer_funding_receipts r
+             WHERE r.employer_id=$1 AND r.status='confirmed'
+           ),0)::float8 AS cash_received,
+           COALESCE((
+             SELECT SUM(rf.amount)
+             FROM revale.employer_funding_refunds rf
+             WHERE rf.employer_id=$1 AND rf.status='confirmed'
+           ),0)::float8 AS cash_refunded
+         FROM revale.funding_batches fb
+         WHERE fb.employer_id=$1`,
         [principal.employerId]
       );
 
@@ -134,7 +147,22 @@ export default async function handler(req, res) {
            fb.id,fb.program_id,bp.name AS program_name,fb.external_reference,
            fb.amount::float8 AS amount,fb.currency,fb.status,fb.received_at,fb.created_at,
            COUNT(fbi.id)::int AS employee_count,
-           COALESCE(SUM(fbi.amount),0)::float8 AS item_total
+           COALESCE(SUM(fbi.amount),0)::float8 AS item_total,
+           COALESCE((
+             SELECT SUM(r.amount)
+             FROM revale.employer_funding_receipts r
+             WHERE r.funding_batch_id=fb.id AND r.status='confirmed'
+           ),0)::float8 AS received_amount,
+           COALESCE((
+             SELECT SUM(rf.amount)
+             FROM revale.employer_funding_refunds rf
+             WHERE rf.funding_batch_id=fb.id AND rf.status='confirmed'
+           ),0)::float8 AS refunded_amount,
+           COALESCE((
+             SELECT SUM(i.amount)
+             FROM revale.funding_batch_items i
+             WHERE i.funding_batch_id=fb.id AND i.status='allocated'
+           ),0)::float8 AS allocated_amount
          FROM revale.funding_batches fb
          LEFT JOIN revale.benefit_programs bp ON bp.id=fb.program_id
          LEFT JOIN revale.funding_batch_items fbi ON fbi.funding_batch_id=fb.id
@@ -144,7 +172,17 @@ export default async function handler(req, res) {
          LIMIT 50`,
         [principal.employerId]
       );
-      return json(res,200,{ok:true,funding:rows});
+      return json(res,200,{ok:true,funding:rows.map(x=>{
+        const cashNet=Math.round((Number(x.received_amount||0)-Number(x.refunded_amount||0)+Number.EPSILON)*100)/100;
+        const pending=Math.round((Math.max(Number(x.item_total||0)-Number(x.allocated_amount||0),0)+Number.EPSILON)*100)/100;
+        return {
+          ...x,
+          cash_net:cashNet,
+          pending_allocation:pending,
+          funding_gap:Math.round((Math.max(pending-cashNet,0)+Number.EPSILON)*100)/100,
+          unallocated_cash:Math.round((Math.max(cashNet-Number(x.allocated_amount||0),0)+Number.EPSILON)*100)/100
+        };
+      })});
     }
 
     if (req.method === "POST" && action === "update-program") {
