@@ -520,7 +520,9 @@ export default async function handler(req, res) {
           s.currency,s.status,s.closed_at,s.scheduled_at,s.paid_at,s.payout_reference,
           mba.bank_name,mba.account_type,
           CASE WHEN mba.account_number IS NULL THEN NULL ELSE '•••• '||right(mba.account_number,4) END AS account_number_masked,
-          lp.attempt_no,lp.status AS payout_status,lp.failure_reason
+          lp.attempt_no,lp.status AS payout_status,lp.failure_reason,
+          lp.amount::float8 AS payout_amount,
+          rec.status AS reconciliation_status,rec.bank_reference AS reconciliation_reference
         FROM revale.settlements s
         LEFT JOIN revale.merchant_bank_accounts mba ON mba.id=s.bank_account_id
         LEFT JOIN revale.merchant_fee_invoices fi ON fi.settlement_id=s.id
@@ -537,12 +539,19 @@ export default async function handler(req, res) {
           WHERE settlement_id=s.id
         ) wh ON true
         LEFT JOIN LATERAL (
-          SELECT attempt_no,status,failure_reason
+          SELECT attempt_no,status,failure_reason,amount
           FROM revale.settlement_payouts
           WHERE settlement_id=s.id
           ORDER BY attempt_no DESC
           LIMIT 1
         ) lp ON true
+        LEFT JOIN LATERAL (
+          SELECT status,bank_reference
+          FROM revale.settlement_reconciliations
+          WHERE settlement_id=s.id
+          ORDER BY updated_at DESC
+          LIMIT 1
+        ) rec ON true
         WHERE s.merchant_id=${merchantId}
         ORDER BY s.period_end DESC
         LIMIT 100
@@ -564,10 +573,28 @@ export default async function handler(req, res) {
           s.net_amount::float8 AS net_amount,
           s.currency,s.status,s.closed_at,s.scheduled_at,s.paid_at,s.payout_reference,
           s.metadata,
+          lp.amount::float8 AS payout_amount,lp.status AS payout_status,
+          rec.status AS reconciliation_status,rec.bank_reference AS reconciliation_reference,
+          rec.bank_posted_on,rec.bank_amount::float8 AS reconciliation_bank_amount,
+          rec.difference_amount::float8 AS reconciliation_difference_amount,
           mba.bank_name,mba.account_type,
           CASE WHEN mba.account_number IS NULL THEN NULL ELSE '•••• '||right(mba.account_number,4) END AS account_number_masked
         FROM revale.settlements s
         LEFT JOIN revale.merchant_bank_accounts mba ON mba.id=s.bank_account_id
+        LEFT JOIN LATERAL (
+          SELECT amount,status
+          FROM revale.settlement_payouts
+          WHERE settlement_id=s.id
+          ORDER BY attempt_no DESC
+          LIMIT 1
+        ) lp ON true
+        LEFT JOIN LATERAL (
+          SELECT status,bank_reference,bank_posted_on,bank_amount,difference_amount
+          FROM revale.settlement_reconciliations
+          WHERE settlement_id=s.id
+          ORDER BY updated_at DESC
+          LIMIT 1
+        ) rec ON true
         WHERE s.id=${settlementId} AND s.merchant_id=${merchantId}
         LIMIT 1
       `;
@@ -614,6 +641,7 @@ export default async function handler(req, res) {
           not_found:"Liquidación o factura ReVale no encontrada",
           payout_locked:"La liquidación ya está programada o pagada; contacta a ReVale para registrar esta retención",
           invoice_not_issued:"ReVale aún no ha emitido la factura de comisión de esta liquidación",
+          credit_note_exists:"Existe una nota de crédito asociada a esta factura; la retención debe resolverse con Finanzas ReVale",
           document_required:"Ingresa el número del comprobante de retención",
           date_required:"Ingresa la fecha de emisión",
           invalid_amount:"Ingresa un valor de retención válido",
