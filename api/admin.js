@@ -31,6 +31,7 @@ import {
   previewBankStatement,
   importBankStatement,
   generateBankMatchSuggestions,
+  bankMatchCandidatesForEntry,
   listBankStatementImports,
   listBankStatementEntries,
   getBankStatementEntry,
@@ -868,6 +869,14 @@ export default async function handler(req,res){
       if(!requireRoles(["superadmin","finance"]))return;
       const importId=String(req.body?.import_id||"");
       const result=await generateBankMatchSuggestions(sql,importId);
+      return json(res,200,{ok:true,result});
+    }
+
+    if(req.method==="GET" && action==="bank-match-candidates"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const entryId=String(req.query?.id||"");
+      const result=await bankMatchCandidatesForEntry(sql,entryId,30);
+      if(result.code!=="ok")return json(res,404,{ok:false,error:"Movimiento bancario no encontrado"});
       return json(res,200,{ok:true,result});
     }
 
