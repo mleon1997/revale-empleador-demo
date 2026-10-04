@@ -21,21 +21,66 @@ import {
 
 async function postReversalAccounting(sql, tx, result) {
   const [ctx] = await sql.query(
-    `SELECT t.merchant_id,t.location_id,t.person_id,t.account_id,t.program_id,
-            bp.employer_id
+    `SELECT
+       t.merchant_id,t.location_id,t.person_id,t.account_id,t.program_id,t.amount::float8 AS amount,
+       bp.employer_id,
+       settled.settlement_id,settled.settlement_status,settled.settlement_metadata
      FROM revale.transactions t
      LEFT JOIN revale.benefit_programs bp ON bp.id=t.program_id
+     LEFT JOIN LATERAL (
+       SELECT s.id AS settlement_id,s.status AS settlement_status,s.metadata AS settlement_metadata
+       FROM revale.settlement_items si
+       JOIN revale.settlements s ON s.id=si.settlement_id
+       WHERE si.transaction_id=t.id AND si.item_type='consumption'
+       ORDER BY s.period_end DESC
+       LIMIT 1
+     ) settled ON true
      WHERE t.id=$1
      LIMIT 1`,
     [tx]
   );
   if(!ctx) return null;
+
+  const amount=Math.round((Number(result.amount||ctx.amount||0)+Number.EPSILON)*100)/100;
+  const isPostClose=Boolean(ctx.settlement_id)&&["closed","failed","paid"].includes(ctx.settlement_status);
+  if(isPostClose){
+    const discountRate=Number(ctx.settlement_metadata?.discount_rate||0);
+    const taxRate=Number(ctx.settlement_metadata?.tax_rate||0);
+    const feeReversal=Math.round((amount*discountRate+Number.EPSILON)*100)/100;
+    const taxReversal=Math.round((feeReversal*taxRate+Number.EPSILON)*100)/100;
+    const merchantRecovery=Math.round((amount-feeReversal-taxReversal+Number.EPSILON)*100)/100;
+    return emitAndPostAccountingEvent(sql,{
+      eventType:"settled_redemption_reversed",
+      sourceType:"transaction",
+      sourceId:tx,
+      eventKey:"reversed_post_close",
+      amount,
+      merchantId:ctx.merchant_id,
+      employerId:ctx.employer_id||null,
+      personId:ctx.person_id||null,
+      benefitAccountId:ctx.account_id||null,
+      settlementId:ctx.settlement_id,
+      transactionId:tx,
+      payload:{
+        program_id:ctx.program_id||null,
+        location_id:ctx.location_id||null,
+        settlement_status:ctx.settlement_status,
+        discount_rate:discountRate,
+        tax_rate:taxRate,
+        fee_reversal:feeReversal,
+        tax_reversal:taxReversal,
+        merchant_recovery:merchantRecovery,
+        balance_after:result.newBalance
+      }
+    });
+  }
+
   return emitAndPostAccountingEvent(sql,{
     eventType:"redemption_reversed",
     sourceType:"transaction",
     sourceId:tx,
     eventKey:"reversed",
-    amount:result.amount,
+    amount,
     merchantId:ctx.merchant_id,
     employerId:ctx.employer_id||null,
     personId:ctx.person_id||null,
@@ -693,7 +738,14 @@ export default async function handler(req, res) {
         reviewedBy
       );
       if (result.code !== "ok") {
-        return json(res, 409, { ok: false, error: "La transacción ya no puede reversarse", status: result.status });
+        return json(res, 409, {
+          ok: false,
+          error: result.code==="payout_in_progress"
+            ? "El pago de esta liquidación ya está programado. Finanzas debe marcarlo como fallido antes de reversar."
+            : "La transacción ya no puede reversarse",
+          status: result.status,
+          settlementId: result.settlementId||null
+        });
       }
       await postReversalAccounting(sql,request.transaction_id,result);
       const [row] = await sql`
@@ -730,8 +782,11 @@ export default async function handler(req, res) {
       if (result.code !== "ok") {
         return json(res, 409, {
           message: "RVL-013",
-          error: "La transacción no puede reversarse",
-          status: result.status
+          error: result.code==="payout_in_progress"
+            ? "El pago de esta liquidación ya está programado. Finanzas debe marcarlo como fallido antes de reversar."
+            : "La transacción no puede reversarse",
+          status: result.status,
+          settlementId: result.settlementId||null
         });
       }
 
