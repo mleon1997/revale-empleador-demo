@@ -304,6 +304,137 @@ export default async function handler(req,res){
       return true;
     };
 
+    if(req.method==="GET" && action==="financial-approvals"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const [requests,policies,summary]=await Promise.all([
+        listFinancialApprovalRequests(sql,{limit:250}),
+        listFinancialPolicies(sql),
+        pendingApprovalSummary(sql,principal.adminUserId)
+      ]);
+      const users=principal.role==="superadmin"?await listFinancialUsers(sql):[];
+      return json(res,200,{
+        ok:true,requests,policies,users,
+        myPermission:summary.permission,
+        pending:summary.pending,actionable:summary.actionable
+      });
+    }
+
+    if(req.method==="POST" && action==="financial-approval-decision"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const requestId=String(req.body?.id||"");
+      const decision=String(req.body?.decision||"");
+      const note=String(req.body?.note||"").trim().slice(0,500);
+      const result=await approvalDecision(sql,{
+        requestId,approverId:principal.adminUserId,decision,note
+      });
+      if(result.code!=="ok"){
+        const messages={
+          not_found:"Solicitud de aprobación no encontrada",
+          invalid_decision:"Decisión inválida",
+          self_approval_forbidden:"No puedes aprobar una solicitud creada por ti",
+          expired:"La solicitud expiró",
+          invalid_status:"La solicitud ya no acepta decisiones",
+          approver_not_allowed:"Tu usuario no tiene permiso de aprobador financiero",
+          approval_limit_exceeded:"El monto supera tu límite personal de aprobación",
+          already_decided:"Ya emitiste una decisión sobre esta solicitud"
+        };
+        return json(res,409,{ok:false,error:messages[result.code]||"No se pudo registrar la decisión",detail:result});
+      }
+      await auditFinancialRequest(sql,{
+        principal,request:result.request,
+        action:decision==="approve"?"financial_approval.approved":"financial_approval.rejected",
+        metadata:{note:note||null,approvalCount:result.request?.approval_count||null}
+      });
+
+      let execution=null;
+      if(result.readyToExecute && !result.rejected){
+        execution=await executeFinancialApprovalRequest(sql,requestId,principal.adminUserId);
+        if(execution.code==="ok"){
+          await auditFinancialRequest(sql,{
+            principal,request:execution.request,
+            action:"financial_approval.executed",
+            metadata:{executionResult:execution.result||null}
+          });
+        }else{
+          await auditFinancialRequest(sql,{
+            principal,request:result.request,
+            action:"financial_approval.execution_failed",
+            metadata:{execution}
+          });
+        }
+      }
+      return json(res,200,{ok:true,result,execution});
+    }
+
+    if(req.method==="POST" && action==="retry-financial-approval"){
+      if(!requireRoles(["superadmin","finance"]))return;
+      const requestId=String(req.body?.id||"");
+      const request=await getFinancialApprovalRequest(sql,requestId);
+      if(!request)return json(res,404,{ok:false,error:"Solicitud no encontrada"});
+      const permission=await financialPermission(sql,principal.adminUserId);
+      if(!permission.active||!permission.can_approve){
+        return json(res,403,{ok:false,error:"Tu usuario no tiene permiso de aprobador financiero"});
+      }
+      if(request.requested_by===principal.adminUserId){
+        return json(res,403,{ok:false,error:"El creador de la solicitud no puede ejecutar su propia aprobación"});
+      }
+      const execution=await executeFinancialApprovalRequest(sql,requestId,principal.adminUserId);
+      if(execution.code!=="ok"){
+        return json(res,409,{ok:false,error:"El reintento no pudo ejecutarse",detail:execution});
+      }
+      await auditFinancialRequest(sql,{
+        principal,request:execution.request,
+        action:"financial_approval.retried",
+        metadata:{executionResult:execution.result||null}
+      });
+      return json(res,200,{ok:true,execution});
+    }
+
+    if(req.method==="POST" && action==="financial-policy"){
+      if(!requireRoles(["superadmin"]))return;
+      const result=await updateFinancialPolicy(sql,{
+        actionType:req.body?.action_type,
+        thresholdAmount:req.body?.threshold_amount,
+        approvalsBelow:Number(req.body?.approvals_below),
+        approvalsAbove:Number(req.body?.approvals_above),
+        expiryHours:Number(req.body?.expiry_hours),
+        active:req.body?.active!==false,
+        actorId:principal.adminUserId
+      });
+      if(result.code!=="ok"){
+        return json(res,409,{ok:false,error:result.code==="invalid_policy"?"Configuración de aprobación inválida":"Política no encontrada",detail:result});
+      }
+      await sql.query(
+        `INSERT INTO revale.audit_events (
+           actor_type,actor_id,action,resource_type,resource_id,metadata
+         ) VALUES ('revale_admin',$1,'financial_policy.updated','financial_approval_policy',$2,$3::jsonb)`,
+        [principal.adminUserId,result.policy.action_type,JSON.stringify(result.policy)]
+      );
+      return json(res,200,{ok:true,result});
+    }
+
+    if(req.method==="POST" && action==="financial-user-permission"){
+      if(!requireRoles(["superadmin"]))return;
+      const result=await updateFinancialUserPermission(sql,{
+        adminUserId:req.body?.admin_user_id,
+        canMake:Boolean(req.body?.can_make),
+        canApprove:Boolean(req.body?.can_approve),
+        approvalLimit:req.body?.approval_limit,
+        active:req.body?.active!==false,
+        actorId:principal.adminUserId
+      });
+      if(result.code!=="ok"){
+        return json(res,409,{ok:false,error:result.code==="invalid_limit"?"Límite de aprobación inválido":"Usuario no encontrado",detail:result});
+      }
+      await sql.query(
+        `INSERT INTO revale.audit_events (
+           actor_type,actor_id,action,resource_type,resource_id,metadata
+         ) VALUES ('revale_admin',$1,'financial_permission.updated','admin_user',$2,$3::jsonb)`,
+        [principal.adminUserId,result.permission.admin_user_id,JSON.stringify(result.permission)]
+      );
+      return json(res,200,{ok:true,result});
+    }
+
     if(req.method==="GET" && action==="overview"){
       const [counts]=await sql.query(
         `SELECT
@@ -334,7 +465,8 @@ export default async function handler(req,res){
          ORDER BY created_at DESC
          LIMIT 12`
       );
-      return json(res,200,{ok:true,counts:counts||{},money:money||{},recent});
+      const approvals=await pendingApprovalSummary(sql,principal.adminUserId);
+      return json(res,200,{ok:true,counts:counts||{},money:money||{},recent,approvals});
     }
 
     if(req.method==="GET" && action==="settlements"){
