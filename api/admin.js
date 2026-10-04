@@ -715,6 +715,7 @@ export default async function handler(req,res){
           invalid_direction:"Las cuentas no corresponden al tipo de movimiento",
           same_account:"Origen y destino no pueden ser la misma cuenta",
           sweep_exceeds_excess:"El barrido supera el excedente liberable sin afectar safeguarding",
+          source_balance_missing:"Actualiza primero el saldo de la cuenta origen",
           insufficient_source_balance:"La cuenta origen no tiene saldo suficiente según el último control",
           duplicate_reference:"La referencia bancaria ya fue utilizada"
         };
