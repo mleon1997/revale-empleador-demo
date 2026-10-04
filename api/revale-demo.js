@@ -472,6 +472,7 @@ export default async function handler(req, res) {
         const messages={
           not_found:"Liquidación o factura ReVale no encontrada",
           payout_locked:"La liquidación ya está programada o pagada; contacta a ReVale para registrar esta retención",
+          invoice_not_issued:"ReVale aún no ha emitido la factura de comisión de esta liquidación",
           document_required:"Ingresa el número del comprobante de retención",
           date_required:"Ingresa la fecha de emisión",
           invalid_amount:"Ingresa un valor de retención válido",
