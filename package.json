@@ -10,7 +10,8 @@
     "@neondatabase/serverless": "^1.2.0",
     "lucide-react": "^0.513.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "exceljs": "^4.4.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.0",
@@ -19,4 +20,4 @@
     "tailwindcss": "^4.1.8",
     "vite": "^5.0.0"
   }
-}
+}\n
