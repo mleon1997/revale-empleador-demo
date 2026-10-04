@@ -41,6 +41,7 @@ button,input{font:inherit}.hidden{display:none!important}.word{font-weight:950;l
     <div class="nav-title">Operaciones</div>
     <button id="navHome" class="nav active" onclick="showHome()">Inicio</button>
     <button id="navFunding" class="nav" onclick="showFunding()">Fondeos</button>
+    <button id="navSettlements" class="nav" onclick="showSettlements()">Liquidaciones</button>
     <button id="navOnboarding" class="nav" onclick="showOnboarding()">Onboarding</button>
     <div class="nav-title">Red</div>
     <button id="navMerchants" class="nav" onclick="showMerchants()">Comercios</button>
@@ -67,6 +68,17 @@ button,input{font:inherit}.hidden{display:none!important}.word{font-weight:950;l
     </div>
 
     <div id="fundingScreen" class="content hidden"><div class="head"><div><div class="eyebrow">Tesorería</div><h1>Fondeos.</h1><p>Valida fondos antes de acreditar saldos a colaboradores.</p></div></div><section class="card" style="overflow:hidden"><table class="table"><thead><tr><th>Solicitud</th><th>Empresa</th><th>Programa</th><th>Empleados</th><th>Estado</th><th style="text-align:right">Monto</th><th></th></tr></thead><tbody id="fundingRows"></tbody></table></section></div>
+    <div id="settlementsScreen" class="content hidden">
+      <div class="head">
+        <div><div class="eyebrow">Merchant Finance</div><h1>Liquidaciones.</h1><p>Cierres persistidos y ciclo de pago a comercios.</p></div>
+        <button class="btn primary" onclick="closeWeeklySettlements()">Cerrar semana anterior</button>
+      </div>
+      <section class="card" style="overflow:hidden">
+        <div class="section-head"><div><h3>Ciclo financiero</h3><p>Cierre → pago programado → pagado / fallido.</p></div></div>
+        <table class="table"><thead><tr><th>Período</th><th>Comercio</th><th>Cuenta</th><th>Estado</th><th style="text-align:right">Neto</th><th></th></tr></thead><tbody id="settlementRows"></tbody></table>
+      </section>
+    </div>
+
 
     <div id="onboardingScreen" class="content hidden"><div class="head"><div><div class="eyebrow">Merchant Ops</div><h1>Onboarding.</h1><p>Sucursales y cuentas bancarias pendientes de aprobación.</p></div></div><div class="grid"><section class="card"><div class="section-head"><div><h3>Nuevas sucursales</h3><p>Activa puntos de operación solicitados por el comercio.</p></div></div><div id="branchQueue" class="queue"></div></section><section class="card"><div class="section-head"><div><h3>Cuentas bancarias</h3><p>Verifica destino antes de habilitar liquidaciones.</p></div></div><div id="bankQueue" class="queue"></div></section></div></div>
 
@@ -77,22 +89,34 @@ button,input{font:inherit}.hidden{display:none!important}.word{font-weight:950;l
 </section>
 <div id="modalRoot"></div>
 <script>
-const s={principal:null,overview:null,funding:[],branches:[],banks:[],merchants:[],employers:[],audit:[]};
+const s={principal:null,overview:null,funding:[],settlements:[],branches:[],banks:[],merchants:[],employers:[],audit:[]};
 const q=id=>document.getElementById(id),money=n=>"$ "+Number(n||0).toFixed(2);
 function toast(m){const t=q("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800)}
 function esc(v){return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]))}
-function hide(){["homeScreen","fundingScreen","onboardingScreen","merchantsScreen","employersScreen","auditScreen"].forEach(x=>q(x).classList.add("hidden"))}
-function nav(id){["navHome","navFunding","navOnboarding","navMerchants","navEmployers","navAudit"].forEach(x=>q(x).classList.remove("active"));q(id).classList.add("active")}
+function hide(){["homeScreen","fundingScreen","settlementsScreen","onboardingScreen","merchantsScreen","employersScreen","auditScreen"].forEach(x=>q(x).classList.add("hidden"))}
+function nav(id){["navHome","navFunding","navSettlements","navOnboarding","navMerchants","navEmployers","navAudit"].forEach(x=>q(x).classList.remove("active"));q(id).classList.add("active")}
 async function api(action,opts={}){const r=await fetch("/api/admin?action="+encodeURIComponent(action),{cache:"no-store",...opts});const d=await r.json();if(!r.ok)throw new Error(d.error||"No se pudo completar");return d}
 function st(v){return v==="pending"?"<span class='status pending'>Pendiente</span>":v==="approved"||v==="allocated"||v==="verified"?"<span class='status ok'>"+esc(v)+"</span>":v==="rejected"||v==="cancelled"?"<span class='status no'>"+esc(v)+"</span>":"<span class='status neutral'>"+esc(v)+"</span>"}
 async function restore(){try{const r=await fetch("/api/admin-auth?action=session",{cache:"no-store"});if(!r.ok)return false;const d=await r.json();s.principal=d.principal;q("userName").textContent=d.principal.displayName;q("userRole").textContent=d.principal.role;q("login").classList.add("hidden");q("app").classList.remove("hidden");await loadAll();showHome();return true}catch(e){return false}}
 async function login(){const e=(q("email").value||"").trim().toLowerCase(),p=q("password").value||"",b=q("loginBtn");if(!e||!p){toast("Ingresa correo y contraseña");return}b.disabled=true;b.textContent="Ingresando…";try{const r=await fetch("/api/admin-auth?action=login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:e,password:p})});const d=await r.json();if(!r.ok)throw new Error(d.error||"No pudimos ingresar");if(!await restore())throw new Error("No pudimos abrir la sesión")}catch(err){toast(err.message)}finally{b.disabled=false;b.textContent="Ingresar"}}
 async function logout(){try{await fetch("/api/admin-auth?action=logout",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"})}catch(e){}q("app").classList.add("hidden");q("login").classList.remove("hidden");q("password").value=""}
-async function loadAll(){const [o,f,bk,ba,m,e,a]=await Promise.all([api("overview"),api("funding-queue"),api("branch-queue"),api("bank-queue"),api("merchants"),api("employers"),api("audit")]);s.overview=o;s.funding=f.items||[];s.branches=bk.items||[];s.banks=ba.items||[];s.merchants=m.items||[];s.employers=e.items||[];s.audit=a.items||[];render()}
+async function loadAll(){const [o,f,st,bk,ba,m,e,a]=await Promise.all([api("overview"),api("funding-queue"),api("settlements"),api("branch-queue"),api("bank-queue"),api("merchants"),api("employers"),api("audit")]);s.overview=o;s.funding=f.items||[];s.settlements=st.items||[];s.branches=bk.items||[];s.banks=ba.items||[];s.merchants=m.items||[];s.employers=e.items||[];s.audit=a.items||[];render()}
+function settlementStatus(v){
+  var map={closed:["Cerrada","neutral"],scheduled:["Pago programado","pending"],paid:["Pagada","ok"],failed:["Pago fallido","no"],cancelled:["Cancelada","no"],draft:["Borrador","neutral"]};
+  var x=map[v]||[v||"—","neutral"];return "<span class='status "+x[1]+"'>"+esc(x[0])+"</span>"
+}
+function periodLabel(a,b){try{var x=new Date(a),y=new Date(new Date(b).getTime()-1);return x.toLocaleDateString("es-EC",{day:"numeric",month:"short",timeZone:"America/Guayaquil"})+" – "+y.toLocaleDateString("es-EC",{day:"numeric",month:"short",timeZone:"America/Guayaquil"})}catch(e){return "—"}}
+function settlementActions(x){
+  if(x.status==="closed")return "<div class='actions'><button class='btn primary' onclick='schedulePayout("+JSON.stringify(x.id)+")'>Programar pago</button></div>";
+  if(x.status==="failed")return "<div class='actions'><button class='btn primary' onclick='schedulePayout("+JSON.stringify(x.id)+")'>Reprogramar</button></div>";
+  if(x.status==="scheduled")return "<div class='actions'><button class='btn secondary' onclick='markFailed("+JSON.stringify(x.id)+")'>Falló</button><button class='btn primary' onclick='markPaid("+JSON.stringify(x.id)+")'>Marcar pagado</button></div>";
+  return ""
+}
 function render(){const c=s.overview?.counts||{},m=s.overview?.money||{};q("kMerchants").textContent=c.merchants||0;q("kEmployers").textContent=c.employers||0;q("kFunding").textContent=c.pending_funding||0;q("kVolume").textContent=money(m.approved_volume);
- const queue=[];if(c.pending_funding)queue.push(card("Fondeos",c.pending_funding+" solicitud(es) esperando validación.","showFunding()"));if(c.pending_branches)queue.push(card("Sucursales",c.pending_branches+" solicitud(es) de activación.","showOnboarding()"));if(c.pending_banks)queue.push(card("Cuentas bancarias",c.pending_banks+" cuenta(s) por verificar.","showOnboarding()"));q("homeQueue").innerHTML=queue.length?queue.join(""):"<div class='queue-item'><div><b>Todo al día</b><small>No hay solicitudes pendientes.</small></div></div>";
+ const queue=[];if(c.pending_funding)queue.push(card("Fondeos",c.pending_funding+" solicitud(es) esperando validación.","showFunding()"));if(c.settlement_action_required)queue.push(card("Liquidaciones",c.settlement_action_required+" cierre(s) requieren acción de pago.","showSettlements()"));if(c.payouts_scheduled)queue.push(card("Pagos programados",c.payouts_scheduled+" transferencia(s) esperan confirmación.","showSettlements()"));if(c.pending_branches)queue.push(card("Sucursales",c.pending_branches+" solicitud(es) de activación.","showOnboarding()"));if(c.pending_banks)queue.push(card("Cuentas bancarias",c.pending_banks+" cuenta(s) por verificar.","showOnboarding()"));q("homeQueue").innerHTML=queue.length?queue.join(""):"<div class='queue-item'><div><b>Todo al día</b><small>No hay solicitudes pendientes.</small></div></div>";
  q("homeAudit").innerHTML=(s.overview?.recent||[]).map(auditRow).join("")||"<div style='padding:10px;font-size:8px;color:#88928d'>Sin actividad todavía.</div>";
  q("fundingRows").innerHTML=s.funding.length?s.funding.map(x=>"<tr><td><b>"+esc(x.id)+"</b><br/><small>"+new Date(x.created_at).toLocaleDateString("es-EC")+"</small></td><td>"+esc(x.employer_name)+"</td><td>"+esc(x.program_name||"—")+"</td><td>"+Number(x.employee_count||0)+"</td><td>"+st(x.status)+"</td><td class='amount'>"+money(x.amount)+"</td><td>"+(x.status==="pending"?"<div class='actions'><button class='btn secondary' onclick='rejectFunding("+JSON.stringify(x.id)+")'>Rechazar</button><button class='btn primary' onclick='approveFunding("+JSON.stringify(x.id)+")'>Acreditar</button></div>":"")+"</td></tr>").join(""):"<tr><td colspan='7'>Sin fondeos.</td></tr>";
+ q("settlementRows").innerHTML=s.settlements.length?s.settlements.map(x=>"<tr><td><b>"+periodLabel(x.period_start,x.period_end)+"</b><br/><small>"+esc(x.id)+"</small></td><td>"+esc(x.merchant_name)+"</td><td>"+(x.bank_name?esc(x.bank_name)+" · "+esc(x.account_number_masked||""):"<span class='status pending'>Sin cuenta verificada</span>")+"</td><td>"+settlementStatus(x.status)+(x.failure_reason?"<br/><small>"+esc(x.failure_reason)+"</small>":"")+"</td><td class='amount'>"+money(x.net_amount)+"</td><td>"+settlementActions(x)+"</td></tr>").join(""):"<tr><td colspan='6'>Aún no hay cierres persistidos.</td></tr>";
  q("branchQueue").innerHTML=s.branches.filter(x=>x.status==="pending").map(x=>"<div class='queue-item'><div><b>"+esc(x.merchant_name)+" · "+esc(x.name)+"</b><small>"+esc(x.address||"Sin dirección")+" · "+x.requested_terminals+" caja(s)</small></div><div class='actions'><button class='btn secondary' onclick='resolveBranch("+x.id+",\"reject\")'>Rechazar</button><button class='btn primary' onclick='resolveBranch("+x.id+",\"approve\")'>Aprobar</button></div></div>").join("")||"<div class='queue-item'><div><b>Sin pendientes</b><small>No hay nuevas sucursales por revisar.</small></div></div>";
  q("bankQueue").innerHTML=s.banks.filter(x=>x.status==="pending").map(x=>"<div class='queue-item'><div><b>"+esc(x.merchant_name)+" · "+esc(x.bank_name)+"</b><small>"+esc(x.account_type)+" · "+esc(x.account_number_masked)+" · "+esc(x.holder_name)+"</small></div><div class='actions'><button class='btn secondary' onclick='resolveBank("+x.id+",\"reject\")'>Rechazar</button><button class='btn primary' onclick='resolveBank("+x.id+",\"approve\")'>Verificar</button></div></div>").join("")||"<div class='queue-item'><div><b>Sin pendientes</b><small>No hay cuentas por verificar.</small></div></div>";
  q("merchantRows").innerHTML=s.merchants.map(x=>"<tr><td><b>"+esc(x.name)+"</b><br/><small>"+esc(x.slug||"")+"</small></td><td>"+esc(x.tax_id||"—")+"</td><td>"+Number(x.locations||0)+"</td><td>"+Number(x.users||0)+"</td><td>"+(x.active?"<span class='status ok'>Activo</span>":"<span class='status neutral'>Inactivo</span>")+"</td></tr>").join("");
@@ -102,10 +126,34 @@ function card(t,d,fn){return "<div class='queue-item'><div><b>"+esc(t)+"</b><sma
 function auditRow(x){return "<div class='audit-row'><i></i><div><b>"+esc(x.action)+" · "+esc(x.resource_type)+"</b><span>"+new Date(x.created_at).toLocaleString("es-EC")+" · "+esc(x.actor_id||x.actor_type)+"</span></div></div>"}
 function showHome(){hide();q("homeScreen").classList.remove("hidden");nav("navHome");q("topTitle").textContent="Inicio · Back Office"}
 function showFunding(){hide();q("fundingScreen").classList.remove("hidden");nav("navFunding");q("topTitle").textContent="Fondeos"}
+function showSettlements(){hide();q("settlementsScreen").classList.remove("hidden");nav("navSettlements");q("topTitle").textContent="Liquidaciones"}
 function showOnboarding(){hide();q("onboardingScreen").classList.remove("hidden");nav("navOnboarding");q("topTitle").textContent="Onboarding"}
 function showMerchants(){hide();q("merchantsScreen").classList.remove("hidden");nav("navMerchants");q("topTitle").textContent="Comercios"}
 function showEmployers(){hide();q("employersScreen").classList.remove("hidden");nav("navEmployers");q("topTitle").textContent="Empresas"}
 function showAudit(){hide();q("auditScreen").classList.remove("hidden");nav("navAudit");q("topTitle").textContent="Auditoría"}
+async function closeWeeklySettlements(){
+  openConfirm("Cerrar semana anterior","ReVale congelará el período semanal completado para todos los comercios con actividad. Los pagos no se ejecutan automáticamente.",async()=>{
+    var d=await api("close-settlements",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+    var created=(d.results||[]).filter(x=>x.code==="ok"&&!x.idempotent).length;
+    await loadAll();showSettlements();toast(created?created+" liquidación(es) cerrada(s)":"No había nuevos cierres con actividad")
+  })
+}
+async function schedulePayout(id){
+  openConfirm("Programar pago","Se creará un intento de pago interno usando la cuenta bancaria verificada. Esto no envía una transferencia bancaria por sí solo.",async()=>{
+    await api("schedule-payout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+    await loadAll();showSettlements();toast("Pago programado")
+  })
+}
+async function markPaid(id){
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Confirmación bancaria</div><h3>Marcar como pagado</h3><p>Registra la referencia real de la transferencia. ReVale no ejecuta la transferencia desde esta pantalla.</p><input id='payoutReference' class='input' placeholder='Referencia / comprobante bancario'/><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button id='paidBtn' class='btn primary' onclick='submitPaid("+JSON.stringify(id)+")'>Confirmar pago</button></div></div></div>"
+}
+async function submitPaid(id){
+  var ref=(q("payoutReference").value||"").trim(),b=q("paidBtn");if(!ref){toast("Ingresa la referencia de la transferencia");return}b.disabled=true;b.textContent="Guardando…";
+  try{await api("mark-payout-paid",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,payout_reference:ref})});closeModal();await loadAll();showSettlements();toast("Liquidación marcada como pagada")}catch(e){toast(e.message);b.disabled=false;b.textContent="Confirmar pago"}
+}
+async function markFailed(id){
+  openReason("Registrar pago fallido",async reason=>{await api("mark-payout-failed",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,reason})});await loadAll();showSettlements();toast("Pago marcado como fallido")})
+}
 async function approveFunding(id){openConfirm("Acreditar fondeo","Esta acción acreditará saldo a todos los colaboradores preparados. Solo hazlo después de validar la recepción de fondos.",async()=>{await api("approve-funding",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});await loadAll();showFunding();toast("Fondeo acreditado")})}
 async function rejectFunding(id){openReason("Rechazar fondeo",async reason=>{await api("reject-funding",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,reason})});await loadAll();showFunding();toast("Fondeo rechazado")})}
 async function resolveBranch(id,decision){openConfirm(decision==="approve"?"Aprobar sucursal":"Rechazar sucursal",decision==="approve"?"Se creará la nueva sucursal y quedará activa en ReVale Comercios.":"La solicitud quedará rechazada.",async()=>{await api("resolve-branch",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,decision})});await loadAll();showOnboarding();toast(decision==="approve"?"Sucursal activada":"Solicitud rechazada")})}
