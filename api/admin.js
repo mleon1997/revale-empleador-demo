@@ -183,6 +183,16 @@ async function executeApprovedFinancialAction(sql,request,actorId){
   }
 
   if(request.action_type==="withholding_verification"){
+    const [current]=await sql.query(
+      `SELECT total_amount::float8 AS total_amount,status
+       FROM revale.merchant_withholdings WHERE id=$1 LIMIT 1`,
+      [request.entity_id]
+    );
+    if(!current)return {code:"not_found"};
+    if(current.status!=="reported"&&current.status!=="verified")return {code:"invalid_status",status:current.status};
+    if(Number(current.total_amount||0)>Number(request.amount||0)+0.00001){
+      return {code:"approval_amount_exceeded",approved_amount:request.amount,actual_amount:current.total_amount};
+    }
     const result=await reviewMerchantWithholding(sql,{
       withholdingId:request.entity_id,
       decision:"verify",
