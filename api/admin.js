@@ -757,22 +757,6 @@ export default async function handler(req,res){
            cn.withholding_resolution_note,cn.resolved_by,cn.resolved_at,cn.issued_at,cn.created_at,
            fi.invoice_number,fi.total_amount::float8 AS invoice_total,
            s.period_start,s.period_end,s.status AS settlement_status,
-           (
-             SELECT r.id FROM revale.financial_approval_requests r
-             WHERE r.action_type='withholding_verification'
-               AND r.entity_type='merchant_withholding'
-               AND r.entity_id=w.id
-               AND r.status IN ('pending','approved','executing','execution_failed')
-             ORDER BY r.created_at DESC LIMIT 1
-           ) AS approval_request_id,
-           (
-             SELECT r.status FROM revale.financial_approval_requests r
-             WHERE r.action_type='withholding_verification'
-               AND r.entity_type='merchant_withholding'
-               AND r.entity_id=w.id
-               AND r.status IN ('pending','approved','executing','execution_failed')
-             ORDER BY r.created_at DESC LIMIT 1
-           ) AS approval_status,
            COALESCE((
              SELECT SUM(w.total_amount)
              FROM revale.merchant_withholdings w
@@ -947,7 +931,23 @@ export default async function handler(req,res){
            w.status,w.reported_by,w.verified_by,w.verified_at,w.rejection_reason,w.created_at,
            fi.invoice_number,fi.subtotal::float8 AS invoice_subtotal,
            fi.vat_amount::float8 AS invoice_vat,fi.total_amount::float8 AS invoice_total,
-           s.period_start,s.period_end,s.status AS settlement_status
+           s.period_start,s.period_end,s.status AS settlement_status,
+           (
+             SELECT r.id FROM revale.financial_approval_requests r
+             WHERE r.action_type='withholding_verification'
+               AND r.entity_type='merchant_withholding'
+               AND r.entity_id=w.id
+               AND r.status IN ('pending','approved','executing','execution_failed')
+             ORDER BY r.created_at DESC LIMIT 1
+           ) AS approval_request_id,
+           (
+             SELECT r.status FROM revale.financial_approval_requests r
+             WHERE r.action_type='withholding_verification'
+               AND r.entity_type='merchant_withholding'
+               AND r.entity_id=w.id
+               AND r.status IN ('pending','approved','executing','execution_failed')
+             ORDER BY r.created_at DESC LIMIT 1
+           ) AS approval_status
          FROM revale.merchant_withholdings w
          JOIN revale.merchants m ON m.id=w.merchant_id
          JOIN revale.merchant_fee_invoices fi ON fi.id=w.fee_invoice_id
