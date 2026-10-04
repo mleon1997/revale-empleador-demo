@@ -76,7 +76,7 @@ export default async function handler(req, res) {
     const protectedActions = new Set([
       "branch-requests","request-branch",
       "merchant-users","invite-user","update-user",
-      "bank-account","request-bank-account","merchant-terms",
+      "bank-account","request-bank-account","merchant-terms","merchant-settlements","settlement-detail",
       "reversal-requests","request-reversal","resolve-reversal",
       "transactions","reverse","invoice-match","create"
     ]);
@@ -316,6 +316,77 @@ export default async function handler(req, res) {
       `;
       if (!row) return json(res, 404, { ok: false, error: "Condiciones comerciales no configuradas" });
       return json(res, 200, { ok: true, terms: row });
+    }
+
+    if (req.method === "GET" && action === "merchant-settlements") {
+      if (!requireRoles(["admin"])) return;
+      const merchantId = principal.merchantId;
+      const rows = await sql`
+        SELECT
+          s.id,s.period_start,s.period_end,
+          s.gross_amount::float8 AS gross_amount,
+          s.adjustment_amount::float8 AS adjustment_amount,
+          s.fee_amount::float8 AS fee_amount,
+          s.tax_amount::float8 AS tax_amount,
+          s.net_amount::float8 AS net_amount,
+          s.currency,s.status,s.closed_at,s.scheduled_at,s.paid_at,s.payout_reference,
+          mba.bank_name,mba.account_type,
+          CASE WHEN mba.account_number IS NULL THEN NULL ELSE '•••• '||right(mba.account_number,4) END AS account_number_masked,
+          lp.attempt_no,lp.status AS payout_status,lp.failure_reason
+        FROM revale.settlements s
+        LEFT JOIN revale.merchant_bank_accounts mba ON mba.id=s.bank_account_id
+        LEFT JOIN LATERAL (
+          SELECT attempt_no,status,failure_reason
+          FROM revale.settlement_payouts
+          WHERE settlement_id=s.id
+          ORDER BY attempt_no DESC
+          LIMIT 1
+        ) lp ON true
+        WHERE s.merchant_id=${merchantId}
+        ORDER BY s.period_end DESC
+        LIMIT 100
+      `;
+      return json(res,200,{ok:true,settlements:rows});
+    }
+
+    if (req.method === "GET" && action === "settlement-detail") {
+      if (!requireRoles(["admin"])) return;
+      const merchantId = principal.merchantId;
+      const settlementId = String(req.query?.id || "");
+      const [settlement] = await sql`
+        SELECT
+          s.id,s.period_start,s.period_end,
+          s.gross_amount::float8 AS gross_amount,
+          s.adjustment_amount::float8 AS adjustment_amount,
+          s.fee_amount::float8 AS fee_amount,
+          s.tax_amount::float8 AS tax_amount,
+          s.net_amount::float8 AS net_amount,
+          s.currency,s.status,s.closed_at,s.scheduled_at,s.paid_at,s.payout_reference,
+          s.metadata,
+          mba.bank_name,mba.account_type,
+          CASE WHEN mba.account_number IS NULL THEN NULL ELSE '•••• '||right(mba.account_number,4) END AS account_number_masked
+        FROM revale.settlements s
+        LEFT JOIN revale.merchant_bank_accounts mba ON mba.id=s.bank_account_id
+        WHERE s.id=${settlementId} AND s.merchant_id=${merchantId}
+        LIMIT 1
+      `;
+      if(!settlement) return json(res,404,{ok:false,error:"Liquidación no encontrada"});
+      const items = await sql`
+        SELECT si.id,si.transaction_id,si.item_type,si.amount::float8 AS amount,si.metadata,si.created_at,
+               t.reference,t.location_id,ml.name AS location_name
+        FROM revale.settlement_items si
+        LEFT JOIN revale.transactions t ON t.id=si.transaction_id
+        LEFT JOIN revale.merchant_locations ml ON ml.id=t.location_id
+        WHERE si.settlement_id=${settlementId}
+        ORDER BY si.id
+      `;
+      const events = await sql`
+        SELECT event_type,actor_id,payload,created_at
+        FROM revale.settlement_events
+        WHERE settlement_id=${settlementId}
+        ORDER BY created_at
+      `;
+      return json(res,200,{ok:true,settlement,items,events});
     }
 
     if (req.method === "GET" && action === "health") {
