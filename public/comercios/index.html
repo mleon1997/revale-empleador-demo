@@ -2192,7 +2192,7 @@ function renderSettlementHistory(){
   if(!rows.length){body.innerHTML="<tr><td colspan='7' class='muted'>Aún no hay períodos cerrados. El primer histórico aparecerá después del cierre semanal.</td></tr>";return}
   body.innerHTML=rows.map(function(s){
     var st=settlementStatusView(s.status);
-    var transfer=Number(s.transfer_amount??s.net_amount||0);
+    var transfer=Number(s.transfer_amount ?? s.net_amount ?? 0);
     var retentionBadge=Number(s.pending_withholdings||0)>0?" <span class='status wait'>Retención en revisión</span>":"";
     return "<tr><td><b>"+persistedPeriodLabel(s.period_start,s.period_end)+"</b></td><td>"+money(s.gross_amount)+"</td><td>"+(Number(s.adjustment_amount||0)?"-"+money(s.adjustment_amount):money(0))+"</td><td>-"+money(Number(s.fee_amount||0)+Number(s.tax_amount||0))+"</td><td><b>"+money(transfer)+"</b></td><td><span class='status "+st.cls+"'>"+st.text+"</span>"+retentionBadge+"</td><td><button class='history-detail-btn' onclick='openSettlementDetail("+JSON.stringify(s.id)+")'>Ver detalle</button></td></tr>"
   }).join("")
@@ -2220,7 +2220,7 @@ async function openSettlementDetail(id){
     var taxAction=canReport?"<button class='btn btn-primary' onclick='openWithholdingModal("+JSON.stringify(id)+")'>Reportar retención</button>":"";
     var invoiceHint=!invoice||invoice.status!=="issued"?"<p class='muted' style='margin-top:10px'>La retención podrá registrarse cuando ReVale haya emitido su factura de comisión.</p>":"";
     var verified=Number(s.payout_adjustment_amount||0);
-    var transfer=Number(s.transfer_amount??s.net_amount||0);
+    var transfer=Number(s.transfer_amount ?? s.net_amount ?? 0);
     q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><span class='eyebrow'>Liquidación persistida</span><h3>"+persistedPeriodLabel(s.period_start,s.period_end)+"</h3><p><span class='status "+st.cls+"'>"+st.text+"</span></p><div class='receipt'><div class='rr'><span>Consumos aprobados</span><b>"+money(s.gross_amount)+"</b></div><div class='rr'><span>Ajustes / reversos</span><b>-"+money(s.adjustment_amount)+"</b></div><div class='rr'><span>Fee ReVale</span><b>-"+money(s.fee_amount)+"</b></div><div class='rr'><span>IVA sobre fee</span><b>-"+money(s.tax_amount)+"</b></div><div class='rr'><span>Neto antes de retenciones</span><b>"+money(s.net_amount)+"</b></div>"+(verified?"<div class='rr'><span>Retenciones verificadas</span><b>+"+money(verified)+"</b></div>":"")+"<div class='rr'><span><b>Transferencia final</b></span><b>"+money(transfer)+"</b></div><div class='rr'><span>Cuenta</span><b>"+safeText(bank)+"</b></div>"+(s.payout_reference?"<div class='rr'><span>Referencia de pago</span><b>"+safeText(s.payout_reference)+"</b></div>":"")+"</div><div class='section-title' style='margin-top:18px'>Documentos fiscales</div><div class='receipt'><div class='rr'><span>Factura ReVale</span><b>"+safeText(invoiceText)+"</b></div>"+withholdingRows+"</div>"+invoiceHint+"<div class='section-title' style='margin-top:18px'>Movimientos del cierre</div><div class='receipt'>"+(items||"<div class='muted'>Sin movimientos.</div>")+"</div><div class='modal-actions'><button class='btn btn-secondary' onclick='closeModal()'>Cerrar</button>"+taxAction+"</div></div></div>"
   }catch(e){toast(e.message||"No se pudo cargar la liquidación")}
 }
