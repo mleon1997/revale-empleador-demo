@@ -1544,7 +1544,14 @@ function applyMerchantConfig(){
 }
 function hideScreens(){["homeScreen","chargeScreen","approvedScreen","transactionsScreen","settlementsScreen","branchScreen","usersScreen"].forEach(function(x){q(x).classList.add("hidden")})}
 function nav(which){["navHome","navMov","navSettlement","navBranch","navUsers"].forEach(function(x){if(q(x))q(x).classList.remove("active")});if(which&&q(which))q(which).classList.add("active")}
-async function enterDemo(){q("login").classList.add("hidden");q("merchantApp").classList.remove("hidden");applyRole();await showHome()}function logoutDemo(){clearInterval(state.poll);clearInterval(state.timer);q("merchantApp").classList.add("hidden");q("login").classList.remove("hidden");q("loginEmail").value="";q("loginPassword").value="";q("loginButton").disabled=false;q("loginButton").textContent="Ingresar";setTimeout(function(){q("loginEmail").focus()},60)}
+async function enterDemo(){q("login").classList.add("hidden");q("merchantApp").classList.remove("hidden");applyRole();await showHome()}
+async function logoutDemo(){
+  clearInterval(state.poll);clearInterval(state.timer);
+  try{await fetch("/api/auth?action=logout",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"})}catch(e){}
+  q("merchantApp").classList.add("hidden");q("login").classList.remove("hidden");
+  q("loginEmail").value="";q("loginPassword").value="";q("loginButton").disabled=false;q("loginButton").textContent="Ingresar";
+  setTimeout(function(){q("loginEmail").focus()},60)
+}
 function togglePassword(){
   var input=q("loginPassword"),b=q("passwordToggle");
   var showing=input.type==="text";
@@ -1572,18 +1579,32 @@ function fillDemoRole(role){
   var idx=role==="cashier"?0:role==="supervisor"?1:2,bs=document.querySelectorAll(".role-demo-actions button");
   if(bs[idx])bs[idx].classList.add("active");
 }
+async function applyAuthenticatedSession(payload){
+  var p=payload?.principal;if(!p)return false;
+  state.role=p.role;state.userName=p.displayName||payload?.user?.name||"Usuario";
+  state.principal=p;
+  var loaded=await loadMerchantConfig(p.merchantSlug,p.locationSlug||null);
+  if(!loaded)return false;
+  await enterDemo();return true
+}
+async function restoreAuthenticatedSession(){
+  try{
+    var r=await fetch("/api/auth?action=session",{cache:"no-store"});
+    if(!r.ok)return false;
+    var d=await r.json();return await applyAuthenticatedSession(d)
+  }catch(e){return false}
+}
 async function loginDemo(){
   var email=(q("loginEmail").value||"").trim().toLowerCase();
   var password=q("loginPassword").value||"";
-  var u=demoUsers()[email],b=q("loginButton");
+  var b=q("loginButton");
   if(!email||!password){toast("Ingresa correo y contraseña");return}
-  if(!u||u.password!==password){toast("Correo o contraseña incorrectos");return}
   b.disabled=true;b.textContent="Ingresando…";
-  state.role=u.role;state.userName=u.name;
-  var loaded=await loadMerchantConfig(u.merchant,u.location);
-  if(!loaded){b.disabled=false;b.textContent="Ingresar";return}
-  await new Promise(function(resolve){setTimeout(resolve,220)});
-  await enterDemo();
+  try{
+    var r=await fetch("/api/auth?action=login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email,password:password})});
+    var d=await r.json();if(!r.ok)throw new Error(d.error||"Correo o contraseña incorrectos");
+    var ok=await restoreAuthenticatedSession();if(!ok)throw new Error("No pudimos abrir tu sesión");
+  }catch(e){toast(e.message||"No pudimos iniciar sesión")}
   b.disabled=false;b.textContent="Ingresar";
 }
 document.addEventListener("keydown",function(e){
@@ -2234,7 +2255,7 @@ function employeeSuccess(){
   var remaining=emp.balanceAfter==null?emp.currentBalance:emp.balanceAfter;
   q("phone").innerHTML="<div class='employee-success'><div class='brand-logo logo-light success-brand' aria-label='ReVale'></div><div class='check'>✓</div><h2>Pago aprobado</h2><p>Tu consumo fue confirmado en "+merchantName()+".</p><div class='balance-success'><span>Saldo disponible</span><b>"+money(remaining)+"</b></div><div class='receipt'><div class='rr'><span>Comercio</span><b>"+merchantName()+"</b></div><div class='rr'><span>Total</span><b>"+money(emp.amount)+"</b></div><div class='rr'><span>Transacción</span><b>"+emp.tx+"</b></div><div class='rr'><span>Estado</span><b>Aprobado</b></div></div></div>"
 }
-(function init(){
+(async function init(){
   var p=new URLSearchParams(location.search);
   if(p.get("employee")==="1"){loadEmployee();return}
   if(p.get("demo")==="1"){
@@ -2243,6 +2264,7 @@ function employeeSuccess(){
     q("accessBadge").innerHTML="<i></i> Presentación";
     fillDemoRole("admin");
   }
+  await restoreAuthenticatedSession()
 })();
 </script>
 </body>
