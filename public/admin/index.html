@@ -217,7 +217,7 @@ function settlementActions(x){
     if(Number(x.pending_withholdings||0)>0){
       return "<div class='actions'><span class='status pending'>Retención por verificar</span></div>"
     }
-    return "<div class='actions'><button class='btn primary' onclick='schedulePayout("+JSON.stringify(x.id)+")'>"+(x.status==="failed"?"Reprogramar":"Programar pago")+"</button></div>"
+    return "<div class='actions'><button class='btn primary' onclick='schedulePayout("+JSON.stringify(x.id)+")'>"+(x.status==="failed"?"Solicitar reprogramación":"Solicitar pago")+"</button></div>"
   }
   if(x.status==="scheduled")return "<div class='actions'><button class='btn secondary' onclick='markFailed("+JSON.stringify(x.id)+")'>Falló</button><button class='btn primary' onclick='markPaid("+JSON.stringify(x.id)+")'>Marcar pagado</button></div>";
   if(x.status==="paid")return "<div class='actions'><button class='btn primary' onclick='openBankReconciliation("+JSON.stringify(x.id)+")'>Conciliar banco</button></div>";
@@ -236,9 +236,9 @@ async function submitFeeInvoice(id){
   }catch(e){toast(e.message);b.disabled=false;b.textContent="Registrar emitida"}
 }
 function verifyWithholding(id){
-  openConfirm("Verificar retención","Al verificarla, el valor se reconocerá como crédito tributario de ReVale y aumentará la transferencia al comercio.",async()=>{
-    await api("review-withholding",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id,decision:"verify"})});
-    await loadAll();showSettlements();toast("Retención verificada")
+  openConfirm("Solicitar verificación","La retención pasará por maker-checker antes de afectar crédito tributario y monto a transferir.",async()=>{
+    var d=await api("review-withholding",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id,decision:"verify"})});
+    await loadAll();showSettlements();toast(d.result?.hasEnoughApprovers===false?"Solicitud creada · faltan aprobadores independientes":"Retención enviada a aprobación")
   })
 }
 function rejectWithholding(id){
@@ -262,16 +262,16 @@ async function submitFeeCreditNote(id){
 }
 function openCreditNoteWithholdingReview(id){
   var cn=(s.creditNotes||[]).find(x=>x.id===id);if(!cn){toast("Nota de crédito no encontrada");return}
-  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Revisión tributaria</div><h3>Resolver retención asociada</h3><p>La factura original tiene "+money(cn.verified_withholding_total)+" de retención verificada. Define cuánto de ese crédito tributario debe reversarse por esta nota de crédito. Usa 0 si Finanzas determina que el crédito se mantiene.</p><div class='field'><label>Crédito de retención a reversar</label><input id='creditNoteWhtAmount' class='input' type='number' min='0' step='0.01' value='0.00'/></div><div class='field'><label>Soporte / criterio aplicado</label><input id='creditNoteWhtNote' class='input' placeholder='Ej. retención se mantiene / comprobante anulado'/></div><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button id='creditNoteWhtBtn' class='btn primary' onclick='submitCreditNoteWithholdingReview("+JSON.stringify(id)+")'>Resolver revisión</button></div></div></div>"
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Revisión tributaria</div><h3>Resolver retención asociada</h3><p>La factura original tiene "+money(cn.verified_withholding_total)+" de retención verificada. Define cuánto de ese crédito tributario debe reversarse por esta nota de crédito. Usa 0 si Finanzas determina que el crédito se mantiene.</p><div class='field'><label>Crédito de retención a reversar</label><input id='creditNoteWhtAmount' class='input' type='number' min='0' step='0.01' value='0.00'/></div><div class='field'><label>Soporte / criterio aplicado</label><input id='creditNoteWhtNote' class='input' placeholder='Ej. retención se mantiene / comprobante anulado'/></div><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button id='creditNoteWhtBtn' class='btn primary' onclick='submitCreditNoteWithholdingReview("+JSON.stringify(id)+")'>Enviar a aprobación</button></div></div></div>"
 }
 async function submitCreditNoteWithholdingReview(id){
   var amount=Number(q("creditNoteWhtAmount").value||0),note=(q("creditNoteWhtNote").value||"").trim(),b=q("creditNoteWhtBtn");
   if(amount<0){toast("El ajuste no puede ser negativo");return}
-  b.disabled=true;b.textContent="Guardando…";
+  b.disabled=true;b.textContent="Enviando…";
   try{
-    await api("resolve-credit-note-withholding",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id,withholding_adjustment_amount:amount,resolution_note:note})});
-    closeModal();await loadAll();showSettlements();toast("Revisión tributaria resuelta")
-  }catch(e){toast(e.message);b.disabled=false;b.textContent="Resolver revisión"}
+    var d=await api("resolve-credit-note-withholding",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id,withholding_adjustment_amount:amount,resolution_note:note})});
+    closeModal();await loadAll();showSettlements();toast(d.result?.hasEnoughApprovers===false?"Solicitud creada · faltan aprobadores independientes":"Ajuste enviado a aprobación")
+  }catch(e){toast(e.message);b.disabled=false;b.textContent="Enviar a aprobación"}
 }
 function openBankReconciliation(id){
   var x=(s.settlements||[]).find(v=>v.id===id);if(!x){toast("Liquidación no encontrada");return}
@@ -291,7 +291,7 @@ async function submitBankReconciliation(id){
   }catch(e){toast(e.message);b.disabled=false;b.textContent="Conciliar"}
 }
 function render(){const c=s.overview?.counts||{},m=s.overview?.money||{};q("kMerchants").textContent=c.merchants||0;q("kEmployers").textContent=c.employers||0;q("kFunding").textContent=c.pending_funding||0;q("kVolume").textContent=money(m.approved_volume);
- const queue=[];if(c.pending_funding)queue.push(card("Fondeos",c.pending_funding+" solicitud(es) esperando ingreso bancario completo.","showFunding()"));if(c.funding_ready_to_allocate)queue.push(card("Fondos listos",c.funding_ready_to_allocate+" fondeo(s) ya tienen efectivo verificado y esperan acreditación.","showFunding()"));if(c.settlement_action_required)queue.push(card("Liquidaciones",c.settlement_action_required+" cierre(s) requieren acción de pago.","showSettlements()"));if(c.payouts_scheduled)queue.push(card("Pagos programados",c.payouts_scheduled+" transferencia(s) esperan confirmación.","showSettlements()"));if(c.pending_branches)queue.push(card("Sucursales",c.pending_branches+" solicitud(es) de activación.","showOnboarding()"));if(c.pending_banks)queue.push(card("Cuentas bancarias",c.pending_banks+" cuenta(s) por verificar.","showOnboarding()"));if(c.pending_withholdings)queue.push(card("Retenciones",c.pending_withholdings+" comprobante(s) esperan verificación.","showSettlements()"));if(c.pending_credit_notes)queue.push(card("Notas de crédito",c.pending_credit_notes+" documento(s) esperan emisión.","showSettlements()"));if(c.pending_credit_note_tax_reviews)queue.push(card("Revisión fiscal",c.pending_credit_note_tax_reviews+" nota(s) de crédito requieren resolver retenciones.","showSettlements()"));if(c.pending_reconciliations)queue.push(card("Conciliación bancaria",c.pending_reconciliations+" pago(s) esperan conciliación.","showSettlements()"));if(c.reconciliation_mismatches)queue.push(card("Diferencias bancarias",c.reconciliation_mismatches+" conciliación(es) tienen diferencia.","showSettlements()"));q("homeQueue").innerHTML=queue.length?queue.join(""):"<div class='queue-item'><div><b>Todo al día</b><small>No hay solicitudes pendientes.</small></div></div>";
+ const queue=[];if(c.pending_funding)queue.push(card("Fondeos",c.pending_funding+" solicitud(es) esperando ingreso bancario completo.","showFunding()"));if(c.funding_ready_to_allocate)queue.push(card("Fondos listos",c.funding_ready_to_allocate+" fondeo(s) ya tienen efectivo verificado y esperan acreditación.","showFunding()"));if(c.settlement_action_required)queue.push(card("Liquidaciones",c.settlement_action_required+" cierre(s) requieren acción de pago.","showSettlements()"));if(c.payouts_scheduled)queue.push(card("Pagos programados",c.payouts_scheduled+" transferencia(s) esperan confirmación.","showSettlements()"));if(c.pending_branches)queue.push(card("Sucursales",c.pending_branches+" solicitud(es) de activación.","showOnboarding()"));if(c.pending_banks)queue.push(card("Cuentas bancarias",c.pending_banks+" cuenta(s) por verificar.","showOnboarding()"));if(c.pending_withholdings)queue.push(card("Retenciones",c.pending_withholdings+" comprobante(s) esperan verificación.","showSettlements()"));if(c.pending_credit_notes)queue.push(card("Notas de crédito",c.pending_credit_notes+" documento(s) esperan emisión.","showSettlements()"));if(c.pending_credit_note_tax_reviews)queue.push(card("Revisión fiscal",c.pending_credit_note_tax_reviews+" nota(s) de crédito requieren resolver retenciones.","showSettlements()"));if(c.pending_reconciliations)queue.push(card("Conciliación bancaria",c.pending_reconciliations+" pago(s) esperan conciliación.","showSettlements()"));if(c.reconciliation_mismatches)queue.push(card("Diferencias bancarias",c.reconciliation_mismatches+" conciliación(es) tienen diferencia.","showSettlements()"));if(Number(s.overview?.approvals?.actionable||0))queue.push(card("Aprobaciones",s.overview.approvals.actionable+" solicitud(es) requieren tu decisión.","showApprovals()"));else if(Number(s.overview?.approvals?.pending||0))queue.push(card("Aprobaciones",s.overview.approvals.pending+" solicitud(es) financieras siguen abiertas.","showApprovals()"));q("homeQueue").innerHTML=queue.length?queue.join(""):"<div class='queue-item'><div><b>Todo al día</b><small>No hay solicitudes pendientes.</small></div></div>";
  q("homeAudit").innerHTML=(s.overview?.recent||[]).map(auditRow).join("")||"<div style='padding:10px;font-size:8px;color:#88928d'>Sin actividad todavía.</div>";
  q("fundingRows").innerHTML=s.funding.length?s.funding.map(x=>{var delta=Number(x.funding_gap||0)>0?"<span style='color:#9a6f24'>Falta "+money(x.funding_gap)+"</span>":Number(x.excess_after_allocation||0)>0?"<span style='color:#2f7a4d'>Exceso "+money(x.excess_after_allocation)+"</span>":"<span class='muted'>Cuadrado</span>";return "<tr><td><b>"+esc(x.id)+"</b><br/><small>"+new Date(x.created_at).toLocaleDateString("es-EC")+"</small></td><td>"+esc(x.employer_name)+"</td><td>"+esc(x.program_name||"—")+"</td><td class='amount'><b>"+money(x.item_total)+"</b><br/><small>"+Number(x.employee_count||0)+" colaboradores</small></td><td class='amount'><b>"+money(Number(x.received_amount||0)-Number(x.refunded_amount||0))+"</b><br/><small>Bruto "+money(x.received_amount)+"</small></td><td class='amount'>"+delta+"</td><td>"+fundingStatus(x)+"</td><td>"+fundingActions(x)+"</td></tr>"}).join(""):"<tr><td colspan='8'>Sin fondeos.</td></tr>";
  q("settlementRows").innerHTML=s.settlements.length?s.settlements.map(x=>{var fiscal=x.fee_invoice_status==="issued"?"<span class='status ok'>Factura emitida</span>":x.fee_invoice_status==="cancelled"?"<span class='status neutral'>Factura no requerida</span>":"<span class='status pending'>Factura pendiente</span>";if(Number(x.pending_withholdings||0)>0)fiscal+="<br/><span class='status pending'>Retención en revisión</span>";else if(Number(x.verified_withholding_amount||0)>0)fiscal+="<br/><span class='status ok'>Retención "+money(x.verified_withholding_amount)+"</span>";if(Number(x.merchant_pending_credit_notes||0)>0)fiscal+="<br/><span class='status pending'>"+x.merchant_pending_credit_notes+" NC pendiente(s)</span>";if(Number(x.merchant_pending_credit_note_tax_reviews||0)>0)fiscal+="<br/><span class='status pending'>Revisión tributaria NC</span>";var rec=x.reconciliation_status==="matched"?"<br/><small>Banco conciliado · "+esc(x.reconciliation_reference||"")+"</small>":x.reconciliation_status==="mismatch"?"<br/><small style='color:#9a5b50'>Diferencia banco "+money(x.reconciliation_difference_amount)+"</small>":"";return "<tr><td><b>"+periodLabel(x.period_start,x.period_end)+"</b><br/><small>"+esc(x.id)+"</small></td><td>"+esc(x.merchant_name)+"</td><td>"+(x.bank_name?esc(x.bank_name)+" · "+esc(x.account_number_masked||""):"<span class='status pending'>Sin cuenta verificada</span>")+"</td><td>"+fiscal+"</td><td>"+settlementStatus(x.status)+(x.failure_reason?"<br/><small>"+esc(x.failure_reason)+"</small>":"")+rec+"</td><td class='amount'><b>"+money(x.status==="scheduled"||x.status==="paid"||x.status==="reconciled"?(x.payout_amount??x.transfer_amount??x.net_amount):(x.transfer_amount??x.net_amount))+"</b>"+(Number(x.payout_adjustment_amount||0)?"<br/><small>Ajustes "+money(x.payout_adjustment_amount)+"</small>":"")+"</td><td>"+settlementActions(x)+"</td></tr>"}).join(""):"<tr><td colspan='7'>Aún no hay cierres persistidos.</td></tr>";
@@ -438,19 +438,19 @@ function openTreasuryTransfer(){
   var accounts=s.safeguarding?.accounts||[],client=accounts.filter(a=>a.purpose==="client_funds"),operating=accounts.filter(a=>a.purpose==="operating");
   if(!client.length||!operating.length){toast("Configura una cuenta de clientes y una cuenta operativa");return}
   var sg=s.safeguarding||{},suggested=Number(sg.shortfall||0)>0?Number(sg.shortfall):Number(sg.sweepable||0);
-  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Movimiento entre cuentas ReVale</div><h3>Top-up / barrido de excedente</h3><p>Top-up lleva caja propia a safeguarding. Barrido retira únicamente el excedente que no respalda obligaciones de terceros.</p><div class='field'><label>Tipo</label><select id='treasuryTransferType' class='input'><option value='safeguarding_topup'>Top-up a cuenta segregada</option><option value='excess_sweep'>Barrido de excedente a caja propia</option></select></div><div class='field'><label>Monto</label><input id='treasuryTransferAmount' class='input' type='number' min='0.01' step='0.01' value='"+suggested.toFixed(2)+"'/></div><div class='field'><label>Referencia bancaria</label><input id='treasuryTransferRef' class='input' placeholder='Referencia / comprobante'/></div><div class='field'><label>Fecha bancaria</label><input id='treasuryTransferDate' class='input' type='date' value='"+new Date().toLocaleDateString("en-CA",{timeZone:"America/Guayaquil"})+"'/></div><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button id='treasuryTransferBtn' class='btn primary' onclick='submitTreasuryTransfer()'>Registrar transferencia</button></div></div></div>"
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Movimiento entre cuentas ReVale</div><h3>Top-up / barrido de excedente</h3><p>Top-up lleva caja propia a safeguarding. Barrido retira únicamente el excedente que no respalda obligaciones de terceros.</p><div class='field'><label>Tipo</label><select id='treasuryTransferType' class='input'><option value='safeguarding_topup'>Top-up a cuenta segregada</option><option value='excess_sweep'>Barrido de excedente a caja propia</option></select></div><div class='field'><label>Monto</label><input id='treasuryTransferAmount' class='input' type='number' min='0.01' step='0.01' value='"+suggested.toFixed(2)+"'/></div><div class='field'><label>Referencia bancaria</label><input id='treasuryTransferRef' class='input' placeholder='Referencia / comprobante'/></div><div class='field'><label>Fecha bancaria</label><input id='treasuryTransferDate' class='input' type='date' value='"+new Date().toLocaleDateString("en-CA",{timeZone:"America/Guayaquil"})+"'/></div><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button id='treasuryTransferBtn' class='btn primary' onclick='submitTreasuryTransfer()'>Enviar a aprobación</button></div></div></div>"
 }
 async function submitTreasuryTransfer(){
-  var b=q("treasuryTransferBtn");b.disabled=true;b.textContent="Registrando…";
+  var b=q("treasuryTransferBtn");b.disabled=true;b.textContent="Enviando…";
   try{
-    await api("treasury-transfer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+    var d=await api("treasury-transfer",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
       transfer_type:q("treasuryTransferType").value,
       amount:Number(q("treasuryTransferAmount").value||0),
       bank_reference:(q("treasuryTransferRef").value||"").trim(),
       bank_posted_on:q("treasuryTransferDate").value
     })});
-    closeModal();await loadTreasuryControl();toast("Transferencia de tesorería registrada")
-  }catch(e){toast(e.message);b.disabled=false;b.textContent="Registrar transferencia"}
+    closeModal();await loadAll();await loadTreasuryControl();toast(d.result?.hasEnoughApprovers===false?"Solicitud creada · faltan aprobadores independientes":"Transferencia enviada a aprobación")
+  }catch(e){toast(e.message);b.disabled=false;b.textContent="Enviar a aprobación"}
 }
 function bankImportStatus(v){
   var map={imported:["Importado","neutral"],reviewed:["En revisión","pending"],completed:["Conciliado","ok"],failed:["Falló","no"]};
@@ -597,10 +597,10 @@ function fundingActions(x){
     actions.push("<button class='btn secondary' onclick='openFundingReceipt("+JSON.stringify(x.id)+")'>Registrar ingreso</button>");
   }
   if(x.status==="received"){
-    actions.push("<button class='btn primary' onclick='approveFunding("+JSON.stringify(x.id)+")'>Acreditar</button>");
+    actions.push("<button class='btn primary' onclick='approveFunding("+JSON.stringify(x.id)+")'>Solicitar acreditación</button>");
   }
   if(Number(x.cash_available||0)>0.00001){
-    actions.push("<button class='btn secondary' onclick='openFundingRefund("+JSON.stringify(x.id)+")'>Devolver</button>");
+    actions.push("<button class='btn secondary' onclick='openFundingRefund("+JSON.stringify(x.id)+")'>Solicitar devolución</button>");
   }
   if(x.status==="pending"&&Number(x.received_amount||0)-Number(x.refunded_amount||0)<=0.00001){
     actions.push("<button class='btn danger' onclick='rejectFunding("+JSON.stringify(x.id)+")'>Cancelar</button>");
@@ -629,16 +629,16 @@ function openFundingRefund(id){
   var available=Math.max(Number(x.cash_available||0),0),accounts=clientTreasuryAccounts();
   if(!accounts.length){toast("Configura primero una cuenta de fondos de clientes");return}
   var today=new Date().toLocaleDateString("en-CA",{timeZone:"America/Guayaquil"});
-  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Devolución de fondos</div><h3>Registrar devolución a la empresa</h3><p>Disponible no asignado: "+money(available)+". Esta salida reduce la obligación de ReVale con la empresa; no afecta ingresos.</p><div class='field'><label>Cuenta ReVale de salida</label><select id='fundRefundAccount' class='input'>"+accountOptions(accounts)+"</select></div><div class='field'><label>Monto devuelto</label><input id='fundRefundAmount' class='input' type='number' min='0.01' step='0.01' value='"+available.toFixed(2)+"'/></div><div class='field'><label>Referencia bancaria</label><input id='fundRefundRef' class='input' placeholder='Referencia / comprobante'/></div><div class='field'><label>Fecha en banco</label><input id='fundRefundDate' class='input' type='date' value='"+today+"'/></div><div class='field'><label>Motivo</label><input id='fundRefundReason' class='input' placeholder='Exceso / cancelación / corrección'/></div><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button id='fundRefundBtn' class='btn danger' onclick='submitFundingRefund("+JSON.stringify(id)+")'>Registrar devolución</button></div></div></div>"
+  q("modalRoot").innerHTML="<div class='modal-bg' onclick='if(event.target===this)closeModal()'><div class='modal'><div class='eyebrow'>Devolución de fondos</div><h3>Registrar devolución a la empresa</h3><p>Disponible no asignado: "+money(available)+". Esta salida reduce la obligación de ReVale con la empresa; no afecta ingresos.</p><div class='field'><label>Cuenta ReVale de salida</label><select id='fundRefundAccount' class='input'>"+accountOptions(accounts)+"</select></div><div class='field'><label>Monto devuelto</label><input id='fundRefundAmount' class='input' type='number' min='0.01' step='0.01' value='"+available.toFixed(2)+"'/></div><div class='field'><label>Referencia bancaria</label><input id='fundRefundRef' class='input' placeholder='Referencia / comprobante'/></div><div class='field'><label>Fecha en banco</label><input id='fundRefundDate' class='input' type='date' value='"+today+"'/></div><div class='field'><label>Motivo</label><input id='fundRefundReason' class='input' placeholder='Exceso / cancelación / corrección'/></div><div class='modal-actions'><button class='btn secondary' onclick='closeModal()'>Cancelar</button><button id='fundRefundBtn' class='btn danger' onclick='submitFundingRefund("+JSON.stringify(id)+")'>Enviar a aprobación</button></div></div></div>"
 }
 async function submitFundingRefund(id){
   var amount=Number(q("fundRefundAmount").value||0),ref=(q("fundRefundRef").value||"").trim(),date=q("fundRefundDate").value||"",reason=(q("fundRefundReason").value||"").trim(),b=q("fundRefundBtn");
   if(!(amount>0)||!ref||!date){toast("Completa monto, referencia y fecha");return}
-  b.disabled=true;b.textContent="Registrando…";
+  b.disabled=true;b.textContent="Enviando…";
   try{
-    await api("refund-funding",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id,amount:amount,bank_reference:ref,bank_posted_on:date,reason:reason,treasury_account_id:q("fundRefundAccount").value})});
-    closeModal();await loadAll();await loadTreasuryControl();showFunding();toast("Devolución registrada")
-  }catch(e){toast(e.message);b.disabled=false;b.textContent="Registrar devolución"}
+    var d=await api("refund-funding",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:id,amount:amount,bank_reference:ref,bank_posted_on:date,reason:reason,treasury_account_id:q("fundRefundAccount").value})});
+    closeModal();await loadAll();await loadTreasuryControl();showFunding();toast(d.result?.hasEnoughApprovers===false?"Solicitud creada · faltan aprobadores independientes":"Devolución enviada a aprobación")
+  }catch(e){toast(e.message);b.disabled=false;b.textContent="Enviar a aprobación"}
 }
 async function closeWeeklySettlements(){
   openConfirm("Cerrar semana anterior","ReVale congelará el período semanal completado para todos los comercios con actividad. Los pagos no se ejecutan automáticamente.",async()=>{
@@ -648,9 +648,9 @@ async function closeWeeklySettlements(){
   })
 }
 async function schedulePayout(id){
-  openConfirm("Programar pago","Se creará un intento de pago interno usando la cuenta bancaria verificada. Esto no envía una transferencia bancaria por sí solo.",async()=>{
-    await api("schedule-payout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
-    await loadAll();showSettlements();toast("Pago programado")
+  openConfirm("Solicitar pago","Se creará una solicitud financiera. Un usuario distinto deberá aprobarla antes de que ReVale programe el payout.",async()=>{
+    var d=await api("schedule-payout",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+    await loadAll();showSettlements();toast(d.result?.hasEnoughApprovers===false?"Solicitud creada · faltan aprobadores independientes":"Pago enviado a aprobación")
   })
 }
 async function markPaid(id){
@@ -663,7 +663,7 @@ async function submitPaid(id){
 async function markFailed(id){
   openReason("Registrar pago fallido",async reason=>{await api("mark-payout-failed",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,reason})});await loadAll();showSettlements();toast("Pago marcado como fallido")})
 }
-async function approveFunding(id){openConfirm("Acreditar fondeo","El efectivo de este lote ya fue verificado en banco. Esta acción moverá contablemente fondos empresariales pendientes a obligaciones por beneficios de colaboradores y acreditará sus saldos.",async()=>{await api("approve-funding",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});await loadAll();await loadTreasuryControl();showFunding();toast("Fondeo acreditado a colaboradores")})}
+async function approveFunding(id){openConfirm("Solicitar acreditación","El efectivo ya fue verificado. Esta solicitud requerirá aprobación independiente antes de acreditar saldos a colaboradores.",async()=>{var d=await api("approve-funding",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});await loadAll();await loadTreasuryControl();showFunding();toast(d.result?.hasEnoughApprovers===false?"Solicitud creada · faltan aprobadores independientes":"Fondeo enviado a aprobación")})}
 async function rejectFunding(id){openReason("Rechazar fondeo",async reason=>{await api("reject-funding",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,reason})});await loadAll();showFunding();toast("Fondeo rechazado")})}
 async function resolveBranch(id,decision){openConfirm(decision==="approve"?"Aprobar sucursal":"Rechazar sucursal",decision==="approve"?"Se creará la nueva sucursal y quedará activa en ReVale Comercios.":"La solicitud quedará rechazada.",async()=>{await api("resolve-branch",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,decision})});await loadAll();showOnboarding();toast(decision==="approve"?"Sucursal activada":"Solicitud rechazada")})}
 async function resolveBank(id,decision){if(decision==="reject"){openReason("Rechazar cuenta",async reason=>{await api("resolve-bank",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,decision,reason})});await loadAll();showOnboarding();toast("Cuenta rechazada")});return}openConfirm("Verificar cuenta bancaria","La cuenta pasará a ser el destino activo para futuras liquidaciones del comercio.",async()=>{await api("resolve-bank",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,decision})});await loadAll();showOnboarding();toast("Cuenta verificada")})}
