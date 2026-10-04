@@ -11,6 +11,12 @@ import {
 import { getMerchantPrincipal, getEmployeePrincipal, roleAllowed } from "../lib/revale-auth.js";
 import { evaluateRedemptionRules } from "../lib/revale-benefits.js";
 import { emitAndPostAccountingEvent } from "../lib/revale-accounting.js";
+import {
+  ensureSettlementTaxSchema,
+  ensureFeeInvoiceForSettlement,
+  getSettlementTaxDocuments,
+  reportMerchantWithholding
+} from "../lib/revale-settlement-tax.js";
 
 
 async function postReversalAccounting(sql, tx, result) {
@@ -107,7 +113,7 @@ export default async function handler(req, res) {
     const protectedActions = new Set([
       "branch-requests","request-branch",
       "merchant-users","invite-user","update-user",
-      "bank-account","request-bank-account","merchant-terms","merchant-settlements","settlement-detail",
+      "bank-account","request-bank-account","merchant-terms","merchant-settlements","settlement-detail","report-withholding",
       "reversal-requests","request-reversal","resolve-reversal",
       "transactions","reverse","invoice-match","create"
     ]);
@@ -126,6 +132,10 @@ export default async function handler(req, res) {
       }
       return true;
     };
+
+    if (["merchant-settlements","settlement-detail","report-withholding"].includes(action)) {
+      await ensureSettlementTaxSchema(sql);
+    }
 
     if (req.method === "GET" && action === "merchant-config") {
       const slug = String(req.query?.merchant || "el-hornero");
@@ -360,12 +370,31 @@ export default async function handler(req, res) {
           s.fee_amount::float8 AS fee_amount,
           s.tax_amount::float8 AS tax_amount,
           s.net_amount::float8 AS net_amount,
+          COALESCE(sa.adjustment_total,0)::float8 AS payout_adjustment_amount,
+          (s.net_amount+COALESCE(sa.adjustment_total,0))::float8 AS transfer_amount,
+          COALESCE(wh.pending_count,0)::int AS pending_withholdings,
+          COALESCE(wh.verified_total,0)::float8 AS verified_withholding_amount,
+          fi.id AS fee_invoice_id,fi.invoice_number,fi.status AS fee_invoice_status,
+          fi.total_amount::float8 AS fee_invoice_total,
           s.currency,s.status,s.closed_at,s.scheduled_at,s.paid_at,s.payout_reference,
           mba.bank_name,mba.account_type,
           CASE WHEN mba.account_number IS NULL THEN NULL ELSE '•••• '||right(mba.account_number,4) END AS account_number_masked,
           lp.attempt_no,lp.status AS payout_status,lp.failure_reason
         FROM revale.settlements s
         LEFT JOIN revale.merchant_bank_accounts mba ON mba.id=s.bank_account_id
+        LEFT JOIN revale.merchant_fee_invoices fi ON fi.settlement_id=s.id
+        LEFT JOIN LATERAL (
+          SELECT COALESCE(SUM(amount),0) AS adjustment_total
+          FROM revale.settlement_adjustments
+          WHERE settlement_id=s.id
+        ) sa ON true
+        LEFT JOIN LATERAL (
+          SELECT
+            COUNT(*) FILTER (WHERE status='reported') AS pending_count,
+            COALESCE(SUM(total_amount) FILTER (WHERE status='verified'),0) AS verified_total
+          FROM revale.merchant_withholdings
+          WHERE settlement_id=s.id
+        ) wh ON true
         LEFT JOIN LATERAL (
           SELECT attempt_no,status,failure_reason
           FROM revale.settlement_payouts
@@ -417,7 +446,55 @@ export default async function handler(req, res) {
         WHERE settlement_id=${settlementId}
         ORDER BY created_at
       `;
-      return json(res,200,{ok:true,settlement,items,events});
+      await ensureFeeInvoiceForSettlement(sql,settlementId);
+      const taxDocuments=await getSettlementTaxDocuments(sql,settlementId,merchantId);
+      const payoutAdjustmentAmount=(taxDocuments.adjustments||[]).reduce((sum,x)=>sum+Number(x.amount||0),0);
+      settlement.payout_adjustment_amount=Math.round((payoutAdjustmentAmount+Number.EPSILON)*100)/100;
+      settlement.transfer_amount=Math.round((Number(settlement.net_amount||0)+payoutAdjustmentAmount+Number.EPSILON)*100)/100;
+      return json(res,200,{ok:true,settlement,items,events,taxDocuments});
+    }
+
+    if (req.method === "POST" && action === "report-withholding") {
+      if (!requireRoles(["admin"])) return;
+      const merchantId=principal.merchantId;
+      const settlementId=String(req.body?.settlement_id||"");
+      const result=await reportMerchantWithholding(sql,{
+        settlementId,
+        merchantId,
+        documentNumber:req.body?.document_number,
+        authorizationNumber:req.body?.authorization_number,
+        issuedOn:req.body?.issued_on,
+        incomeTaxAmount:req.body?.income_tax_amount,
+        vatWithheldAmount:req.body?.vat_withheld_amount,
+        reportedBy:principal.displayName||principal.merchantUserId||"Gerencia"
+      });
+      if(result.code!=="ok"){
+        const messages={
+          not_found:"Liquidación o factura ReVale no encontrada",
+          payout_locked:"La liquidación ya está programada o pagada; contacta a ReVale para registrar esta retención",
+          document_required:"Ingresa el número del comprobante de retención",
+          date_required:"Ingresa la fecha de emisión",
+          invalid_amount:"Ingresa un valor de retención válido",
+          income_tax_exceeds_base:"La retención de renta supera la base de la factura ReVale",
+          vat_exceeds_tax:"La retención de IVA supera el IVA de la factura ReVale",
+          withholding_exceeds_invoice:"La retención total supera el valor de la factura ReVale",
+          already_reported:"Ya existe una retención pendiente o verificada para esta factura",
+          duplicate_document:"Ese comprobante de retención ya fue registrado"
+        };
+        return json(res,409,{ok:false,error:messages[result.code]||"No se pudo registrar la retención",detail:result});
+      }
+      await sql.query(
+        `INSERT INTO revale.audit_events (
+           merchant_id,actor_type,actor_id,action,resource_type,resource_id,metadata
+         ) VALUES ($1,'merchant_user',$2,'withholding.reported','merchant_withholding',$3,$4::jsonb)`,
+        [
+          merchantId,
+          principal.merchantUserId||principal.displayName||null,
+          result.withholding.id,
+          JSON.stringify({settlementId,totalAmount:result.withholding.total_amount,documentNumber:result.withholding.document_number})
+        ]
+      );
+      return json(res,200,{ok:true,withholding:result.withholding});
     }
 
     if (req.method === "GET" && action === "health") {
