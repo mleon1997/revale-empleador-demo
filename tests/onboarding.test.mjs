@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import ExcelJS from 'exceljs';
 import {employerFixture} from './employer-fixture.mjs';
 import {previewEmployees,importEmployees,readEmployeeRows,issueEmployeeInvite,invitationInfo,claimInvitation,completeInvitation,releaseInvitation} from '../lib/revale-onboarding.js';
+import {getEmployeePrincipal} from '../lib/revale-auth.js';
 import {activateEmployee} from '../lib/revale-activation.js';
 import {employees,requestFunding,fundingDetail,fundingMoney} from '../lib/revale-employer.js';
 import {createEmployerHandler} from '../api/employer.js';
@@ -12,7 +13,7 @@ after(()=>db.close());
 const row=(overrides={})=>({first_name:'Sofía',last_name:'Rivera',email:'sofia@example.test',person_identification:'0012345678',starts_on:'2026-01-01',department:'Operaciones',cost_center:'Quito',allocation_amount:'85.50',...overrides});
 const input=(rows,key)=>({program_id:'program_demo_food',rows,request_id:key});
 let newEnrollment;
-test('CSV and Excel preserve identification text and reject formulas and oversized workbooks',async()=>{
+test('CSV and Excel preserve identification text and reject formulas',async()=>{
   const csv='\uFEFFNombres;Apellidos;Correo;Identificación;Monto USD\r\n"Sofía";"Rivera; Pérez";sofia@example.test;0012345678;85.50';
   const rows=await readEmployeeRows({file:{name:'equipo.csv',content:Buffer.from(csv).toString('base64')}});
   assert.equal(rows[0].last_name,'Rivera; Pérez');assert.equal(rows[0].person_identification,'0012345678');
@@ -103,4 +104,14 @@ test('finance and viewer roles cannot provision or issue employee invitations',a
     let status;const handler=createEmployerHandler({database:async()=>sql,authenticate:async()=>({...principal,role}),ensureSchema:async()=>{}});
     await handler({method:'POST',query:{action},body:{},headers:{}},{status(code){status=code;return this;},setHeader(){return this;},json(){}});assert.equal(status,403);
   }
+});
+
+test('employee login cannot bypass activation and benefit start dates use Ecuador time',async()=>{
+  const unclaimed=await getEmployeePrincipal(sql,{},async()=>({user:{id:'12345678-1234-4234-8234-123456789009',email:'limit@example.test'}}));
+  assert.equal(unclaimed,null);
+  const session=async()=>({user:{id:'12345678-1234-4234-8234-123456789001',email:'sofia@example.test'}});
+  assert.ok((await getEmployeePrincipal(sql,{},session)).benefit);
+  await sql.query("UPDATE revale.employee_enrollments SET starts_on=(now() AT TIME ZONE 'America/Guayaquil')::date+1 WHERE id=$1",[newEnrollment]);
+  assert.equal((await getEmployeePrincipal(sql,{},session)).benefit,null);
+  await sql.query("UPDATE revale.employee_enrollments SET starts_on='2026-01-01' WHERE id=$1",[newEnrollment]);
 });
