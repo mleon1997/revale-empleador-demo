@@ -66,15 +66,56 @@
   function renderLogin(message='') {
     clearInterval(paymentTimer);
     const demo = params.get('demo')==='andrea';
-    $('app').innerHTML=`<div class="auth-layout"><section class="auth-hero">${brand(true)}<div><div class="eyebrow">MI REVALE</div><h1>Un beneficio.<br>Muchos buenos<br>momentos.</h1><p>Tu empresa pone el beneficio.<br>Tú eliges dónde disfrutarlo.</p><div class="auth-art" aria-hidden="true"><span class="tile">${icon('fork')}</span><span class="tile">${icon('qr')}</span><span class="tile">${icon('gift')}</span></div></div><div class="hero-note">Hecho para acompañar tu día.</div></section><main class="auth-main" id="main"><div class="auth-form">${brand()}<span class="eyebrow">BIENVENIDA A MI REVALE</span><h2>Tu día merece más.</h2><p class="muted">Consulta tus beneficios y disfruta de tus restaurantes favoritos.</p><form id="login-form"><label class="field"><span>Correo electrónico</span><input class="input" id="email" type="email" autocomplete="username" required placeholder="tu@empresa.com" value="${demo?'andrea.demo@revale.app':''}"></label><label class="field"><span>Contraseña</span><div class="password-field"><input class="input" id="password" type="password" autocomplete="current-password" required placeholder="Tu contraseña"><button class="round" type="button" data-action="toggle-password" aria-label="Mostrar contraseña">${icon('eye')}</button></div></label><div id="login-error" role="alert" class="error ${message?'':'hidden'}">${esc(message)}</div><button class="btn full" id="login-submit" style="margin-top:23px">Entrar a mi ReVale ${icon('arrow')}</button></form>${demo?`<div class="demo-access"><span class="pill demo">Cuenta de demostración</span><p>Conoce la experiencia de Andrea Martínez con su saldo y movimientos del piloto.</p><button class="btn light full" data-action="demo-login">Entrar como Andrea ${icon('arrow')}</button></div>`:''}<div class="secure-note">${icon('lock')} Acceso personal a tus beneficios</div><button class="text-btn" data-action="help" style="display:flex;margin:22px auto 0">¿Necesitas ayuda para ingresar?</button></div></main></div>`;
+    $('app').innerHTML=`
+      <div class="login-shell">
+        <section class="login-story" aria-labelledby="login-title">
+          <div class="login-topbar">
+            <img class="login-logo" src="/empleados/revale-logo-green.webp" alt="ReVale">
+            <span class="login-product"><i></i> Mi ReVale</span>
+          </div>
+          <div class="login-intro">
+            <span class="login-eyebrow">UN BENEFICIO QUE SE DISFRUTA</span>
+            <h1 id="login-title">Tu día,<br><span>con más sabor.</span></h1>
+            <p>Tu empresa pone el beneficio.<br>Tú eliges dónde disfrutarlo.</p>
+          </div>
+          <div class="login-scene" aria-hidden="true">
+            <span class="login-orbit"></span>
+            <span class="login-food">${icon('pizza')}</span>
+            <div class="login-pass">
+              <div class="login-pass-top"><span>Mi ReVale</span>${icon('gift')}</div>
+              <strong>Un buen momento.<br>Y es para ti.</strong>
+              <div class="login-pass-bottom"><span>ELIGE. ESCANEA. DISFRUTA.</span>${icon('qr')}</div>
+            </div>
+            <span class="login-sticker">Buen<br>provecho <span>✳</span></span>
+          </div>
+          <div class="login-story-foot"><span>${icon('fork')} Tu próxima mesa te espera.</span><span class="login-spark" aria-hidden="true">✳</span></div>
+        </section>
+        <main class="login-panel" id="main">
+          <div class="login-panel-inner">
+            <span class="login-welcome">TU BENEFICIO, CONTIGO</span>
+            <h2>Qué bueno verte.</h2>
+            <p class="login-description">Ingresa y haz que hoy sepa mejor.</p>
+            <form id="login-form">
+              <div class="login-field"><label for="email">Correo electrónico</label><div class="login-input">${icon('mail')}<input id="email" type="email" inputmode="email" autocomplete="username" autocapitalize="none" spellcheck="false" required placeholder="tu@empresa.com" aria-describedby="login-error" value="${demo?'andrea.demo@revale.app':''}"></div></div>
+              <div class="login-field"><label for="password">Contraseña</label><div class="login-input">${icon('lock')}<input id="password" type="password" autocomplete="current-password" required placeholder="Tu contraseña" aria-describedby="login-error"><button class="login-password" type="button" data-action="toggle-password" aria-label="Mostrar contraseña">${icon('eye')}</button></div></div>
+              <div id="login-error" role="alert" class="error ${message?'':'hidden'}">${esc(message)}</div>
+              <button class="btn full login-submit" id="login-submit" type="submit">Entrar a mi ReVale ${icon('arrow')}</button>
+            </form>
+            <div class="login-trust">${icon('shield')} Acceso personal a tus beneficios</div>
+            <button class="login-help" data-action="help">¿Necesitas una mano? ${icon('arrow')}</button>
+            ${demo?`<div class="demo-access"><span class="pill demo">Cuenta de demostración</span><p>Conoce Mi ReVale con la cuenta de Andrea Martínez.</p><button class="btn light full" data-action="demo-login">Entrar como Andrea ${icon('arrow')}</button></div>`:''}
+            <div class="login-signoff">Un beneficio de tu empresa.<br><b>Un momento para ti.</b></div>
+          </div>
+        </main>
+      </div>`;
     $('login-form').addEventListener('submit',e=>{e.preventDefault();login($('email').value,$('password').value);});
   }
   async function login(email,password) {
     if(state.busy)return;state.busy=true;
-    const button=$('login-submit');button.disabled=true;button.textContent='Ingresando…';$('login-error').classList.add('hidden');
+    const button=$('login-submit');button.disabled=true;button.setAttribute('aria-busy','true');button.textContent='Ingresando…';$('login-error').classList.add('hidden');
     document.querySelector('[data-action="demo-login"]')?.setAttribute('disabled','');
     try{await api('/api/employee-auth?action=login',{method:'POST',body:JSON.stringify({email,password})});await loadDashboard();await openInitialView();}
-    catch(error){if($('login-error')){$('login-error').textContent=error.message;$('login-error').classList.remove('hidden');}if($('login-submit')){$('login-submit').disabled=false;$('login-submit').innerHTML='Entrar a mi ReVale '+icon('arrow');}document.querySelector('[data-action="demo-login"]')?.removeAttribute('disabled');}
+    catch(error){if($('login-error')){$('login-error').textContent=error.message;$('login-error').classList.remove('hidden');}if($('login-submit')){$('login-submit').disabled=false;$('login-submit').removeAttribute('aria-busy');$('login-submit').innerHTML='Entrar a mi ReVale '+icon('arrow');}document.querySelector('[data-action="demo-login"]')?.removeAttribute('disabled');}
     finally{state.busy=false;}
   }
   async function loadDashboard(){state.data=await api('/api/employee?action=dashboard');state.lastRefresh=Date.now();}
