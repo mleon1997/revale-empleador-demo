@@ -1,4 +1,5 @@
 import { getSql } from "../lib/revale-db.js";
+import { ensureEmployerGovernanceSchema, companyApprovalGuard, companyFundingApproved } from '../lib/revale-employer-governance.js';
 import { getAdminPrincipal, roleAllowed } from "../lib/revale-auth.js";
 import {
   ensureFundingTreasurySchema,
@@ -306,6 +307,7 @@ export default async function handler(req,res){
     await ensureSafeguardingSchema(sql);
     await ensureBankReconciliationSchema(sql);
     await ensureFinancialApprovalSchema(sql);
+    await ensureEmployerGovernanceSchema(sql);
     const principal=await getAdminPrincipal(sql,req);
     if(!principal)return json(res,401,{ok:false,error:"Sesión requerida"});
 
@@ -1501,6 +1503,8 @@ export default async function handler(req,res){
         `SELECT
            fb.id,fb.employer_id,e.name AS employer_name,fb.program_id,bp.name AS program_name,
            fb.external_reference,fb.amount::float8 AS amount,fb.currency,fb.status,fb.received_at,fb.created_at,
+           (SELECT status FROM revale.employer_funding_approvals WHERE funding_batch_id=fb.id) AS company_approval_status,
+           ${companyApprovalGuard('fb')} AS company_approved,
            COUNT(fbi.id)::int AS employee_count,
            COALESCE(SUM(fbi.amount),0)::float8 AS item_total,
            COALESCE((
@@ -1748,6 +1752,7 @@ export default async function handler(req,res){
       const id=String(req.body?.id||"");
       const summary=await fundingBatchMoneySummary(sql,id);
       if(!summary)return json(res,404,{ok:false,error:"Fondeo no encontrado"});
+      if(!await companyFundingApproved(sql,id))return json(res,409,{ok:false,error:'Falta la aprobación interna de la empresa o cambió el detalle aprobado.'});
       if(summary.status!=="received"){
         return json(res,409,{ok:false,error:"Primero confirma que el dinero ingresó al banco"});
       }

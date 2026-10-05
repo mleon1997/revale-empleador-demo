@@ -5,7 +5,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:employer": "node --test tests/employer.test.mjs tests/onboarding.test.mjs"
+    "test:employer": "node --test tests/employer.test.mjs tests/onboarding.test.mjs tests/governance.test.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",

@@ -81,7 +81,7 @@ test('personalized funding locks the reviewed roster, accounts and cents without
   const before=await sql.query('SELECT id,balance FROM revale.benefit_accounts ORDER BY id');
   const body={program_id:'program_demo_food',request_id:'personalized-001',external_reference:'Recarga revisada',expected_employee_count:2,items:[{enrollment_id:'1',account_id:'acct_demo_andrea',amount:'120.10'},{enrollment_id:'2',account_id:'a2',amount:'75.05'}]};
   const result=await requestFunding(sql,principal,body);assert.equal(result.batch.total,195.15);
-  const detail=await fundingDetail(sql,principal.employerId,result.batch.id);assert.equal(detail.batch.progress,'awaiting_transfer');assert.equal(detail.items.find(i=>i.enrollment_id==='2').amount,75.05);
+  const detail=await fundingDetail(sql,principal.employerId,result.batch.id);assert.equal(detail.batch.progress,'company_pending');assert.equal(detail.items.find(i=>i.enrollment_id==='2').amount,75.05);
   assert.equal((await requestFunding(sql,principal,{...body,items:[...body.items].reverse()})).idempotent,true);
   await assert.rejects(requestFunding(sql,principal,{...body,request_id:'stale-account-001',items:[{enrollment_id:'1',account_id:'a2',amount:50}]}),e=>e.status===409);
   await assert.rejects(requestFunding(sql,principal,{...body,request_id:'foreign-person-001',items:[{enrollment_id:'3',account_id:'a3',amount:50}]}),e=>e.status===409);

@@ -1,4 +1,6 @@
 import { getSql } from "../lib/revale-db.js";
+import { ensureEmployerGovernanceSchema, teamInvitationInfo } from '../lib/revale-employer-governance.js';
+import { activateTeamMember } from '../lib/revale-activation.js';
 import {
   neonAuthRequest,
   forwardAuthCookies,
@@ -25,7 +27,17 @@ function demoCredential(email,password){
 export default async function handler(req,res){
   const action=String(req.query?.action||"");
   try{
+    if(req.method==='POST'&&req.headers?.origin&&req.headers?.host&&req.headers.origin!==`https://${req.headers.host}`&&!(req.headers.host.startsWith('localhost:')&&req.headers.origin===`http://${req.headers.host}`))return json(res,403,{ok:false,error:'Abre esta acción desde ReVale Empresas.'});
     const sql=await getSql();
+
+    if(req.method==='POST'&&['invitation','activate'].includes(action)){
+      if(!/^[A-Za-z0-9_-]{43}$/.test(String(req.body?.token||'')))return json(res,404,{ok:false,error:'Esta invitación no está disponible. Pide un nuevo enlace al administrador.'});
+      await ensureEmployerGovernanceSchema(sql);
+      if(action==='invitation')return json(res,200,{ok:true,invitation:await teamInvitationInfo(sql,req.body.token)});
+      const upstream=await activateTeamMember(sql,req,req.body||{});
+      forwardAuthCookies(upstream,res);
+      return json(res,200,{ok:true});
+    }
 
     if(req.method==="GET" && action==="session"){
       const session=await getNeonSession(req);
@@ -41,13 +53,14 @@ export default async function handler(req,res){
       if(!email||!password)return json(res,400,{ok:false,error:"Ingresa correo y contraseña"});
 
       const [user]=await sql.query(
-        `SELECT id,display_name,active
+        `SELECT id,display_name,active,COALESCE((to_jsonb(employer_users)->>'activation_required')::boolean,false) AS activation_required
          FROM revale.employer_users
          WHERE lower(email)=$1
          LIMIT 1`,
         [email]
       );
       if(!user?.active)return json(res,403,{ok:false,error:"Este usuario no tiene acceso activo"});
+      if(user.activation_required)return json(res,403,{ok:false,error:'Activa tu acceso desde la invitación que compartió el administrador de tu empresa.'});
 
       let upstream=await neonAuthRequest(req,"/sign-in/email",{
         method:"POST",
@@ -82,7 +95,7 @@ export default async function handler(req,res){
 
     return json(res,405,{ok:false,error:"Acción no soportada"});
   }catch(error){
-    console.error("ReVale employer auth error",error);
-    return json(res,500,{ok:false,error:"Error de autenticación"});
+    if(!error.status)console.error("ReVale employer auth error",error);
+    return json(res,error.status||500,{ok:false,error:error.status?error.message:"Error de autenticación"});
   }
 }

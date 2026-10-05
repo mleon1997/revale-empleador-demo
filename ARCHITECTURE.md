@@ -76,6 +76,13 @@ The current stack is a modular-monolith target:
 - financial_approval_requests
 - financial_approval_decisions
 
+### Company governance
+- employer_users (personal roles, activation gate, approval limits and access versions)
+- employer_team_invites
+- employer_approval_policies
+- employer_funding_approvals
+- employer_funding_decisions
+
 ### Platform controls
 - idempotency_keys
 - audit_events
@@ -114,12 +121,16 @@ The current stack is a modular-monolith target:
 
 ## Employer experience
 
-The employer portal provides five views: overview, employees, benefits, funding requests, and consumption reports. It uses the existing employer identity and does not create a parallel ledger.
+The employer portal provides seven views: overview, employees, benefits, funding requests, internal approvals, consumption reports, and team/access management. It uses the existing employer identity and does not create a parallel ledger.
 
-- Administration manages benefits, enrollment status, and funding requests. HR manages benefits and enrollment status. Finance requests funding. Other authenticated employer roles have read-only access.
+- Administration manages benefits, enrollment, company access and approval policy. HR manages benefits/enrollment and prepares funding requests. Finance prepares and approves funding requests. Administration also approves within its personal limit. Consultation is read-only. Requesters cannot approve their own requests, including through another membership with the same authenticated identity.
+- Company administrators issue manually shared, single-use 72-hour activation links for HR, Finance, Consultation, or Administration. Invite-only users cannot use legacy email binding to bypass activation. The `/empresas/activar/` flow reuses verified Neon Auth sessions; passwords never enter employer records. Token hashes, attempt limits, expiring claims, rotation and membership revocation protect access. No automatic invitation email is sent.
+- Membership and policy mutations revalidate the current company administrator inside Serializable transactions. Users cannot change their own permissions, pending invitation links expire after permission changes, and an activated administrator is retained. Suspended users lose access on the next authenticated request. Changes are version checked and audited.
+- Every new company funding request requires one independent company approval up to a configurable threshold (initially USD 5,000), or two above it. The amount, program, reviewed roster signature, requester identity and policy version are saved atomically with the batch. Policy changes apply only to new requests. An approver must currently be active, hold Administration or Finance, and have a sufficient personal monetary limit. Previously recorded decisions remain part of the immutable decision history.
+- The company inbox offers all pending requests, requests the signed-in user may decide, and history. Detail shows the exact roster/amounts, decision comments, remaining approvals and currently eligible people. A missing approver is explicit; the system never bypasses an approval because a company has only one administrator. Rejection and requester withdrawal are terminal and retain any bank receipts for ReVale to reconcile/refund.
 - Every company scope originates in the authenticated employer principal; inactive companies cannot resolve a principal.
 - A funding request atomically snapshots eligible employees, their accounts, and per-person amounts. A deterministic request ID and payload hash make retries idempotent. Requests do not post cash, benefit allocations, or employee ledger entries.
-- Cash verification, maker-checker approval, and financial posting remain in the existing ReVale Admin workflows.
+- Cash verification, maker-checker approval, and financial posting remain in the existing ReVale Admin workflows. Company approval is a separate prerequisite checked when requesting ReVale allocation approval and again inside the atomic credit statement. A changed amount/program/roster or missing decision blocks allocation even if cash is already verified. The legacy allocation helper delegates to the same gate; legacy item preparation cannot append to a company-reviewed roster. Existing batches without company approval records retain their prior financial workflow. Recording an actual bank receipt/refund remains possible independently of internal company approval.
 - The overview deduplicates individual account balances by account ID, not by equal monetary values. Accounts associated with multiple employers are not exposed as an employer balance and are excluded from new employer funding requests until their account scope is resolved.
 - HR and administration can preview and import up to 500 employees from a form, CSV, or Excel. Normalized identifiers, row-level validation, tenant checks, and a Serializable transaction prevent duplicate/partial onboarding. New accounts start at zero; importing never creates a funding batch or ledger entry.
 - Import retries use a company-scoped request ID and payload hash. Existing matching enrollments are skipped without changing their data. An identity already outside the selected company/program requires operations review.
@@ -134,7 +145,7 @@ The employer portal provides five views: overview, employees, benefits, funding 
 
 ## Remaining product and operational work
 
-1. Self-service employer onboarding, management of company administrators, automatic invitation email delivery, and access recovery. Employee provisioning and activation links are implemented; password recovery and invitations for employer administrators still use the established operations process.
+1. Self-service employer onboarding, automatic invitation email delivery, and access recovery. Employee provisioning, company team management, and personal activation links are implemented; password recovery still uses the established operations process.
 2. Automated allocation scheduling, expiry, and rollover execution. Configured frequency and policy are reference settings; they do not themselves trigger balance changes.
 3. Complete benefit-scoped account support for people associated with multiple employers.
 4. Source invoice document ingestion and secure document retrieval. The employer report currently exposes registration metadata and CSV consumption detail, not fiscal document downloads.
@@ -142,4 +153,4 @@ The employer portal provides five views: overview, employees, benefits, funding 
 
 ## Verification
 
-`npm run test:employer` runs isolated Postgres tests for tenant isolation, equal-balance aggregation, permissions, funding idempotency/atomicity, monetary precision, CSV/Excel imports, zero-balance onboarding, activation tokens and upstream identity verification, enrollment changes, rule updates, and reporting. These tests do not use production credentials or move funds.
+`npm run test:employer` runs isolated Postgres tests for tenant isolation, equal-balance aggregation, permissions, funding idempotency/atomicity, monetary precision, CSV/Excel imports, zero-balance onboarding, employee/team activation tokens and upstream identity verification, versioned access/policies, independent company decisions, approval limits, revocation, immutable roster guards, enrollment changes, rule updates, and reporting. Allocation gate tests write only to disposable local fixtures; they never use production credentials or move real funds.

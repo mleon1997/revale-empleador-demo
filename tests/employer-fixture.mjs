@@ -1,5 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
 import { ensureOnboardingSchema } from '../lib/revale-onboarding.js';
+import { ensureEmployerGovernanceSchema } from '../lib/revale-employer-governance.js';
 import { readFile } from 'node:fs/promises';
 
 export async function employerFixture() {
@@ -17,6 +18,8 @@ export async function employerFixture() {
     CREATE TABLE revale.gl_accounts (id text PRIMARY KEY,internal_code text,local_account_code text,name text,account_type text,normal_balance text,ifrs_category text,ecuador_reporting_line text,active boolean);
   `);
   await db.exec(await readFile(new URL('../db/migrations/20261003_platform_foundation.sql',import.meta.url),'utf8'));
+  await db.exec(`CREATE TABLE revale.employer_users(id text PRIMARY KEY,employer_id text NOT NULL REFERENCES revale.employers(id),auth_user_id uuid UNIQUE,email text NOT NULL UNIQUE,display_name text NOT NULL,role text NOT NULL CHECK(role IN('admin','hr','finance','viewer')),active boolean NOT NULL DEFAULT true,last_login_at timestamptz,created_at timestamptz DEFAULT now(),updated_at timestamptz DEFAULT now());
+    ALTER TABLE revale.ledger_entries ADD COLUMN transaction_id text,ADD COLUMN entry_type text,ADD COLUMN balance_after numeric(14,2),ADD COLUMN description text;`);
   await db.exec(await readFile(new URL('../db/migrations/20261004_employer_funding_treasury.sql',import.meta.url),'utf8'));
   await db.exec(`CREATE TABLE revale.funding_batch_items (id bigserial PRIMARY KEY,funding_batch_id text REFERENCES revale.funding_batches(id),enrollment_id bigint REFERENCES revale.employee_enrollments(id),account_id text REFERENCES revale.benefit_accounts(id),amount numeric(14,2),status text DEFAULT 'pending',allocated_at timestamptz,UNIQUE(funding_batch_id,enrollment_id));
     INSERT INTO revale.employers(id,name,tax_id,slug) VALUES ('employer_demo_revale','Empresa Demo ReVale','1799999999001','empresa-demo-revale'),('other','Otra Empresa','000','other');
@@ -40,8 +43,10 @@ export async function employerFixture() {
     query(text,args=[]){return {text,args,then(resolve,reject){return db.query(text,args).then(r=>r.rows).then(resolve,reject);}};},
     async transaction(queries,options){if(options.isolationLevel!=='Serializable')throw new Error('Expected serializable rules transaction');return db.transaction(async tx=>{const rows=[];for(const q of queries)rows.push((await tx.query(q.text,q.args)).rows);return rows;});}
   };
+  await sql.query(`INSERT INTO revale.employer_users(id,employer_id,email,display_name,role,auth_user_id) VALUES('employer_demo_admin','employer_demo_revale','beneficios@demo.revale.app','Administrador de Beneficios','admin','6d6dc0ff-a68f-4e85-a7fb-501968d6c136')`);
   await ensureOnboardingSchema(sql);
+  await ensureEmployerGovernanceSchema(sql);
   await db.exec("SELECT setval(pg_get_serial_sequence('revale.employee_enrollments','id'),(SELECT MAX(id) FROM revale.employee_enrollments));");
-  const principal={employerId:'employer_demo_revale',employerUserId:'employer_demo_admin',email:'beneficios@demo.revale.app',displayName:'Administrador de Beneficios',employerName:'Empresa Demo ReVale',role:'admin'};
+  const principal={employerId:'employer_demo_revale',employerUserId:'employer_demo_admin',authUserId:'6d6dc0ff-a68f-4e85-a7fb-501968d6c136',email:'beneficios@demo.revale.app',displayName:'Administrador de Beneficios',employerName:'Empresa Demo ReVale',role:'admin'};
   return {db,sql,principal};
 }

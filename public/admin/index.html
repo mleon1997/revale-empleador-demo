@@ -730,10 +730,11 @@ function fundingStatus(x){
 }
 function fundingActions(x){
   var actions=[];
+  if(x.company_approved===false)actions.push("<span class='status warn'>"+(x.company_approval_status==='rejected'?'Rechazada por empresa':x.company_approval_status==='cancelled'?'Retirada por empresa':'Pendiente de empresa')+"</span>");
   if(x.status==="pending"||x.status==="received"){
     actions.push("<button class='btn secondary' onclick='openFundingReceipt("+JSON.stringify(x.id)+")'>Registrar ingreso</button>");
   }
-  if(x.status==="received"){
+  if(x.status==="received"&&x.company_approved!==false){
     if(x.allocation_approval_status)actions.push("<button class='btn secondary' onclick='showApprovals()'>Aprobación acreditación</button>");
     else actions.push("<button class='btn primary' onclick='approveFunding("+JSON.stringify(x.id)+")'>Solicitar acreditación</button>");
   }
