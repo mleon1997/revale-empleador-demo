@@ -1770,7 +1770,7 @@ async function startCharge(){
 }
 function makeQR(){
   var el=q("qr");el.innerHTML="";
-  var employeePath=location.hostname==="comercios.revale.app"?"/?employee=1&tx=":"/comercios/?employee=1&tx=";
+  var employeePath="/empleados/?tx=";
   var url=location.origin+employeePath+encodeURIComponent(state.tx)+"&token="+encodeURIComponent(state.token);
   try{new QRCode(el,{text:url,width:232,height:232,colorDark:"#0e1b15",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.H})}
   catch(e){el.innerHTML="<div style='font-size:10px;color:#6d7973;padding:20px'>No pudimos generar el QR.</div>"}
@@ -2408,7 +2408,7 @@ function employeeSuccess(){
 }
 (async function init(){
   var p=new URLSearchParams(location.search);
-  if(p.get("employee")==="1"){loadEmployee();return}
+  if(p.get("employee")==="1"){location.replace("/empleados/?"+p.toString());return}
   if(p.get("demo")==="1"){
     q("demoDivider").classList.remove("hidden");
     q("demoRoleBox").classList.remove("hidden");
