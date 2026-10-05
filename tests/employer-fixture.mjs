@@ -1,10 +1,11 @@
 import { PGlite } from '@electric-sql/pglite';
+import { ensureOnboardingSchema } from '../lib/revale-onboarding.js';
 import { readFile } from 'node:fs/promises';
 
 export async function employerFixture() {
   const db = new PGlite();
   await db.exec(`CREATE SCHEMA revale;
-    CREATE TABLE revale.persons (id text PRIMARY KEY,first_name text,last_name text,email text,person_identification text,active boolean DEFAULT true);
+    CREATE TABLE revale.persons (id text PRIMARY KEY,first_name text,last_name text,email text,person_identification text,company_identification text,auth_user_id uuid,active boolean DEFAULT true,updated_at timestamptz DEFAULT now());
     CREATE TABLE revale.cards (card_number text PRIMARY KEY,person_id text REFERENCES revale.persons(id),active boolean DEFAULT true);
     CREATE TABLE revale.benefit_accounts (id text PRIMARY KEY,card_number text REFERENCES revale.cards(card_number),balance numeric(14,2),updated_at timestamptz DEFAULT now());
     CREATE TABLE revale.merchants (id text PRIMARY KEY,name text,slug text,active boolean DEFAULT true);
@@ -39,6 +40,8 @@ export async function employerFixture() {
     query(text,args=[]){return {text,args,then(resolve,reject){return db.query(text,args).then(r=>r.rows).then(resolve,reject);}};},
     async transaction(queries,options){if(options.isolationLevel!=='Serializable')throw new Error('Expected serializable rules transaction');return db.transaction(async tx=>{const rows=[];for(const q of queries)rows.push((await tx.query(q.text,q.args)).rows);return rows;});}
   };
+  await ensureOnboardingSchema(sql);
+  await db.exec("SELECT setval(pg_get_serial_sequence('revale.employee_enrollments','id'),(SELECT MAX(id) FROM revale.employee_enrollments));");
   const principal={employerId:'employer_demo_revale',employerUserId:'employer_demo_admin',email:'beneficios@demo.revale.app',displayName:'Administrador de Beneficios',employerName:'Empresa Demo ReVale',role:'admin'};
   return {db,sql,principal};
 }

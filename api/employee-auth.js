@@ -1,4 +1,6 @@
 import { getSql } from "../lib/revale-db.js";
+import { ensureOnboardingSchema, invitationInfo } from "../lib/revale-onboarding.js";
+import { activateEmployee } from "../lib/revale-activation.js";
 import {
   neonAuthRequest,
   forwardAuthCookies,
@@ -27,6 +29,15 @@ export default async function handler(req,res) {
   const action=String(req.query?.action||"");
   try{
     const sql=await getSql();
+
+    if(req.method==="POST" && ["invitation","activate"].includes(action)){
+      if(!/^[A-Za-z0-9_-]{43}$/.test(String(req.body?.token||"")))return json(res,404,{ok:false,error:"Esta invitación no está disponible. Solicita un nuevo enlace a tu empresa."});
+      await ensureOnboardingSchema(sql);
+      if(action==="invitation")return json(res,200,{ok:true,invitation:await invitationInfo(sql,req.body.token)});
+      const upstream=await activateEmployee(sql,req,req.body||{});
+      forwardAuthCookies(upstream,res);
+      return json(res,200,{ok:true});
+    }
 
     if(req.method==="GET" && action==="session"){
       const session=await getNeonSession(req);
@@ -94,6 +105,7 @@ export default async function handler(req,res) {
 
     return json(res,405,{ok:false,error:"Acción no soportada"});
   }catch(error){
+    if(error.status)return json(res,error.status,{ok:false,error:error.message});
     console.error("ReVale employee auth error",error);
     return json(res,500,{ok:false,error:"Error de autenticación"});
   }

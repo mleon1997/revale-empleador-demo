@@ -1,13 +1,15 @@
 import { getSql } from '../lib/revale-db.js';
 import { getEmployerPrincipal } from '../lib/revale-auth.js';
 import { ensureFundingTreasurySchema } from '../lib/revale-admin-funding.js';
+import { ensureOnboardingSchema, previewEmployees, importEmployees, issueEmployeeInvite } from '../lib/revale-onboarding.js';
 import { overview, programs, employees, funding, fundingDetail, report, requestFunding, updateEnrollment,
   updateProgram, saveRules, upsertRule, merchantPresentation, capabilities, problem } from '../lib/revale-employer.js';
 
 function json(res,status,body){return res.status(status).setHeader('Content-Type','application/json; charset=utf-8').setHeader('Cache-Control','private, no-store').json(body);}
-export function createEmployerHandler({database=getSql,authenticate=getEmployerPrincipal,ensureSchema=ensureFundingTreasurySchema}={}) {
+export function createEmployerHandler({database=getSql,authenticate=getEmployerPrincipal,ensureSchema=async sql=>{await ensureFundingTreasurySchema(sql);await ensureOnboardingSchema(sql);}}={}) {
   return async function handler(req,res) {
     try {
+      if(req.method==='POST'&&req.headers?.origin&&req.headers?.host&&req.headers.origin!==`https://${req.headers.host}`&&!(req.headers.host.startsWith('localhost:')&&req.headers.origin===`http://${req.headers.host}`))throw problem(403,'Abre esta acción desde ReVale Empresas.');
       const sql=await database(),principal=await authenticate(sql,req);
       if(!principal)return json(res,401,{ok:false,error:'Inicia sesión en ReVale Empresas.'});
       await ensureSchema(sql);
@@ -38,6 +40,9 @@ export function createEmployerHandler({database=getSql,authenticate=getEmployerP
         }
       }
       if(req.method==='POST') {
+        if(action==='preview-employees'){requireCapability('manageEmployees');return json(res,200,{ok:true,...await previewEmployees(sql,principal,req.body||{})});}
+        if(action==='import-employees'){requireCapability('manageEmployees');return json(res,200,{ok:true,...await importEmployees(sql,principal,req.body||{})});}
+        if(action==='invite-employee'){requireCapability('manageEmployees');return json(res,200,{ok:true,...await issueEmployeeInvite(sql,principal,req.body||{})});}
         if(action==='request-funding'){requireCapability('requestFunding');return json(res,200,{ok:true,...await requestFunding(sql,principal,req.body||{})});}
         if(action==='update-enrollment'){requireCapability('manageEmployees');return json(res,200,{ok:true,enrollment:await updateEnrollment(sql,principal,req.body||{})});}
         if(action==='update-program'){requireCapability('manageBenefits');return json(res,200,{ok:true,program:await updateProgram(sql,principal,req.body||{})});}
@@ -46,7 +51,7 @@ export function createEmployerHandler({database=getSql,authenticate=getEmployerP
       }
       return json(res,405,{ok:false,error:'Acción no soportada.'});
     } catch(error) {
-      if(error.code==='40001')error=problem(409,'Otra persona actualizó este registro. Revisa los datos e intenta nuevamente.');
+      if(['40001','40P01'].includes(error.code))error=problem(409,'Otra persona actualizó este registro. Revisa los datos e intenta nuevamente.');
       if(!error.status)console.error('ReVale employer API error',error);
       return json(res,error.status||500,{ok:false,error:error.status?error.message:'No pudimos completar la operación. Intenta nuevamente.'});
     }

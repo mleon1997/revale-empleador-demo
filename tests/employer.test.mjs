@@ -34,7 +34,7 @@ test('stale employee count, wrong tenant, and invalid monetary inputs create no 
  assert.equal((await sql.query('SELECT COUNT(*)::int AS n FROM revale.funding_batches'))[0].n,before);
 });
 test('funding shortfall subtracts money already allocated and refunds',()=>{
- assert.deepEqual(fundingMoney({received_amount:150,refunded_amount:10,allocated_amount:100,item_total:200}),{received_amount:150,refunded_amount:10,allocated_amount:100,item_total:200,cash_net:140,unallocated_cash:40,pending_allocation:100,funding_gap:60});
+ assert.deepEqual(fundingMoney({received_amount:150,refunded_amount:10,allocated_amount:100,item_total:200}),{received_amount:150,refunded_amount:10,allocated_amount:100,item_total:200,cash_net:140,unallocated_cash:40,pending_allocation:100,funding_gap:60,progress:'partial_funding'});
 });
 test('benefit and enrollment changes are tenant scoped and audited without changing balances',async()=>{
  await assert.rejects(updateEnrollment(sql,principal,{enrollment_id:'3',status:'suspended',reason:'Unauthorized foreign edit'}),e=>e.status===404);

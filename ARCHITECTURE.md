@@ -20,7 +20,7 @@ The current stack is a modular-monolith target:
 - Neon Auth sessions are connected to server-side principals for merchants, employers, employees, and ReVale Admin.
 - Employer portal under `public/empresas/`, with company-scoped APIs in `api/employer.js` and workflows in `lib/revale-employer.js`.
 - Employee portal under `public/empleados/`, served at `mi.revale.app`.
-- Host-specific entry points reuse the same runtime and database; the employer root is prepared for `empresas.revale.app`.
+- Host-specific entry points reuse the same runtime and database; the employer root is served at `empresas.revale.app`.
 
 ## Core domains
 
@@ -121,6 +121,12 @@ The employer portal provides five views: overview, employees, benefits, funding 
 - A funding request atomically snapshots eligible employees, their accounts, and per-person amounts. A deterministic request ID and payload hash make retries idempotent. Requests do not post cash, benefit allocations, or employee ledger entries.
 - Cash verification, maker-checker approval, and financial posting remain in the existing ReVale Admin workflows.
 - The overview deduplicates individual account balances by account ID, not by equal monetary values. Accounts associated with multiple employers are not exposed as an employer balance and are excluded from new employer funding requests until their account scope is resolved.
+- HR and administration can preview and import up to 500 employees from a form, CSV, or Excel. Normalized identifiers, row-level validation, tenant checks, and a Serializable transaction prevent duplicate/partial onboarding. New accounts start at zero; importing never creates a funding batch or ledger entry.
+- Import retries use a company-scoped request ID and payload hash. Existing matching enrollments are skipped without changing their data. An identity already outside the selected company/program requires operations review.
+- Employee access and enrollment status are distinct. Employers can create or rotate a personal, single-use, 72-hour activation link. Only token hashes are stored; the token remains in the URL fragment and is submitted in a request body. Links are shared manually by the employer; no automatic invitation email is sent.
+- The employee activation page at `mi.revale.app/activar/` uses Neon Auth for signup/signin and validates its resulting session before linking the invited identity. Employers never set or reset employee passwords. New invite-only accounts cannot be claimed by the legacy email-matching login flow. Claims expire, attempts are limited, and successful activation is audited.
+- Recargas supports reviewed per-person amounts and explicit inclusion. Account and enrollment IDs are revalidated inside the Serializable request transaction. Repeating a batch retains its original amounts for currently eligible people and leaves new employees unchecked for explicit review. A repeat creates a new request; it does not reuse or edit the original batch.
+- Funding progress distinguishes partial receipts, full receipts awaiting credit, partial credit, completed credit, cancellation, and legacy requests awaiting item preparation. Bank receipts/refunds and financial approvals continue to originate in ReVale Admin. Bank transfer details must be coordinated with ReVale until verified payment instructions are configured; the UI does not invent bank account details.
 - HR may pause/reactivate an enrollment with a recorded reason. This does not delete history, reverse balances, or rewrite the roster of an existing funding request.
 - Rule edits are validated, audited, and transactional. Clearing a monetary limit disables it. Branch restrictions and blocklists are preserved. Concurrent rule edits run under Serializable isolation.
 - Consumption reports scope by transaction program and company, use Ecuador dates, retain reversed transactions, and expose invoice registration status. CSV exports are protected against spreadsheet formula injection.
@@ -128,7 +134,7 @@ The employer portal provides five views: overview, employees, benefits, funding 
 
 ## Remaining product and operational work
 
-1. Self-service employer and employee onboarding, invitation delivery, and access recovery. Current employer users and employee enrollments must be provisioned through the established operations process.
+1. Self-service employer onboarding, management of company administrators, automatic invitation email delivery, and access recovery. Employee provisioning and activation links are implemented; password recovery and invitations for employer administrators still use the established operations process.
 2. Automated allocation scheduling, expiry, and rollover execution. Configured frequency and policy are reference settings; they do not themselves trigger balance changes.
 3. Complete benefit-scoped account support for people associated with multiple employers.
 4. Source invoice document ingestion and secure document retrieval. The employer report currently exposes registration metadata and CSV consumption detail, not fiscal document downloads.
@@ -136,4 +142,4 @@ The employer portal provides five views: overview, employees, benefits, funding 
 
 ## Verification
 
-`npm run test:employer` runs isolated Postgres tests for tenant isolation, equal-balance aggregation, permissions, funding idempotency/atomicity, monetary precision, enrollment changes, rule updates, and reporting. These tests do not use production credentials or move funds.
+`npm run test:employer` runs isolated Postgres tests for tenant isolation, equal-balance aggregation, permissions, funding idempotency/atomicity, monetary precision, CSV/Excel imports, zero-balance onboarding, activation tokens and upstream identity verification, enrollment changes, rule updates, and reporting. These tests do not use production credentials or move funds.
