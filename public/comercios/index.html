@@ -1768,10 +1768,12 @@ async function startCharge(){
   q("chargeAmount").textContent=money(state.amount);q("txRef").textContent=state.tx+(state.reference?" · "+state.reference:"");
   makeQR();startTimer();startPoll()
 }
+function employeePortalUrl(){
+  return ['comercios.revale.app','mi.revale.app','app.revale.app','revale-empleador-demo.vercel.app'].includes(location.hostname)?'https://mi.revale.app/':location.origin+'/empleados/';
+}
 function makeQR(){
   var el=q("qr");el.innerHTML="";
-  var employeePath="/empleados/?tx=";
-  var url=location.origin+employeePath+encodeURIComponent(state.tx)+"&token="+encodeURIComponent(state.token);
+  var url=employeePortalUrl()+"?tx="+encodeURIComponent(state.tx)+"&token="+encodeURIComponent(state.token);
   try{new QRCode(el,{text:url,width:232,height:232,colorDark:"#0e1b15",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.H})}
   catch(e){el.innerHTML="<div style='font-size:10px;color:#6d7973;padding:20px'>No pudimos generar el QR.</div>"}
 }
@@ -2408,7 +2410,7 @@ function employeeSuccess(){
 }
 (async function init(){
   var p=new URLSearchParams(location.search);
-  if(p.get("employee")==="1"){location.replace("/empleados/?"+p.toString());return}
+  if(p.get("employee")==="1"){location.replace(employeePortalUrl()+"?"+p.toString());return}
   if(p.get("demo")==="1"){
     q("demoDivider").classList.remove("hidden");
     q("demoRoleBox").classList.remove("hidden");
