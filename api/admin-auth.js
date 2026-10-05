@@ -108,7 +108,7 @@ async function ensureDemoAdminUser(sql,profile){
     `INSERT INTO revale.financial_user_permissions (
        admin_user_id,can_make,can_approve,approval_limit,active,metadata,updated_by
      ) VALUES (
-       $1,$2,$3,$4,true,jsonb_build_object('demo_profile',true,'role_label',$5),'demo_bootstrap'
+       $1,$2,$3,$4,true,jsonb_build_object('demo_profile',true,'role_label',$5::text),'demo_bootstrap'
      )
      ON CONFLICT (admin_user_id) DO UPDATE SET
        can_make=EXCLUDED.can_make,
