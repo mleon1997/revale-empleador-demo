@@ -11,3 +11,5 @@ dialog{border:0;border-radius:28px;padding:28px;width:calc(100% - 32px);max-widt
 
 /* Keep the restaurant illustration visible until a remote logo loads. */
 .merchant-art>.merchant-mark{position:absolute;opacity:0}.merchant-art>.merchant-mark.is-ready{opacity:1}
+
+.merchant-art.bogo{background:#2b1c14;color:#fff3df}.merchant-art.bogo>.merchant-mark{width:100%;height:100%;padding:12px;object-fit:contain;border-radius:0;background:#2b1c14}

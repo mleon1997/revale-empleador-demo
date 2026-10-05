@@ -1,6 +1,7 @@
 import { getSql } from "../lib/revale-db.js";
 import { getEmployeePrincipal } from "../lib/revale-auth.js";
 import { loadProgramRules } from "../lib/revale-benefits.js";
+import { isAndreaDemo, employeeMerchantPresentation, employeeActivityPresentation } from "../lib/revale-demo-presentation.js";
 
 function json(res, status, body) {
   return res.status(status).setHeader("Content-Type", "application/json; charset=utf-8")
@@ -8,13 +9,13 @@ function json(res, status, body) {
 }
 
 // Account and person scope always originate in the authenticated session.
-async function activity(sql, personId, offset = 0) {
+async function activity(sql, principal, offset = 0) {
   const rows = await sql.query(
     `SELECT le.id::text, le.entry_type, le.amount::float8 AS amount,
        le.balance_after::float8 AS balance_after, le.description, le.created_at,
        tr.id AS transaction_id, tr.status AS transaction_status,
        tr.reference, tr.approved_at, tr.reversed_at,
-       m.name AS merchant_name, m.logo_url, ml.name AS location_name,
+       m.id AS merchant_id, m.name AS merchant_name, m.logo_url, ml.name AS location_name,
        inv.status AS invoice_status
      FROM revale.ledger_entries le
      JOIN revale.benefit_accounts ba ON ba.id=le.account_id
@@ -27,9 +28,9 @@ async function activity(sql, personId, offset = 0) {
      ) inv ON true
      WHERE c.person_id=$1 AND (tr.person_id IS NULL OR tr.person_id=$1)
      ORDER BY le.created_at DESC, le.id DESC LIMIT 31 OFFSET $2::int`,
-    [personId, offset]
+    [principal.personId, offset]
   );
-  return { items: rows.slice(0, 30), hasMore: rows.length > 30, nextOffset: offset + Math.min(rows.length, 30) };
+  return { items: employeeActivityPresentation(principal, rows.slice(0, 30)), hasMore: rows.length > 30, nextOffset: offset + Math.min(rows.length, 30) };
 }
 
 export function merchantAllowed(rules, merchantId, locationId) {
@@ -53,7 +54,7 @@ export default async function handler(req, res) {
     if (!principal) return json(res, 401, { ok: false, error: "Inicia sesión para ver tus beneficios" });
     if (action === "activity") {
       const offset = Math.min(10000, Math.max(0, Math.floor(Number(req.query?.offset) || 0)));
-      return json(res, 200, { ok: true, activity: await activity(sql, principal.personId, offset) });
+      return json(res, 200, { ok: true, activity: await activity(sql, principal, offset) });
     }
 
     const programId = principal.benefit?.program_id || null;
@@ -72,7 +73,7 @@ export default async function handler(req, res) {
          FROM revale.merchants m JOIN revale.merchant_locations ml ON ml.merchant_id=m.id
          WHERE m.active=true AND ml.active=true ORDER BY m.name,ml.name`
       ) : [],
-      activity(sql, principal.personId),
+      activity(sql, principal),
       sql.query(
         `SELECT COALESCE(SUM(-le.amount) FILTER (WHERE le.entry_type='consumption'),0)::float8 AS spent,
            COALESCE(SUM(le.amount) FILTER (WHERE le.entry_type='reversal'),0)::float8 AS returned,
@@ -100,13 +101,13 @@ export default async function handler(req, res) {
       ok: true,
       profile: { firstName: principal.firstName, lastName: principal.lastName, email: principal.email,
         identification: principal.identification,
-        demo: principal.personId === "person_demo_andrea" && principal.email === "andrea.demo@revale.app" },
+        demo: isAndreaDemo(principal) },
       benefit: principal.benefit ? { ...programRows[0], balance: principal.benefit.balance,
         startsOn: principal.benefit.starts_on, endsOn: principal.benefit.ends_on,
         cardLast4: String(principal.benefit.card_number).slice(-4) } : null,
       rules: rules.filter(r => ["daily_limit", "max_transaction_amount"].includes(r.rule_type))
         .map(r => ({ type: r.rule_type, amount: Number(r.rule_value?.amount) })),
-      merchants: [...merchants.values()], activity: history,
+      merchants: [...merchants.values()].map(merchant => employeeMerchantPresentation(principal, merchant)), activity: history,
       summary: { ...summaryRows[0], month: new Intl.DateTimeFormat("es-EC", { month: "long", timeZone: "America/Guayaquil" }).format(new Date()) },
       updatedAt: new Date().toISOString()
     });
