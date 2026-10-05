@@ -3,6 +3,11 @@
   "rewrites": [
     {
       "source": "/",
+      "has": [{ "type": "host", "value": "app.revale.app" }],
+      "destination": "/empleados/"
+    },
+    {
+      "source": "/",
       "destination": "/comercios/"
     }
   ]
