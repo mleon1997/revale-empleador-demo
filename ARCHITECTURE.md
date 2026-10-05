@@ -17,7 +17,10 @@ The current stack is a modular-monolith target:
 - Neon Postgres as the system of record.
 - Server-side API domain logic in `api/` and `lib/`.
 - Merchant portal under `public/comercios/`.
-- Neon Auth is provisioned on the main branch; production RBAC integration is the next security milestone.
+- Neon Auth sessions are connected to server-side principals for merchants, employers, employees, and ReVale Admin.
+- Employer portal under `public/empresas/`, with company-scoped APIs in `api/employer.js` and workflows in `lib/revale-employer.js`.
+- Employee portal under `public/empleados/`, served at `mi.revale.app`.
+- Host-specific entry points reuse the same runtime and database; the employer root is prepared for `empresas.revale.app`.
 
 ## Core domains
 
@@ -109,11 +112,28 @@ The current stack is a modular-monolith target:
 28. Approval execution is idempotent and recoverable: a failed execution preserves approvals and can be retried without creating a duplicate money movement.
 29. Bank evidence remains authoritative for movements already executed externally; reconciliation may repair posting state even when preventive approval/safeguarding controls would block a new future action.
 
-## Immediate production backlog
+## Employer experience
 
-1. Replace demo client auth with Neon Auth sessions and server-side RBAC.
-2. Bind merchant_users to Neon Auth user IDs.
-3. Add employer admin APIs and UI.
-4. Persist settlement close jobs and payout lifecycle.
-5. Expand ledger into a double-entry platform ledger.
-6. Add structured logs, request IDs, rate limits, tests and operational alerts.
+The employer portal provides five views: overview, employees, benefits, funding requests, and consumption reports. It uses the existing employer identity and does not create a parallel ledger.
+
+- Administration manages benefits, enrollment status, and funding requests. HR manages benefits and enrollment status. Finance requests funding. Other authenticated employer roles have read-only access.
+- Every company scope originates in the authenticated employer principal; inactive companies cannot resolve a principal.
+- A funding request atomically snapshots eligible employees, their accounts, and per-person amounts. A deterministic request ID and payload hash make retries idempotent. Requests do not post cash, benefit allocations, or employee ledger entries.
+- Cash verification, maker-checker approval, and financial posting remain in the existing ReVale Admin workflows.
+- The overview deduplicates individual account balances by account ID, not by equal monetary values. Accounts associated with multiple employers are not exposed as an employer balance and are excluded from new employer funding requests until their account scope is resolved.
+- HR may pause/reactivate an enrollment with a recorded reason. This does not delete history, reverse balances, or rewrite the roster of an existing funding request.
+- Rule edits are validated, audited, and transactional. Clearing a monetary limit disables it. Branch restrictions and blocklists are preserved. Concurrent rule edits run under Serializable isolation.
+- Consumption reports scope by transaction program and company, use Ecuador dates, retain reversed transactions, and expose invoice registration status. CSV exports are protected against spreadsheet formula injection.
+- Employer demo presentation uses BOGÖ consistently with Andrea's demo; underlying financial identifiers and records are unchanged.
+
+## Remaining product and operational work
+
+1. Self-service employer and employee onboarding, invitation delivery, and access recovery. Current employer users and employee enrollments must be provisioned through the established operations process.
+2. Automated allocation scheduling, expiry, and rollover execution. Configured frequency and policy are reference settings; they do not themselves trigger balance changes.
+3. Complete benefit-scoped account support for people associated with multiple employers.
+4. Source invoice document ingestion and secure document retrieval. The employer report currently exposes registration metadata and CSV consumption detail, not fiscal document downloads.
+5. Expand structured operational logs, rate limits, production monitoring, and reconciliation automation without bypassing approval controls.
+
+## Verification
+
+`npm run test:employer` runs isolated Postgres tests for tenant isolation, equal-balance aggregation, permissions, funding idempotency/atomicity, monetary precision, enrollment changes, rule updates, and reporting. These tests do not use production credentials or move funds.

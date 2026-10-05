@@ -3,12 +3,32 @@
   "rewrites": [
     {
       "source": "/",
-      "has": [{ "type": "host", "value": "mi.revale.app" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "empresas.revale.app"
+        }
+      ],
+      "destination": "/empresas/"
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "mi.revale.app"
+        }
+      ],
       "destination": "/empleados/"
     },
     {
       "source": "/",
-      "has": [{ "type": "host", "value": "app.revale.app" }],
+      "has": [
+        {
+          "type": "host",
+          "value": "app.revale.app"
+        }
+      ],
       "destination": "/empleados/"
     },
     {
