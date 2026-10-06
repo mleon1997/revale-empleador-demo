@@ -62,7 +62,7 @@ test('reports reject invalid periods, preserve reversals, isolate another compan
 test('API enforces session and role capabilities on every employer mutation',async()=>{
  for(const [role,denied] of [['viewer',['update-program','save-rules','upsert-rule','request-funding','update-enrollment','invite-team','update-team','update-approval-policy','decide-funding']],['hr',['invite-team','update-team','update-approval-policy','decide-funding']],['finance',['update-program','save-rules','upsert-rule','update-enrollment','invite-team','update-team','update-approval-policy']]]){
    const handler=createEmployerHandler({database:async()=>sql,authenticate:async()=>({...principal,role}),ensureSchema:async()=>{}});
-   for(const action of denied){let result;const res={status(code){this.code=code;return this;},setHeader(){return this;},json(body){result={status:this.code,body};}};await handler({method:'POST',query:{action},body:{}},res);assert.equal(result.status,403,role+': '+action);}
+   for(const action of denied){let result;const res={status(code){this.code=code;return this;},setHeader(){return this;},json(body){result={status:this.code,body};}};await handler({method:'POST',query:{action},body:{},headers:{host:'empresas.revale.app',origin:'https://empresas.revale.app'}},res);assert.equal(result.status,403,role+': '+action);}
  }
  let status;const noAuth=createEmployerHandler({database:async()=>sql,authenticate:async()=>null,ensureSchema:async()=>{throw new Error('Must not reach schema without authentication');}});
  await noAuth({method:'GET',query:{action:'dashboard'}},{status(code){status=code;return this;},setHeader(){return this;},json(){}});assert.equal(status,401);

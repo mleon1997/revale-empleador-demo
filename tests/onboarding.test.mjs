@@ -102,7 +102,7 @@ test('funding progress distinguishes partial cash, partial credit, completion an
 test('finance and viewer roles cannot provision or issue employee invitations',async()=>{
   for(const role of ['finance','viewer'])for(const action of ['preview-employees','import-employees','invite-employee']){
     let status;const handler=createEmployerHandler({database:async()=>sql,authenticate:async()=>({...principal,role}),ensureSchema:async()=>{}});
-    await handler({method:'POST',query:{action},body:{},headers:{}},{status(code){status=code;return this;},setHeader(){return this;},json(){}});assert.equal(status,403);
+    await handler({method:'POST',query:{action},body:{},headers:{host:'empresas.revale.app',origin:'https://empresas.revale.app'}},{status(code){status=code;return this;},setHeader(){return this;},json(){}});assert.equal(status,403);
   }
 });
 

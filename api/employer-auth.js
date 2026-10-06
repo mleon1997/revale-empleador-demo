@@ -28,7 +28,6 @@ export default async function handler(req,res){
   try{
     assertSameOrigin(req);
     if(req.method === 'POST' && action === 'login' && !identityAllowed(req.body?.email)) return json(res,403,{ok:false,error:'Este acceso de demostración no está habilitado aquí.'});
-    if(req.method==='POST'&&req.headers?.origin&&req.headers?.host&&req.headers.origin!==`https://${req.headers.host}`&&!(req.headers.host.startsWith('localhost:')&&req.headers.origin===`http://${req.headers.host}`))return json(res,403,{ok:false,error:'Abre esta acción desde ReVale Empresas.'});
     const sql=await getSql();
 
     if(req.method==='POST'&&['invitation','activate'].includes(action)){

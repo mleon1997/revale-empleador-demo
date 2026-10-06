@@ -1,4 +1,5 @@
 import { getSql } from '../lib/revale-db.js';
+import { assertSameOrigin } from '../lib/revale-security.js';
 import { getEmployerPrincipal } from '../lib/revale-auth.js';
 import { ensureFundingTreasurySchema } from '../lib/revale-admin-funding.js';
 import { ensureOnboardingSchema, previewEmployees, importEmployees, issueEmployeeInvite } from '../lib/revale-onboarding.js';
@@ -10,7 +11,7 @@ function json(res,status,body){return res.status(status).setHeader('Content-Type
 export function createEmployerHandler({database=getSql,authenticate=getEmployerPrincipal,ensureSchema=async sql=>{await ensureFundingTreasurySchema(sql);await ensureOnboardingSchema(sql);await ensureEmployerGovernanceSchema(sql);}}={}) {
   return async function handler(req,res) {
     try {
-      if(req.method==='POST'&&req.headers?.origin&&req.headers?.host&&req.headers.origin!==`https://${req.headers.host}`&&!(req.headers.host.startsWith('localhost:')&&req.headers.origin===`http://${req.headers.host}`))throw problem(403,'Abre esta acción desde ReVale Empresas.');
+      assertSameOrigin(req);
       const sql=await database(),principal=await authenticate(sql,req);
       if(!principal)return json(res,401,{ok:false,error:'Inicia sesión en ReVale Empresas.'});
       await ensureSchema(sql);

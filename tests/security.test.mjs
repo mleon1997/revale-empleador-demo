@@ -2,6 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRedemptionHandler} from '../api/revale-demo.js';
 import {getEmployeePrincipal} from '../lib/revale-auth.js';
+import admin from '../api/admin.js';
+import merchantAuth from '../api/auth.js';
+import employeeAuth from '../api/employee-auth.js';
+import employerAuth from '../api/employer-auth.js';
+import adminAuth from '../api/admin-auth.js';
+import employer from '../api/employer.js';
 import {assertSameOrigin,databaseUrl,authUrl,identityAllowed,canBindLegacyIdentity} from '../lib/revale-security.js';
 
 const headers={host:'comercios.revale.app',origin:'https://comercios.revale.app'};
@@ -44,6 +50,13 @@ test('unverified real email cannot claim an unbound employee identity',async()=>
   assert.equal(await getEmployeePrincipal(sql,{},auth),null);assert.equal(reads,1);
   assert.equal(canBindLegacyIdentity({email:'user@example.com',emailVerified:false}),false);
 });
+test('all browser authentication and administration routes reject missing or foreign origins',async()=>{
+  for(const handler of [admin,merchantAuth,employeeAuth,employerAuth,adminAuth,employer]) {
+    for(const origin of ['', 'https://foreign.example']) {
+      assert.equal((await request(handler,'login','POST',{headers:{host:headers.host,origin}})).status,403);
+    }
+  }
+});
 test('live and preview cannot reuse the demo database or demo credentials',()=>{
   const demo={REVALE_MODE:'demo',REVALE_DB_DATABASE_URL:'postgres://user:secret@demo-pooler.example/db',NEON_AUTH_URL:'https://demo.auth.example'};
   assert.equal(databaseUrl(demo),demo.REVALE_DB_DATABASE_URL);
@@ -52,6 +65,7 @@ test('live and preview cannot reuse the demo database or demo credentials',()=>{
   assert.throws(()=>databaseUrl({...demo,VERCEL_ENV:'preview'}),/ISOLATED_PREVIEW/);
   assert.throws(()=>authUrl({...demo,VERCEL_ENV:'preview'}),/ISOLATED_PREVIEW/);
   assert.throws(()=>authUrl({...demo,REVALE_MODE:'live',REVALE_LIVE_AUTH_URL:demo.NEON_AUTH_URL}),/ISOLATED_LIVE/);
+  assert.throws(()=>authUrl({...demo,REVALE_MODE:'live',REVALE_LIVE_AUTH_URL:demo.NEON_AUTH_URL+'/'}),/ISOLATED_LIVE/);
   assert.equal(databaseUrl({...demo,REVALE_MODE:'live',REVALE_LIVE_DATABASE_URL:'postgres://user:secret@live.example/db'}),'postgres://user:secret@live.example/db');
   for(const email of ['admin@demo.revale.app','supervisor@comercios.demo.revale.app','andrea.demo@revale.app']) assert.equal(identityAllowed(email,{REVALE_MODE:'live'}),false);
   assert.equal(identityAllowed('user@example.com',{REVALE_MODE:'live'}),true);

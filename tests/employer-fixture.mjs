@@ -29,6 +29,7 @@ export async function employerFixture() {
     INSERT INTO revale.cards(card_number,person_id) VALUES ('RV-DEMO-0001','person_demo_andrea'),('C2','luis'),('C3','foreign'),('C4','shared');
     INSERT INTO revale.benefit_accounts(id,card_number,balance) VALUES ('acct_demo_andrea','RV-DEMO-0001',99.05),('a2','C2',99.05),('a3','C3',500),('a4','C4',30);
     INSERT INTO revale.employee_enrollments(id,program_id,person_id) VALUES (1,'program_demo_food','person_demo_andrea'),(2,'program_demo_food','luis'),(3,'other-program','foreign'),(4,'program_demo_food','shared'),(5,'other-program','shared');
+    UPDATE revale.employee_enrollments SET starts_on=(now() AT TIME ZONE 'America/Guayaquil')::date-1;
     INSERT INTO revale.merchants(id,name,slug) VALUES ('merchant_el_hornero','El Hornero','el-hornero'),('merchant_cebiches_ruminahui','Los Cebiches de la Rumiñahui','cebiches-ruminahui');
     INSERT INTO revale.merchant_locations(id,merchant_id,name) VALUES ('l1','merchant_el_hornero','Isla Floreana'),('l2','merchant_cebiches_ruminahui','Sucursal Demo');
     INSERT INTO revale.transactions(id,program_id,person_id,merchant_id,location_id,amount,status,approved_at) VALUES
