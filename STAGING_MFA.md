@@ -72,15 +72,21 @@ Prueba del despliegue completada el 6 de octubre de 2026, 12:03 America/Guayaqui
   en cero. Las filas de negocio ficticias se conservaron inactivas.
 - Evidencia sin secretos: `db/baseline/staging-mfa-verification-20261006.json`.
 
+Actualización posterior: `STAGING_FLOW_20261006.md` documenta el recorrido financiero
+con MFA ya verificado por HTTP y la restauración sintética conjunta de negocio e
+identidad. Incluye un defecto encontrado en la restricción de estados de liquidación
+y su migración aplicada únicamente a staging. La suite subió a 86 pruebas.
+
 Pendientes antes de considerar una promoción fuera de staging:
 
 1. Enrolamiento humano con autenticador y continuación de invitaciones en navegador.
    La pantalla del desafío se inspeccionó visualmente; las pruebas automatizadas
    del despliegue ejercitan HTTP y QR, no una aplicación de autenticación humana.
-2. Flujo integrado con MFA de consumo, reverso y liquidación en staging. No se
-   ejecutaron movimientos financieros ni se cargaron beneficios en esta activación.
-3. Simulacro de restauración de las seis tablas de identidad junto con su clave de
-   cifrado y procedimiento de recuperación/rotación aprobado y ensayado.
+2. Recepción y asignación de fondos empresariales, invitaciones y enrolamiento humano
+   por UI. El recorrido posterior de consumo, reverso y liquidación ya pasó en staging.
+3. Recuperación real de las seis tablas de identidad y de la clave desplegada desde
+   su custodia independiente; rotación y recuperación asistida aprobadas y ensayadas.
+   La restauración sintética conjunta y revocación de sesiones restauradas ya pasaron.
 4. Revisión independiente de seguridad y enrolamiento de cuentas humanas nominativas.
 
 Esto no activa MFA en las cuentas personales de administración de Vercel o Neon.
