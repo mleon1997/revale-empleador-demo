@@ -11,6 +11,17 @@ Fecha: 6 de octubre de 2026 UTC (5 de octubre en Ecuador).
 - Configuración creada solo para Preview: `REVALE_MODE=live`, `REVALE_SCHEMA_MODE=managed`. El modo live aplica los controles estrictos; Vercel Preview exige las conexiones específicas de pruebas.
 - La aplicación no tiene todavía conexión de base ni de identidad. No se copió ningún secreto de la demo ni de live.
 
+## Despliegue y pruebas verificados
+
+- Código publicado en `fix/operational-readiness`, commit `fc807a958688bbf592fbc69dc7004ed0e8b5a742`; no se fusionó en main. El árbol remoto coincide exactamente con el árbol local probado.
+- GitHub Actions, ejecución `37404950563`, job `112080322189`: éxito; 75 pruebas, cero fallos y cero omisiones, incluidas nueve carreras con PostgreSQL. La restauración sintética comparó 44 tablas y secuencias, conservó invariantes financieras y tardó 0,46 segundos. Este ensayo no es una nueva restauración del respaldo real.
+- Despliegue de staging `dpl_3eURU3rAZcYKvvtzqiYthjQeofDd`: READY, región iad1, compilación de 36 segundos, mismo commit probado. La API utiliza `target=staging` para esta modalidad; el listado web la muestra como Preview.
+- URL observada: `https://revale-staging-bs6dubnsw-mateo-leon-s-projects.vercel.app/`. El portal de login carga en la sesión autorizada del navegador.
+- El proyecto conserva protección de Vercel y solo dos variables no secretas en Preview; no tiene conexión de base ni Auth. No se verificó el login de ReVale ni el flujo financiero. El intento de abrir `/api/operational-health` fue bloqueado por el navegador (`ERR_BLOCKED_BY_CLIENT`); no se creó bypass.
+- Un primer intento sin target explícito fue clasificado Production por Vercel en este proyecto nuevo y se canceló antes de completarse (`dpl_DS8mLg8AmnLUGQWpu3AgFV9RkY3t`, CANCELED). No tenía credenciales ni dominios de la aplicación existente. El intento posterior correcto es el indicado arriba.
+
+La instalación remota de `revale_runtime` y la concesión de acceso a la aplicación siguen pendientes de confirmación específica: el control del navegador la exige para crear un nuevo acceso a una base. La credencial con login y los orígenes confiables también requieren completar el acceso de Neon Console, aún detenido en la verificación de correo.
+
 ## Cambios de aplicación
 
 Los siete inicializadores de esquema ya no ejecutan DDL ni semillas durante solicitudes de Preview, live o modo managed. Esos entornos requieren migraciones instaladas de antemano. Tampoco se asignan automáticamente permisos financieros a un administrador sin autorización registrada.

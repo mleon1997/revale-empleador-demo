@@ -1,0 +1,28 @@
+{
+  "commit": "fc807a958688bbf592fbc69dc7004ed0e8b5a742",
+  "git_tree": "a5a2ff0dc5776fbd93b98d07c5642275bc4d0e54",
+  "project_id": "prj_JDzorjuwv6YgvC2EZMdWGgxoMGmU",
+  "deployment_id": "dpl_3eURU3rAZcYKvvtzqiYthjQeofDd",
+  "deployment_state": "READY",
+  "api_target": "staging",
+  "deployment_url": "https://revale-staging-bs6dubnsw-mateo-leon-s-projects.vercel.app/",
+  "ci_run_id": 37404950563,
+  "ci_job_id": 112080322189,
+  "tests": 75,
+  "passed": 75,
+  "failed": 0,
+  "skipped": 0,
+  "postgres_concurrency_tests": 9,
+  "db_connected": false,
+  "auth_connected": false,
+  "runtime_role_installed": false,
+  "provider_email_verification": "pending",
+  "health_endpoint_verified": false,
+  "reason_health_not_verified": "browser ERR_BLOCKED_BY_CLIENT",
+  "synthetic_restore": {
+    "tables": 44,
+    "elapsed_seconds": 0.46,
+    "rows_and_sequences_identical": true,
+    "financial_invariants": true
+  }
+}

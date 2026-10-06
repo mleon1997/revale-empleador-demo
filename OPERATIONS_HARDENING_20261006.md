@@ -85,7 +85,7 @@ La migración no crea roles operativos, cuentas humanas ni configuración comerc
 
 Se creó el proyecto Vercel `revale-staging` (`prj_JDzorjuwv6YgvC2EZMdWGgxoMGmU`), con Node.js 22 y protección `all_except_custom_domains`, sin dominios personalizados ni conexiones de base/identidad. Sus dos variables iniciales, `REVALE_MODE=live` y `REVALE_SCHEMA_MODE=managed`, se limitan a Preview. El código preparado impide DDL y asignación automática de permisos financieros en Preview/live; exige un origen Auth propio y rechaza la reutilización de conexiones conocidas entre Preview y live.
 
-Se preparó y probó un rol de ejecución sin login y sin DELETE/TRUNCATE/DDL ni acceso a las tablas de identidad; todavía no se instaló remotamente ni se provisionó una credencial. Las 63 pruebas locales de seguridad, empleador y liquidaciones pasaron; los nueve casos de concurrencia requieren CI con PostgreSQL. El procedimiento y los pasos pendientes están en `STAGING_SETUP.md`.
+Se preparó y probó un rol de ejecución sin login y sin DELETE/TRUNCATE/DDL ni acceso a las tablas de identidad; todavía no se instaló remotamente ni se provisionó una credencial. Las 63 pruebas locales de seguridad, empleador y liquidaciones pasaron. Luego GitHub Actions validó 75 pruebas totales, sin fallos ni omisiones, incluidos nueve casos de concurrencia con PostgreSQL, más restauración sintética y build. Se publicó el commit `fc807a958688bbf592fbc69dc7004ed0e8b5a742` en el nuevo proyecto de staging; Vercel confirmó READY y el portal de login carga. La conexión DB/Auth y la prueba funcional integral siguen pendientes. El procedimiento y los pasos pendientes están en `STAGING_SETUP.md`.
 
 ## Frentes pendientes
 
