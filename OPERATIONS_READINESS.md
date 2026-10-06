@@ -22,7 +22,7 @@ El proyecto actual debe mantener `REVALE_MODE=demo`. Los usuarios demo ya existe
 | Preview | `REVALE_PREVIEW_DATABASE_URL` y `REVALE_PREVIEW_AUTH_URL` distintas de demo |
 | Real | `REVALE_MODE=live`, `REVALE_LIVE_DATABASE_URL` y `REVALE_LIVE_AUTH_URL` distintas de demo; identidades demo rechazadas |
 
-No se han provisionado aquí las bases ni proveedores de identidad de preview/real. El código rechaza usar las conexiones demo heredadas en preview. Sus pantallas estáticas pueden cargar, pero sus APIs no estarán operativas hasta configurar esos recursos. Una URL distinta no prueba por sí sola aislamiento físico: comprobar proyecto, base, credenciales y permisos antes del piloto. No copiar datos personales reales hacia pruebas.
+Se provisionaron los proyectos Neon independientes `revale-staging` y `revale-live`, con Auth habilitado, cero usuarios y cero sesiones. El esquema vacío ya se instaló en staging y luego en live: catálogo completo equivalente al origen, 58 tablas, 678 columnas, 270 restricciones, 149 índices y 20 secuencias; cero filas de aplicación, usuarios y sesiones en ambos. Todavía falta crear la configuración operativa inicial, roles de privilegio mínimo, conectar cada aplicación y probar el rechazo cruzado de credenciales/sesiones. Las 19 variables de base e identidad demo se limitaron a Production; futuros previews no las recibirán. Los despliegues históricos conservan su configuración y necesitan retiro o redespliegue. El código rechaza usar las conexiones demo heredadas en preview. Sus pantallas estáticas pueden cargar, pero sus APIs no estarán operativas hasta configurar staging. Una URL distinta no prueba por sí sola aislamiento físico: comprobar proyecto, base, credenciales y permisos antes del piloto. No copiar datos personales reales hacia pruebas. El inventario y la verificación por correo pendiente constan en `OPERATIONS_HARDENING_20261006.md`.
 
 ## Verificación reproducible
 
@@ -38,7 +38,7 @@ Antes de publicar, exigir resultado verde del workflow sobre el commit exacto. D
 
 | Área | Evidencia necesaria |
 | --- | --- |
-| Recuperación | Retención de backups confirmada; restauración ejecutada en una base aislada; tiempos y pérdida máxima de datos medidos y aceptados |
+| Recuperación | Snapshot real restaurado y comparado en una rama separada. Faltan programación/retención acordadas, recuperación integral con Auth y aplicación, RTO/RPO aceptados y copia independiente |
 | Acceso privilegiado | MFA de administradores y proveedores, inventario de permisos y revocación probada |
 | Vigilancia | Alertas de errores, desfases de conciliación, eventos contables pendientes y disponibilidad; responsable y procedimiento de incidente |
 | Dinero de extremo a extremo | Validar reglas comerciales y fiscales, datos heredados, extractos reales y capacidad con volúmenes acordados; la batería sintética no sustituye esta aceptación |
@@ -46,7 +46,7 @@ Antes de publicar, exigir resultado verde del workflow sobre el commit exacto. D
 | Infraestructura real | Base e identidad separadas, migraciones completas y reproducibles, secretos propios y prueba de carga sobre ese entorno |
 | Seguridad externa | Revisar dependencias, rate limiting y realizar pruebas de autorización entre empresas/comercios con cuentas reales de prueba |
 
-Las mutaciones financieras administrativas y los reversos ahora incluyen su contabilización en la misma transacción. La confirmación del consumo conserva su evento durable y recuperación posterior; una cola pendiente bloquea la programación de pagos del comercio afectado. No se ha restaurado un respaldo real ni realizado una auditoría externa. El detalle de la segunda revisión consta en `OPERATIONS_HARDENING_20261006.md`.
+Las mutaciones financieras administrativas y los reversos ahora incluyen su contabilización en la misma transacción. La confirmación del consumo conserva su evento durable y recuperación posterior; una cola pendiente bloquea la programación de pagos del comercio afectado. Se restauró un snapshot real de Neon en una rama nueva: 67 tablas y 1.469 filas coinciden, junto con metadatos de columnas y secuencias de la aplicación; seis controles financieros dieron cero anomalías. No se ha probado el cambio integral de aplicación/identidad ni realizado una auditoría externa. El detalle y los límites constan en `OPERATIONS_HARDENING_20261006.md`.
 
 ## Procedimiento de recuperación por validar
 

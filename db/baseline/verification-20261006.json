@@ -1,0 +1,55 @@
+{
+  "verified_at_utc": "2026-10-06T02:27:37.413195+00:00",
+  "scope": "schema-only; no application deployment or identity enrollment",
+  "baseline_sha256": "fdef41fd8c244f15093054f042c744ed3c73e247c85a973cfb437daed296cd5e",
+  "single_statement_sha256": "1983685e2aa0f301ce42fb3a0ccacb8a9bcda36088aec5f478bb5bf0ceb3104b",
+  "comparison_keys": [
+    "tables",
+    "constraints",
+    "indexes",
+    "sequences",
+    "functions",
+    "triggers",
+    "policies",
+    "enums",
+    "other_types"
+  ],
+  "environments": [
+    {
+      "environment": "staging",
+      "neon_project_id": "lively-cloud-95086101",
+      "vercel_resource_id": "store_KJQIyrfQH3SO28WE",
+      "postgres_version": "18.6 (4e955f5)",
+      "catalog_matches_source": true,
+      "constraints": 270,
+      "application_tables": 58,
+      "application_rows": 0,
+      "application_columns": 678,
+      "application_indexes": 149,
+      "application_sequences": 20,
+      "used_sequences": 0,
+      "auth_tables": 9,
+      "auth_users": 0,
+      "auth_sessions": 0,
+      "sql_editor_read_only_restored": true
+    },
+    {
+      "environment": "live",
+      "neon_project_id": "wild-forest-04830559",
+      "vercel_resource_id": "store_CdaU0EU2PWb6lPRO",
+      "postgres_version": "18.6 (4e955f5)",
+      "catalog_matches_source": true,
+      "constraints": 270,
+      "application_tables": 58,
+      "application_rows": 0,
+      "application_columns": 678,
+      "application_indexes": 149,
+      "application_sequences": 20,
+      "used_sequences": 0,
+      "auth_tables": 9,
+      "auth_users": 0,
+      "auth_sessions": 0,
+      "sql_editor_read_only_restored": true
+    }
+  ]
+}
