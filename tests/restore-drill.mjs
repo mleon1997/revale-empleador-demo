@@ -2,6 +2,8 @@ import pg from 'pg';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import {operationalHealth} from '../lib/revale-operational-health.js';
+import {identityFixture} from './identity-fixture.mjs';
+import {prepareRecoveryFixture,verifyIdentityAfterRestore} from './identity-restore-helpers.mjs';
 
 // Rehearsal using synthetic CI data. Does NOT certify the real Neon backup,
 // retention window, provider recovery, credentials or operational RTO/RPO.
@@ -14,14 +16,14 @@ const targetName='revale_test_restore_drill';
 if(url.pathname==='/'+targetName)throw new Error('Restore source and target must differ');
 const sourceDb=new pg.Client({connectionString:source});
 const targetUrl=new URL(source);targetUrl.pathname='/'+targetName;
-let restored;
+let restored,identity,restoredIdentityPool;
 async function fingerprint(client){
-  const {rows:tables}=await client.query("SELECT tablename FROM pg_tables WHERE schemaname='revale' ORDER BY tablename");
+  const {rows:tables}=await client.query("SELECT schemaname,tablename FROM pg_tables WHERE schemaname IN ('revale','revale_identity') ORDER BY schemaname,tablename");
   const result={};
-  for(const {tablename} of tables){
-    if(!/^[a-z_]+$/.test(tablename))throw new Error('Unexpected test table name');
-    const {rows:[row]}=await client.query(`SELECT COUNT(*)::int AS n,md5(COALESCE(string_agg(to_jsonb(t)::text,E'\\n' ORDER BY to_jsonb(t)::text),'')) AS digest FROM revale."${tablename}" t`);
-    result[tablename]=row;
+  for(const {schemaname,tablename} of tables){
+    if(!/^[a-zA-Z_]+$/.test(tablename)||!['revale','revale_identity'].includes(schemaname))throw new Error('Unexpected test table name');
+    const {rows:[row]}=await client.query(`SELECT COUNT(*)::int AS n,md5(COALESCE(string_agg(to_jsonb(t)::text,E'\\n' ORDER BY to_jsonb(t)::text),'')) AS digest FROM "${schemaname}"."${tablename}" t`);
+    result[schemaname+'.'+tablename]=row;
   }
   result.sequences=(await client.query("SELECT sequencename,last_value FROM pg_sequences WHERE schemaname='revale' ORDER BY sequencename")).rows;
   return result;
@@ -33,9 +35,13 @@ function postgresTool(command,args,input){
 }
 try{
   await sourceDb.connect();
+  identity=await identityFixture();
+  // The encryption key is retained separately in process memory. It is never
+  // included in the SQL archive, logs or a GitHub artifact.
+  const identityState=await prepareRecoveryFixture(identity);
   const before=await fingerprint(sourceDb);
   const start=performance.now();
-  const backup=postgresTool('pg_dump',['--format=custom','--no-owner','--no-acl','--schema=revale','--dbname',url.pathname.slice(1)]);
+  const backup=postgresTool('pg_dump',['--format=custom','--no-owner','--no-acl','--schema=revale','--schema=revale_identity','--dbname',url.pathname.slice(1)]);
   // Never DROP an existing database: a repeated drill requires explicit cleanup.
   await sourceDb.query('CREATE DATABASE '+targetName);
   postgresTool('pg_restore',['--exit-on-error','--single-transaction','--no-owner','--no-acl','--dbname',targetName],backup);
@@ -43,5 +49,8 @@ try{
   assert.deepEqual(await fingerprint(restored),before,'Restored rows and sequence state must be identical');
   const result=await operationalHealth({query:async(text,args)=>(await restored.query(text,args)).rows});
   assert.equal(result.ok,true,'Synthetic recovery must preserve financial invariants');
-  console.log(JSON.stringify({drill:'synthetic_postgresql_restore',tables:Object.keys(before).length-1,backupBytes:backup.length,elapsedSeconds:Math.round((performance.now()-start)/10)/100,rowsAndSequencesIdentical:true,financialInvariants:true,realBackupVerified:false}));
-}finally{await restored?.end();await sourceDb.end();}
+  restoredIdentityPool=new pg.Pool({connectionString:targetUrl.href,max:3});
+  const mfa=await verifyIdentityAfterRestore({pool:restoredIdentityPool,query:(text,args)=>restored.query(text,args)},identityState);
+  assert.equal(await identity.auth.api.getSession({headers:identityState.oldSession.headers}).then(s=>s?.session?.mfaVerified),true,'Recovery destination revocation must not affect source sessions');
+  console.log(JSON.stringify({drill:'synthetic_postgresql_restore',tables:Object.keys(before).length-1,identityTables:Object.keys(before).filter(k=>k.startsWith('revale_identity.')).length,backupBytes:backup.length,elapsedSeconds:Math.round((performance.now()-start)/10)/100,rowsAndSequencesIdentical:true,financialInvariants:true,mfa,realBackupVerified:false}));
+}finally{await restoredIdentityPool?.end();await identity?.close();await restored?.end();await sourceDb.end();}

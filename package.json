@@ -11,7 +11,7 @@
     "test:settlements": "REVALE_MODE=demo node --test tests/settlements.test.mjs",
     "test:restore": "node tests/restore-drill.mjs",
     "test:baseline": "node --test tests/baseline.test.mjs",
-    "test:identity": "node --test tests/identity.test.mjs"
+    "test:identity": "node --test --test-concurrency=1 tests/identity.test.mjs tests/identity-recovery.test.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
