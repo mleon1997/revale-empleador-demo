@@ -77,6 +77,36 @@ con MFA ya verificado por HTTP y la restauración sintética conjunta de negocio
 identidad. Incluye un defecto encontrado en la restricción de estados de liquidación
 y su migración aplicada únicamente a staging. La suite subió a 86 pruebas.
 
+## Alta personal de administración en staging
+
+El commit `890fdcccb04d762cb73bf8e4eba24854f9799f2b` está publicado en
+`dpl_Ebx9aVBv7LvZ83SkLR3CDoPsJ7nw` (READY, exclusivamente Preview).
+La migración `20261006_admin_invitations.sql` y su permiso explícito de
+SELECT/INSERT/UPDATE para `revale_runtime` se aplicaron solo a la rama de staging.
+
+- `/admin/activar/` recibe una invitación en el fragmento del enlace. La base
+  conserva únicamente su hash; el correo y rol proceden del servidor.
+- La membresía permanece inactiva y sin identidad vinculada hasta completar
+  contraseña y MFA. Una actualización atómica la activa, consume la invitación
+  y deja un único evento de auditoría.
+- Expiración, revocación, reuso, cambio de correo/rol e intentos simultáneos están
+  cubiertos. La reclamación temporal evita concurrencia y limita los intentos.
+- CI: https://github.com/mleon1997/revale-empleador-demo/actions/runs/37513262401
+  — 88 pruebas aprobadas, sin omisiones, más build y restauración sintética.
+- La prueba HTTP del despliegue completó contraseña, QR/TOTP, activación, acceso
+  con el rol asignado, rechazo de reuso y cierre de sesión. El rol enviado por
+  el cliente no amplió permisos. La pantalla sin invitación se inspeccionó en
+  navegador; el enrolamiento con un autenticador humano sigue pendiente.
+- Se desactivó la membresía sintética y se revocó su invitación; se eliminó su
+  identidad de prueba. El enlace temporal de Vercel se revocó tras la prueba.
+- No se creó cuenta ni invitación humana: la asignación del rol superadmin
+  quedó pendiente de autorización explícita de su alcance. Este rol puede
+  modificar políticas y permisos financieros además de gestionar el backoffice.
+- Evidencia: `db/baseline/staging-admin-onboarding-verification-20261006.json`.
+
+La restauración sintética sigue cubriendo 44 tablas de negocio y seis de identidad;
+no acredita un respaldo real ni la recuperación de la nueva tabla de invitaciones.
+
 Pendientes antes de considerar una promoción fuera de staging:
 
 1. Enrolamiento humano con autenticador y continuación de invitaciones en navegador.

@@ -1,0 +1,40 @@
+{
+  "date": "2026-10-06T18:48:42.509Z",
+  "deployment": "dpl_Ebx9aVBv7LvZ83SkLR3CDoPsJ7nw",
+  "commit": "890fdcccb04d762cb73bf8e4eba24854f9799f2b",
+  "synthetic": true,
+  "checks": [
+    "activation_assets",
+    "invitation_identity",
+    "password_routes_to_MFA",
+    "password_only_blocked",
+    "premature_activation_blocked",
+    "QR_TOTP_verified",
+    "MFA_activates_membership",
+    "server_assigned_role_preserved",
+    "used_token_rejected",
+    "replay_rejected",
+    "logout_revokes_session"
+  ],
+  "passed": true,
+  "ciRun": 37513262401,
+  "ciPassed": 88,
+  "ciSkipped": 0,
+  "database": "staging_only",
+  "humanAccountCreated": false,
+  "humanInvitationCreated": false,
+  "pending": "Explicit authorization of superadmin role; independent second human approver; human MFA enrollment",
+  "cleanup": {
+    "testMembershipDisabled": true,
+    "testInvitationRevoked": true,
+    "testIdentityDeleted": true,
+    "temporaryVercelLinkRevoked": true
+  },
+  "restoreScope": {
+    "synthetic": true,
+    "businessTables": 44,
+    "identityTables": 6,
+    "newAdminInvitationsTableCovered": false,
+    "realBackupVerified": false
+  }
+}
