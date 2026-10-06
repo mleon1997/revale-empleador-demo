@@ -176,3 +176,28 @@ test('the public MFA handler exposes only the intended actions and never tokens'
     assert.equal((await f.query('SELECT count(*)::int AS n FROM revale_identity."user"')).rows[0].n,0);
   }finally{await f.close();}
 });
+
+test('public session throttling cannot consume recovery without establishing MFA assurance', async () => {
+  const f=await identityFixture();
+  try {
+    const email='session-throttle@example.invalid',password='Synthetic-session-throttle-2026!';
+    const c=f.client();
+    await c.request('/sign-up/email',{email,password,name:'Session throttle tester'});
+    const enabled=await c.request('/two-factor/enable',{password,method:'totp'});
+    const secret=new TextDecoder().decode(base32.decode(new URL(enabled.data.totpURI).searchParams.get('secret')));
+    c.accept(await verifyIdentityFactor(f.auth,c.req,'totp',await createOTP(secret).totp()));
+    await c.request('/sign-out',{});
+    await c.request('/sign-in/email',{email,password});
+    for(let i=0;i<60;i++)assert.equal((await c.request('/get-session')).response.status,200);
+    assert.equal((await c.request('/get-session')).response.status,429);
+    const handler=createIdentityHandler({enabled:()=>true,identity:()=>f.auth});
+    let status;
+    const res={status(code){status=code;return this;},setHeader(){return this;},json(){}};
+    await handler({method:'GET',headers:c.req.headers,query:{action:'status'}},res);
+    assert.equal(status,429,'the public status endpoint retains its rate limit');
+    const recovered=await verifyIdentityFactor(f.auth,c.req,'recovery',enabled.data.backupCodes[0]);
+    assert.equal(recovered.status,200);
+    c.accept(recovered);
+    assert.equal(requireMfa(await identitySession(f.auth,c.req)).session.mfaVerified,true);
+  } finally {await f.close();}
+});

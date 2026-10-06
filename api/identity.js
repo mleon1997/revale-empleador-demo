@@ -12,7 +12,11 @@ export function createIdentityHandler({ enabled = identityEnabled, identity = ge
       if (!enabled()) return json(404, { ok: false, error: 'Acción no disponible.' });
       const auth = identity(), action = String(req.query?.action || '');
       if (req.method === 'GET' && action === 'status') {
-        const session = await identitySession(auth, req);
+        // This is a public read; retain the provider's HTTP rate limit here.
+        const upstream = await identityRequest(auth, req, '/get-session', { method: 'GET' });
+        if (!upstream.ok) return json(upstream.status === 429 ? 429 : 503,
+          { ok: false, error: 'No pudimos consultar tu sesión. Espera un momento y vuelve a intentar.' });
+        const session = await upstream.json();
         return json(200, { ok: true, authenticated: !!session, enrolled: !!session?.user?.twoFactorEnabled,
           verified: !!session?.user?.twoFactorEnabled && session?.session?.mfaVerified === true });
       }
