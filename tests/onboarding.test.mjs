@@ -4,7 +4,7 @@ import ExcelJS from 'exceljs';
 import {employerFixture} from './employer-fixture.mjs';
 import {previewEmployees,importEmployees,readEmployeeRows,issueEmployeeInvite,invitationInfo,claimInvitation,completeInvitation,releaseInvitation} from '../lib/revale-onboarding.js';
 import {getEmployeePrincipal} from '../lib/revale-auth.js';
-import {activateEmployee} from '../lib/revale-activation.js';
+import {activateEmployee,activationResult} from '../lib/revale-activation.js';
 import {employees,requestFunding,fundingDetail,fundingMoney} from '../lib/revale-employer.js';
 import {createEmployerHandler} from '../api/employer.js';
 
@@ -90,6 +90,28 @@ test('personalized funding locks the reviewed roster, accounts and cents without
   const repeated=await requestFunding(sql,principal,{...body,request_id:'repeated-request-001',source_batch_id:result.batch.id});assert.equal(repeated.batch.total,195.15);
   assert.deepEqual(await sql.query('SELECT id,balance FROM revale.benefit_accounts ORDER BY id'),before);
   assert.equal((await sql.query('SELECT COUNT(*)::int AS n FROM revale.ledger_entries'))[0].n,0);
+});
+
+test('an existing MFA user completes an invitation only after the second factor, with matching identity',async()=>{
+  const previous=process.env.REVALE_AUTH_PROVIDER;
+  const added=await importEmployees(sql,principal,input([row({email:'mfa-invite@example.test',person_identification:'0012345681'})],'mfa-activation-001'));
+  const id=added.enrollment_ids[0],token=(await issueEmployeeInvite(sql,principal,{enrollment_id:id})).url.split('#')[1];
+  process.env.REVALE_AUTH_PROVIDER='better-auth-mfa';
+  try {
+    const pending=await activateEmployee(sql,{headers:{}},{token,password:'existing-password-2026',mode:'existing'},{
+      authRequest:async()=>Response.json({twoFactorRedirect:true},{headers:{'set-cookie':'challenge=test; Secure; HttpOnly'}}),
+      readSession:async()=>{throw new Error('Pending MFA must not bind an invitation');}
+    });
+    assert.equal((await employees(sql,principal.employerId)).find(p=>p.enrollment_id===id).access_status,'invited');
+    assert.equal((await activationResult(pending,'employee',token)).next,'/seguridad/?portal=employee&activation=1#'+token);
+    const user={id:'12345678-1234-4234-8234-123456789003',email:'mfa-invite@example.test',twoFactorEnabled:true};
+    const resume=(session)=>activateEmployee(sql,{headers:{cookie:'authenticated'}},{token,mode:'session'},{readSession:async()=>session});
+    await assert.rejects(resume({user,session:{mfaVerified:false}}),e=>e.status===403);
+    await assert.rejects(resume({user:{...user,email:'other@example.test'},session:{mfaVerified:true}}),e=>e.status===401);
+    assert.equal((await resume({user,session:{mfaVerified:true}})).status,200);
+    assert.equal((await employees(sql,principal.employerId)).find(p=>p.enrollment_id===id).access_status,'activated');
+    await assert.rejects(resume({user,session:{mfaVerified:true}}),e=>e.status===404);
+  }finally{if(previous===undefined)delete process.env.REVALE_AUTH_PROVIDER;else process.env.REVALE_AUTH_PROVIDER=previous;}
 });
 test('funding progress distinguishes partial cash, partial credit, completion and cancellation',()=>{
   const base={item_total:200,received_amount:100,refunded_amount:0,allocated_amount:0,status:'received'};

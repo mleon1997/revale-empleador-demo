@@ -1,6 +1,7 @@
 import { assertSameOrigin, identityAllowed } from '../lib/revale-security.js';
 import { getSql } from "../lib/revale-db.js";
 import {
+  loginResult,
   neonAuthRequest,
   forwardAuthCookies,
   getMerchantPrincipal,
@@ -93,7 +94,7 @@ export default async function handler(req, res) {
       }
 
       forwardAuthCookies(upstream, res);
-      return json(res, 200, { ok: true });
+      return json(res, 200, loginResult("merchant"));
     }
 
     if (req.method === "POST" && action === "logout") {

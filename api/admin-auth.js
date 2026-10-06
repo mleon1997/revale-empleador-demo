@@ -1,6 +1,7 @@
 import { assertSameOrigin, identityAllowed } from '../lib/revale-security.js';
 import { getSql } from "../lib/revale-db.js";
 import {
+  loginResult,
   neonAuthRequest,
   forwardAuthCookies,
   getAdminPrincipal,
@@ -45,7 +46,7 @@ export default async function handler(req,res){
         const err=await upstreamJson(upstream);
         return json(res,401,{ok:false,error:err?.message||err?.error?.message||"Correo o contraseña incorrectos"});
       }
-      forwardAuthCookies(upstream,res);return json(res,200,{ok:true});
+      forwardAuthCookies(upstream,res);return json(res,200,loginResult("admin"));
     }
 
     if(req.method==="POST" && action==="logout"){

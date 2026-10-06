@@ -34,6 +34,7 @@ jobs:
       - run: npm run test:baseline
       - run: npm run test:employer
       - run: npm run test:security
+      - run: npm run test:identity
       - run: npm run test:settlements
       - run: npm run test:restore
         env:

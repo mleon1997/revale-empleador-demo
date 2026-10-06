@@ -1615,7 +1615,7 @@ async function loginDemo(){
   try{
     var r=await fetch("/api/auth?action=login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email,password:password})});
     var d=await r.json();if(!r.ok)throw new Error(d.error||"Correo o contraseña incorrectos");
-    var ok=await restoreAuthenticatedSession();if(!ok)throw new Error("No pudimos abrir tu sesión");
+    if(d.next){location.assign(d.next);return;}var ok=await restoreAuthenticatedSession();if(!ok)throw new Error("No pudimos abrir tu sesión");
   }catch(e){toast(e.message||"No pudimos iniciar sesión")}
   b.disabled=false;b.textContent="Ingresar";
 }
@@ -2392,7 +2392,7 @@ async function loginEmployee(){
   try{
     var r=await fetch("/api/employee-auth?action=login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email,password:password})});
     var d=await r.json();if(!r.ok)throw new Error(d.error||"No pudimos iniciar sesión");
-    await loadEmployee()
+    if(d.next){location.assign(d.next);return;}await loadEmployee()
   }catch(e){toast(e.message||"No pudimos iniciar sesión");b.disabled=false;b.textContent="Continuar"}
 }
 async function confirmEmployee(){

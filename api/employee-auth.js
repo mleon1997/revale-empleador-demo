@@ -1,8 +1,9 @@
 import { assertSameOrigin, identityAllowed } from '../lib/revale-security.js';
 import { getSql } from "../lib/revale-db.js";
 import { ensureOnboardingSchema, invitationInfo } from "../lib/revale-onboarding.js";
-import { activateEmployee } from "../lib/revale-activation.js";
+import { activateEmployee, activationResult } from "../lib/revale-activation.js";
 import {
+  loginResult,
   neonAuthRequest,
   forwardAuthCookies,
   getEmployeePrincipal,
@@ -37,7 +38,7 @@ export default async function handler(req,res) {
       if(action==="invitation")return json(res,200,{ok:true,invitation:await invitationInfo(sql,req.body.token)});
       const upstream=await activateEmployee(sql,req,req.body||{});
       forwardAuthCookies(upstream,res);
-      return json(res,200,{ok:true});
+      return json(res,200,await activationResult(upstream,"employee",req.body.token));
     }
 
     if(req.method==="GET" && action==="session"){
@@ -80,7 +81,7 @@ export default async function handler(req,res) {
       }
 
       forwardAuthCookies(upstream,res);
-      return json(res,200,{ok:true});
+      return json(res,200,loginResult("employee"));
     }
 
     if(req.method==="POST" && action==="logout"){

@@ -114,7 +114,7 @@
     if(state.busy)return;state.busy=true;
     const button=$('login-submit');button.disabled=true;button.setAttribute('aria-busy','true');button.textContent='Ingresando…';$('login-error').classList.add('hidden');
     document.querySelector('[data-action="demo-login"]')?.setAttribute('disabled','');
-    try{await api('/api/employee-auth?action=login',{method:'POST',body:JSON.stringify({email,password})});await loadDashboard();await openInitialView();}
+    try{const access=await api('/api/employee-auth?action=login',{method:'POST',body:JSON.stringify({email,password})});if(access.next){location.assign(access.next);return;}await loadDashboard();await openInitialView();}
     catch(error){if($('login-error')){$('login-error').textContent=error.message;$('login-error').classList.remove('hidden');}if($('login-submit')){$('login-submit').disabled=false;$('login-submit').removeAttribute('aria-busy');$('login-submit').innerHTML='Entrar a mi ReVale '+icon('arrow');}document.querySelector('[data-action="demo-login"]')?.removeAttribute('disabled');}
     finally{state.busy=false;}
   }
