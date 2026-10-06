@@ -1,6 +1,7 @@
 # ReVale: MFA candidato para staging
 
-6 de octubre de 2026. Estado: implementación de prueba, desactivada por defecto.
+6 de octubre de 2026. Estado: activo exclusivamente en `revale-staging` / Preview.
+Permanece desactivado por defecto en el código y no se ha promovido a producción.
 
 ## Por qué hace falta
 
@@ -35,52 +36,91 @@ protección de origen, configuración cerrada y permisos del rol de identidad.
 Las pruebas con múltiples conexiones PostgreSQL se ejecutan en CI.
 La migración se genera con la versión fijada y se compara contra ella en las pruebas.
 
-Pendientes antes de activar el candidato:
+Activación autorizada y aplicada:
 
-1. Ejecutar la migración y el rol únicamente en staging, provisionar la credencial
-   de identidad y los secretos de Preview indicados abajo, y verificar permisos.
-2. Crear cuentas sintéticas con membresías explícitas y completar las pruebas de
-   los cuatro portales sobre el despliegue protegido, incluyendo enrolamiento
-   real desde el navegador, consumo, reverso y liquidación.
-3. Verificar desde el navegador la continuación de invitaciones de usuarios ya
-   enrolados. El backend mantiene la invitación pendiente hasta recibir una
-   sesión con MFA y el correo exacto; ese límite está cubierto por pruebas locales.
-4. Documentar recuperación asistida cuando se pierden ambos factores y todos los
-   códigos, rotación del secreto de cifrado, restauración de las nuevas tablas y
-   revisión independiente. El secreto de cifrado debe recuperarse junto al respaldo.
+- Se instalaron las seis tablas y el rol restringido; los permisos efectivos
+  permiten CRUD solo en identidad, sin DDL, TRUNCATE ni acceso a negocio/Neon Auth.
+- Se guardaron dos variables sensibles y la bandera del proveedor solo en Preview.
+- El despliegue inicial expuso `ERR_REQUIRE_ESM`: Vercel transformaba los imports
+  de Better Auth en `require()`. Se corrigió declarando `type: module` y convirtiendo
+  la configuración PostCSS a ESM. El commit verificado es
+  `ffe1a2d8c8a840c8634ae0145d80cc40a112cf90`.
+- Se corrigió además el agotamiento del límite público de `/get-session` por
+  comprobaciones internas: estas usan `auth.api.getSession`. El endpoint público
+  conserva su límite y las verificaciones de contraseña/factor siguen pasando por
+  el limitador. Una prueba reproduce la recuperación con ese bucket agotado.
+- Despliegue: `dpl_6sjmLTH2jyNBXsw4JaeD8UTfcfrs`, estado READY.
+- CI: https://github.com/mleon1997/revale-empleador-demo/actions/runs/37499858099
+  — 84 pruebas aprobadas, ninguna omitida; incluye concurrencia PostgreSQL real.
+  La restauración sintética de 44 tablas de negocio pasó; no acredita restauración
+  del nuevo esquema de identidad ni un respaldo real.
+
+Prueba del despliegue completada el 6 de octubre de 2026, 12:03 America/Guayaquil:
+
+- Empleados, empresas, comercios y administración: contraseña sola bloqueada,
+  TOTP válido aceptado, sesión del rol correcto y rechazo de los otros tres roles.
+- Recuperación aceptada después de contraseña, sesión verificada y rechazo de
+  reutilización del mismo código en un desafío nuevo, en los cuatro portales.
+- Logout invalida la sesión y las mutaciones de otro origen se rechazan.
+- El QR generado se decodificó durante la inscripción sintética y coincidió con
+  el factor cifrado. Factores y códigos de recuperación no se guardan en texto claro.
+- Se revocaron los enlaces temporales; el último se cerró antes de sus 15 minutos.
+  Se revocó también un enlace anterior de mayor duración encontrado al inspeccionar
+  el alias. No se modificó la configuración SSO del proyecto.
+- Se desactivaron las cuatro membresías y entidades sintéticas. Se eliminaron sus
+  identidades, sesiones, cuentas, factores y desafíos: todos esos conteos quedaron
+  en cero. Las filas de negocio ficticias se conservaron inactivas.
+- Evidencia sin secretos: `db/baseline/staging-mfa-verification-20261006.json`.
+
+Pendientes antes de considerar una promoción fuera de staging:
+
+1. Enrolamiento humano con autenticador y continuación de invitaciones en navegador.
+   La pantalla del desafío se inspeccionó visualmente; las pruebas automatizadas
+   del despliegue ejercitan HTTP y QR, no una aplicación de autenticación humana.
+2. Flujo integrado con MFA de consumo, reverso y liquidación en staging. No se
+   ejecutaron movimientos financieros ni se cargaron beneficios en esta activación.
+3. Simulacro de restauración de las seis tablas de identidad junto con su clave de
+   cifrado y procedimiento de recuperación/rotación aprobado y ensayado.
+4. Revisión independiente de seguridad y enrolamiento de cuentas humanas nominativas.
 
 Esto no activa MFA en las cuentas personales de administración de Vercel o Neon.
 El titular debe enrolar su propio autenticador para esas cuentas.
 
-## Cambio de infraestructura propuesto
+## Infraestructura aplicada
 
 - Proyecto Neon existente: `revale-staging` (`lively-cloud-95086101`), rama
   `br-ancient-darkness-b8aqist7`, base `neondb`.
-- Aplicar `db/migrations/20261006_staging_mfa.sql` y
+- Se aplicaron `db/migrations/20261006_staging_mfa.sql` y
   `db/baseline/identity-runtime-role.sql`.
-- Crear login `revale_staging_identity`, únicamente miembro de
+- Se creó el login `revale_staging_identity`, únicamente miembro de
   `revale_identity_runtime`: SELECT/INSERT/UPDATE/DELETE en las seis tablas de
   `revale_identity`; sin DDL, ownership, superusuario, membresías adicionales,
   acceso a `revale` o a `neon_auth`. El rol de negocio existente no cambia.
-- Guardar su conexión y una clave aleatoria de al menos 32 bytes como secretos
+- Se guardaron su conexión y una clave aleatoria de 48 bytes como secretos
   sensibles `REVALE_PREVIEW_IDENTITY_DATABASE_URL` y
   `REVALE_PREVIEW_IDENTITY_SECRET` exclusivamente en Preview del proyecto Vercel
   `revale-staging` (`prj_JDzorjuwv6YgvC2EZMdWGgxoMGmU`).
-- Activar `REVALE_AUTH_PROVIDER=better-auth-mfa` solo en ese proyecto Preview y
-  redesplegar el commit aprobado. Conservar los valores Neon Auth para revertir
+- Se activó `REVALE_AUTH_PROVIDER=better-auth-mfa` solo en ese proyecto Preview. Conservar los valores Neon Auth para revertir
   la configuración si se descarta el ensayo; los usuarios de ambos proveedores
   son distintos y no se vinculan automáticamente.
-- No cambiar demo, live, dominios, protección SSO ni variables de otros proyectos.
+- Demo, live, dominios y configuración SSO de otros proyectos no forman parte del cambio.
 
-## Bloqueos de esta sesión
+## Recuperación operativa antes de usuarios reales
 
-El navegador sigue recibiendo `FUNCTION_INVOCATION_FAILED` en el SSO de Vercel,
-antes de alcanzar ReVale. La revisión automática rechazó crear un enlace temporal
-para la prueba porque permitiría acceso sin ese SSO, y rechazó también una consulta
-de conteos de staging por considerar insuficiente su autorización. No se intentó
-eludir esas denegaciones ni se cambió la protección del proyecto. Para verificar
-el despliegue se necesita resolver el SSO o autorizar un acceso temporal acotado
-para las pruebas y revocarlo al terminar. No se debe compartir el enlace en un PR.
+- Un código de recuperación reemplaza TOTP una vez, después de la contraseña.
+- Perder contraseña, autenticador y códigos requiere un procedimiento asistido con
+  verificación independiente del titular, revocación de sesiones y nuevo enrolamiento.
+  Ese flujo administrativo todavía no está implementado ni validado para producción.
+- El secreto de identidad cifra factores y recuperación: cambiarlo directamente
+  impide descifrar los registros existentes. No rotarlo como una contraseña de base
+  de datos. Se debe ensayar una migración compatible o re-enrolamiento con sesiones
+  revocadas y acceso controlado antes de introducir usuarios reales.
+- Una restauración debe recuperar tablas y la versión correspondiente de la clave;
+  probar descifrado y MFA con una cuenta sintética en un destino aislado, y revocar
+  sesiones/desafíos restaurados antes de reabrir accesos. No guardar claves en Git.
+- Revertir el ensayo requiere redesplegar la versión anterior y quitar la bandera
+  del proveedor en Preview. Los usuarios Neon Auth y Better Auth son distintos;
+  no asumir continuidad de sesiones ni vincular cuentas automáticamente.
 
 ## Referencias de implementación
 
