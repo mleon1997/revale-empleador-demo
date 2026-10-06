@@ -1,4 +1,5 @@
 import { getSql } from "../lib/revale-db.js";
+import { assertSameOrigin } from '../lib/revale-security.js';
 import { ensureEmployerGovernanceSchema, companyApprovalGuard, companyFundingApproved } from '../lib/revale-employer-governance.js';
 import { getAdminPrincipal, roleAllowed } from "../lib/revale-auth.js";
 import {
@@ -301,6 +302,7 @@ async function auditFinancialRequest(sql,{principal,request,action,metadata={}})
 export default async function handler(req,res){
   const action=String(req.query?.action||"");
   try{
+    assertSameOrigin(req);
     const sql=await getSql();
     await ensureSettlementTaxSchema(sql);
     await ensureFundingTreasurySchema(sql);
@@ -1897,7 +1899,8 @@ export default async function handler(req,res){
 
     return json(res,405,{ok:false,error:"Acción no soportada"});
   }catch(error){
-    console.error("ReVale admin API error",error);
+    if (error.status === 403) return json(res,403,{ok:false,error:error.message});
+    console.error("ReVale admin API error",{code:error.code||'INTERNAL',action});
     return json(res,500,{ok:false,error:"Error interno del servicio"});
   }
 }

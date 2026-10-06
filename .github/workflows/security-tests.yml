@@ -1,0 +1,36 @@
+name: Security and transaction integrity
+on:
+  push:
+    branches: [main, fix/security-redemption-hardening]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: local_test_only
+          POSTGRES_DB: revale_test_security
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      REVALE_MODE: demo
+      REVALE_TEST_DATABASE_URL: postgres://postgres:local_test_only@127.0.0.1:5432/revale_test_security
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:employer
+      - run: npm run test:security
+      - run: npm run build

@@ -1,3 +1,4 @@
+import { assertSameOrigin, identityAllowed } from '../lib/revale-security.js';
 import { getSql } from "../lib/revale-db.js";
 import {
   neonAuthRequest,
@@ -14,21 +15,7 @@ function json(res, code, body) {
     .json(body);
 }
 
-function demoCredential(email, password) {
-  const map = {
-    "caja@demo.revale.app": "caja-demo",
-    "supervisor@demo.revale.app": "supervisor-demo",
-    "gerencia@demo.revale.app": "gerencia-demo",
-    "caja.gonzalezsuarez@demo.revale.app": "caja-demo",
-    "supervisor.gonzalezsuarez@demo.revale.app": "supervisor-demo",
-    "caja.islafloreana@demo.revale.app": "caja-demo",
-    "supervisor.islafloreana@demo.revale.app": "supervisor-demo",
-    "caja@cebiches.demo.revale.app": "caja-demo",
-    "supervisor@cebiches.demo.revale.app": "supervisor-demo",
-    "gerencia@cebiches.demo.revale.app": "gerencia-demo"
-  };
-  return map[email] === password;
-}
+
 
 async function upstreamJson(response) {
   const text = await response.text();
@@ -43,6 +30,8 @@ export default async function handler(req, res) {
   const action = String(req.query?.action || "");
 
   try {
+    assertSameOrigin(req);
+    if(req.method === 'POST' && action === 'login' && !identityAllowed(req.body?.email)) return json(res,403,{ok:false,error:'Este acceso de demostración no está habilitado aquí.'});
     const sql = await getSql();
 
     if (req.method === "GET" && action === "session") {
@@ -92,22 +81,6 @@ export default async function handler(req, res) {
         body: JSON.stringify({ email, password, rememberMe: true })
       });
 
-      if (!upstream.ok && demoCredential(email, password)) {
-        const signup = await neonAuthRequest(req, "/sign-up/email", {
-          method: "POST",
-          body: JSON.stringify({
-            email,
-            password,
-            name: merchantUser.display_name || "ReVale"
-          })
-        });
-
-        if (signup.ok) {
-          forwardAuthCookies(signup, res);
-          return json(res, 200, { ok: true, bootstrapped: true });
-        }
-      }
-
       if (!upstream.ok) {
         const errorBody = await upstreamJson(upstream);
         return json(res, 401, {
@@ -134,6 +107,7 @@ export default async function handler(req, res) {
 
     return json(res, 405, { ok: false, error: "Acción no soportada" });
   } catch (error) {
+    if(error.status)return json(res,error.status,{ok:false,error:error.message});
     console.error("ReVale auth error", error);
     return json(res, 500, { ok: false, error: "Error de autenticación" });
   }

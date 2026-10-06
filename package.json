@@ -5,7 +5,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:employer": "node --test tests/employer.test.mjs tests/onboarding.test.mjs tests/governance.test.mjs"
+    "test:employer": "REVALE_MODE=demo node --test tests/employer.test.mjs tests/onboarding.test.mjs tests/governance.test.mjs",
+    "test:security": "REVALE_MODE=demo node --test tests/security.test.mjs tests/redemption.test.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
@@ -19,6 +20,7 @@
     "@electric-sql/pglite": "0.5.8",
     "@vitejs/plugin-react": "^4.0.0",
     "autoprefixer": "^10.4.21",
+    "pg": "8.16.3",
     "postcss": "^8.5.4",
     "tailwindcss": "^4.1.8",
     "vite": "^5.0.0"

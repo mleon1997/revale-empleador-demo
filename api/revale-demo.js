@@ -1,6 +1,6 @@
+import { assertSameOrigin } from '../lib/revale-security.js';
 import {
   getSql,
-  getDemoAccount,
   createCharge,
   getCharge,
   confirmCharge,
@@ -9,7 +9,6 @@ import {
   matchInvoice
 } from "../lib/revale-db.js";
 import { getMerchantPrincipal, getEmployeePrincipal, roleAllowed } from "../lib/revale-auth.js";
-import { evaluateRedemptionRules } from "../lib/revale-benefits.js";
 import { emitAndPostAccountingEvent } from "../lib/revale-accounting.js";
 import {
   ensureSettlementTaxSchema,
@@ -245,26 +244,40 @@ function json(res, code, body) {
     .json(body);
 }
 
-export default async function handler(req, res) {
+export function createRedemptionHandler({ database = getSql, merchantSession = getMerchantPrincipal, employeeSession = getEmployeePrincipal } = {}) {
+return async function handler(req, res) {
   const action = (req.query && req.query.action) || "";
 
   try {
-    const sql = await getSql();
+    if (['persons', 'balance'].includes(action)) {
+      return json(res, 410, { ok: false, error: 'Consulta retirada. Utiliza el portal autenticado de ReVale.' });
+    }
+    assertSameOrigin(req);
+    const sql = await database();
 
     const protectedActions = new Set([
       "branch-requests","request-branch",
       "merchant-users","invite-user","update-user",
       "bank-account","request-bank-account","merchant-terms","merchant-settlements","settlement-detail","report-withholding",
       "reversal-requests","request-reversal","resolve-reversal",
-      "transactions","reverse","invoice-match","create"
+      "transactions","reverse","invoice-match","create","status"
     ]);
     let principal = null;
     if (protectedActions.has(action)) {
-      principal = await getMerchantPrincipal(sql, req);
+      principal = await merchantSession(sql, req);
       if (!principal) {
         return json(res, 401, { ok: false, error: "Sesión requerida" });
       }
     }
+
+    const ownTransaction = async (tx) => {
+      const [row] = await sql.query(
+        `SELECT id, merchant_id, location_id FROM revale.transactions
+         WHERE id=$1 AND merchant_id=$2
+           AND ($3::text IS NULL OR location_id=$3) LIMIT 1`,
+        [String(tx || ''), principal.merchantId, principal.role === 'admin' ? null : principal.locationId || '__none__']);
+      return row;
+    };
 
     const requireRoles = (roles) => {
       if (!roleAllowed(principal, roles)) {
@@ -353,6 +366,12 @@ export default async function handler(req, res) {
       if (!["cashier","supervisor","admin"].includes(role)) return json(res, 400, { ok: false, error: "Rol inválido" });
       if (role !== "admin" && !locationId) return json(res, 400, { ok: false, error: "Selecciona una sucursal" });
 
+      const branchToCheck = locationId;
+      if (branchToCheck) {
+        const [branch] = await sql.query('SELECT id FROM revale.merchant_locations WHERE id=$1 AND merchant_id=$2 AND active=true',[branchToCheck,merchantId]);
+        if (!branch) return json(res,400,{ok:false,error:'Sucursal no disponible para este comercio.'});
+      }
+
       const userId = "merchant_user_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8);
       try {
         const [row] = await sql`
@@ -399,6 +418,12 @@ export default async function handler(req, res) {
         : (locationId === undefined ? existing.location_id : locationId);
       if (nextRole !== "admin" && !nextLocation) {
         return json(res, 400, { ok: false, error: "Caja y Supervisor requieren una sucursal" });
+      }
+
+      const branchToCheck = nextLocation;
+      if (branchToCheck) {
+        const [branch] = await sql.query('SELECT id FROM revale.merchant_locations WHERE id=$1 AND merchant_id=$2 AND active=true',[branchToCheck,merchantId]);
+        if (!branch) return json(res,400,{ok:false,error:'Sucursal no disponible para este comercio.'});
       }
 
       const [row] = await sql`
@@ -668,78 +693,8 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "GET" && action === "health") {
-      const [db] = await sql`
-        SELECT current_database() AS database_name, now() AS server_time
-      `;
-      const demo = await getDemoAccount(sql);
-
-      return json(res, 200, {
-        ok: true,
-        storage: "neon-postgres",
-        schema: "revale",
-        database: db?.database_name,
-        serverTime: db?.server_time
-      });
-    }
-
-    if (req.method === "GET" && action === "persons") {
-      const rows = await sql`
-        SELECT
-          c.card_number AS revale_card,
-          p.person_identification,
-          p.first_name,
-          p.last_name,
-          p.email,
-          p.mobile_phone,
-          p.company_identification
-        FROM revale.persons p
-        JOIN revale.cards c ON c.person_id = p.id
-        WHERE p.active = true AND c.active = true
-        ORDER BY p.first_name, p.last_name
-      `;
-
-      return json(res, 200, {
-        message: "RVL-000",
-        response: {
-          status: "success",
-          error_code: "RVL-000",
-          error_message: "Query completed successfully",
-          data: { persons: rows }
-        }
-      });
-    }
-
-    if (req.method === "GET" && action === "balance") {
-      const card = String(req.query?.card_number || "RV-DEMO-0001");
-      const [row] = await sql`
-        SELECT
-          card_number,
-          balance::float8 AS balance
-        FROM revale.benefit_accounts
-        WHERE card_number = ${card}
-        LIMIT 1
-      `;
-
-      if (!row) {
-        return json(res, 404, {
-          message: "RVL-005",
-          response: {
-            status: "error",
-            error_code: "RVL-005",
-            error_message: "Card not found"
-          }
-        });
-      }
-
-      return json(res, 200, {
-        message: "RVL-000",
-        response: {
-          status: "success",
-          error_code: "RVL-000",
-          error_message: "Query completed successfully",
-          data: row
-        }
-      });
+      await sql.query('SELECT 1');
+      return json(res, 200, { ok: true });
     }
 
     if (req.method === "GET" && action === "reversal-requests") {
@@ -788,6 +743,7 @@ export default async function handler(req, res) {
         SELECT id, status, merchant_id, location_id
         FROM revale.transactions
         WHERE id = ${tx} AND merchant_id = ${merchantId}
+          AND location_id = ${locationId}
         LIMIT 1
       `;
       if (!tr) return json(res, 404, { ok: false, error: "Transacción no encontrada" });
@@ -832,6 +788,8 @@ export default async function handler(req, res) {
         SELECT *
         FROM revale.reversal_requests
         WHERE id = ${requestId} AND status = 'pending'
+          AND merchant_id = ${principal.merchantId}
+          AND (${principal.role === 'admin' ? null : principal.locationId || '__none__'}::text IS NULL OR location_id = ${principal.locationId})
         LIMIT 1
       `;
       if (!request) return json(res, 404, { ok: false, error: "Solicitud no encontrada o ya resuelta" });
@@ -859,7 +817,8 @@ export default async function handler(req, res) {
         request.transaction_id,
         request.reason,
         request.note || "",
-        reviewedBy
+        reviewedBy,
+        principal
       );
       if (result.code !== "ok") {
         return json(res, 409, {
@@ -891,10 +850,11 @@ export default async function handler(req, res) {
     if (req.method === "POST" && action === "reverse") {
       if (!requireRoles(["supervisor","admin"])) return;
       const tx = String(req.body?.tx || "");
+      if (!await ownTransaction(tx)) return json(res,404,{ok:false,error:'Transacción no encontrada'});
       const reason = String(req.body?.reason || "other").slice(0,120);
       const note = String(req.body?.note || "").slice(0,500);
       const reviewedBy = principal.displayName;
-      const result = await reverseCharge(sql, tx, reason, note, reviewedBy);
+      const result = await reverseCharge(sql, tx, reason, note, reviewedBy, principal);
 
       if (result.code === "not_found") {
         return json(res, 404, {
@@ -934,7 +894,8 @@ export default async function handler(req, res) {
 
     if (req.method === "POST" && action === "invoice-match") {
       const tx = String(req.body?.tx || "");
-      const result = await matchInvoice(sql, tx);
+      if (!await ownTransaction(tx)) return json(res,404,{ok:false,error:'Transacción no encontrada'});
+      const result = await matchInvoice(sql, tx, principal);
 
       if (result.code === "not_found") {
         return json(res, 404, {
@@ -1045,7 +1006,9 @@ export default async function handler(req, res) {
     ) {
       const tx = String(req.query?.tx || "");
       const token = String(req.query?.token || "");
-      const employeePrincipal = action === "get" ? await getEmployeePrincipal(sql, req) : null;
+      const employeePrincipal = action === "get" ? await employeeSession(sql, req) : null;
+      if (action === 'get' && !employeePrincipal) return json(res,401,{ok:false,error:'Inicia sesión para consultar este consumo.'});
+      if (action === 'status' && !await ownTransaction(tx)) return json(res,404,{ok:false,error:'Transacción no encontrada'});
       const row = await getCharge(sql, tx, token, employeePrincipal);
 
       if (!row) {
@@ -1061,7 +1024,7 @@ export default async function handler(req, res) {
     if (req.method === "POST" && action === "confirm") {
       const tx = String(req.body?.tx || "");
       const token = String(req.body?.token || "");
-      const employeePrincipal = await getEmployeePrincipal(sql, req);
+      const employeePrincipal = await employeeSession(sql, req);
       if (!employeePrincipal) {
         return json(res, 401, {
           message: "RVL-017",
@@ -1086,33 +1049,8 @@ export default async function handler(req, res) {
         return json(res, 404, { message:"RVL-005", error:"Transacción no encontrada" });
       }
 
-      const ruleCheck = await evaluateRedemptionRules(sql, {
-        programId: employeePrincipal.benefit.program_id,
-        personId: employeePrincipal.personId,
-        merchantId: chargeContext.merchant_id,
-        locationId: chargeContext.location_id,
-        amount: chargeContext.amount
-      });
-
-      if (!ruleCheck.ok) {
-        await sql.query(
-          `INSERT INTO revale.transaction_events (transaction_id,event_type,payload)
-           VALUES ($1,'declined_rule',jsonb_build_object(
-             'person_id',$2,
-             'program_id',$3,
-             'message',$4,
-             'rules',$5::jsonb
-           ))`,
-          [tx,employeePrincipal.personId,employeePrincipal.benefit.program_id,ruleCheck.message,JSON.stringify(ruleCheck.rules)]
-        );
-        return json(res, 409, {
-          message:"RVL-020",
-          error:ruleCheck.message,
-          ruleDenied:true
-        });
-      }
-
       const result = await confirmCharge(sql, tx, token, employeePrincipal);
+      if(result.code === 'rule_denied') return json(res,409,{message:'RVL-020',error:result.message,ruleDenied:true});
 
       if (result.code === "not_found") {
         return json(res, 404, {
@@ -1186,10 +1124,15 @@ export default async function handler(req, res) {
       error: "Acción no soportada"
     });
   } catch (error) {
-    console.error("ReVale API error", error);
+    if(error.status)return json(res,error.status,{ok:false,error:error.message});
+    console.error('ReVale API error', {code:error.code || 'API_ERROR',action});
     return json(res, 500, {
       message: "RVL-013",
       error: "Error interno del servicio"
     });
   }
 }
+
+}
+
+export default createRedemptionHandler();

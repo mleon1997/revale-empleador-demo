@@ -1,3 +1,4 @@
+import { assertSameOrigin, identityAllowed } from '../lib/revale-security.js';
 import { getSql } from "../lib/revale-db.js";
 import { ensureOnboardingSchema, invitationInfo } from "../lib/revale-onboarding.js";
 import { activateEmployee } from "../lib/revale-activation.js";
@@ -21,13 +22,13 @@ async function upstreamJson(response) {
   catch { return { raw:text }; }
 }
 
-function demoCredential(email,password) {
-  return email === "andrea.demo@revale.app" && password === "andrea-demo";
-}
+
 
 export default async function handler(req,res) {
   const action=String(req.query?.action||"");
   try{
+    assertSameOrigin(req);
+    if(req.method === 'POST' && action === 'login' && !identityAllowed(req.body?.email)) return json(res,403,{ok:false,error:'Este acceso de demostración no está habilitado aquí.'});
     const sql=await getSql();
 
     if(req.method==="POST" && ["invitation","activate"].includes(action)){
@@ -69,21 +70,6 @@ export default async function handler(req,res) {
         method:"POST",
         body:JSON.stringify({email,password,rememberMe:true})
       });
-
-      if(!upstream.ok && demoCredential(email,password)){
-        const signup=await neonAuthRequest(req,"/sign-up/email",{
-          method:"POST",
-          body:JSON.stringify({
-            email,
-            password,
-            name:[person.first_name,person.last_name].filter(Boolean).join(" ")
-          })
-        });
-        if(signup.ok){
-          forwardAuthCookies(signup,res);
-          return json(res,200,{ok:true,bootstrapped:true});
-        }
-      }
 
       if(!upstream.ok){
         const err=await upstreamJson(upstream);
