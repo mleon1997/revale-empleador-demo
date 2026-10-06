@@ -38,7 +38,7 @@ Antes de publicar, exigir resultado verde del workflow sobre el commit exacto. D
 
 | Área | Evidencia necesaria |
 | --- | --- |
-| Recuperación | Retención de backups confirmada; restauración ejecutada en una base aislada; tiempos y pérdida máxima de datos medidos y aceptados |
+| Recuperación | Snapshot real restaurado y comparado en una rama separada. Faltan programación/retención acordadas, recuperación integral con Auth y aplicación, RTO/RPO aceptados y copia independiente |
 | Acceso privilegiado | MFA de administradores y proveedores, inventario de permisos y revocación probada |
 | Vigilancia | Alertas de errores, desfases de conciliación, eventos contables pendientes y disponibilidad; responsable y procedimiento de incidente |
 | Dinero de extremo a extremo | Validar reglas comerciales y fiscales, datos heredados, extractos reales y capacidad con volúmenes acordados; la batería sintética no sustituye esta aceptación |
@@ -46,7 +46,7 @@ Antes de publicar, exigir resultado verde del workflow sobre el commit exacto. D
 | Infraestructura real | Base e identidad separadas, migraciones completas y reproducibles, secretos propios y prueba de carga sobre ese entorno |
 | Seguridad externa | Revisar dependencias, rate limiting y realizar pruebas de autorización entre empresas/comercios con cuentas reales de prueba |
 
-Las mutaciones financieras administrativas y los reversos ahora incluyen su contabilización en la misma transacción. La confirmación del consumo conserva su evento durable y recuperación posterior; una cola pendiente bloquea la programación de pagos del comercio afectado. No se ha restaurado un respaldo real ni realizado una auditoría externa. El detalle de la segunda revisión consta en `OPERATIONS_HARDENING_20261006.md`.
+Las mutaciones financieras administrativas y los reversos ahora incluyen su contabilización en la misma transacción. La confirmación del consumo conserva su evento durable y recuperación posterior; una cola pendiente bloquea la programación de pagos del comercio afectado. Se restauró un snapshot real de Neon en una rama nueva: 67 tablas y 1.469 filas coinciden, junto con metadatos de columnas y secuencias de la aplicación; seis controles financieros dieron cero anomalías. No se ha probado el cambio integral de aplicación/identidad ni realizado una auditoría externa. El detalle y los límites constan en `OPERATIONS_HARDENING_20261006.md`.
 
 ## Procedimiento de recuperación por validar
 
