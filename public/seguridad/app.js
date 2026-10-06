@@ -6,8 +6,9 @@
   const portal=Object.hasOwn(destinations,requested)?requested:'employee';
   const home=destinations[portal];
   const activationToken=location.hash.slice(1);
-  const resume=new URLSearchParams(location.search).get('activation')==='1'&&/^[A-Za-z0-9_-]{43}$/.test(activationToken)&&['employee','employer'].includes(portal)
-    ?(portal==='employer'?'/empresas/activar/':'/activar/')+'?mfa=complete#'+activationToken:home;
+  const activationPaths={employee:'/activar/',employer:'/empresas/activar/',admin:'/admin/activar/'};
+  const resume=new URLSearchParams(location.search).get('activation')==='1'&&/^[A-Za-z0-9_-]{43}$/.test(activationToken)&&Object.hasOwn(activationPaths,portal)
+    ?activationPaths[portal]+'?mfa=complete#'+activationToken:home;
   const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let recovery=false;
   async function api(action,body){

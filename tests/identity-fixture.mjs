@@ -49,5 +49,5 @@ export async function identityFixture() {
     };
   }
   async function query(text,args=[]) { const c=await pool.connect();try{return await c.query(text,args);}finally{c.release();} }
-  return { auth, pool, config, ddl, client, query, close: () => pool.end() };
+  return { auth, pool, config, ddl, client, query, exec:text=>connectionString?pool.query(text):db.exec(text), close: () => pool.end() };
 }
