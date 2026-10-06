@@ -6,7 +6,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:employer": "REVALE_MODE=demo node --test tests/employer.test.mjs tests/onboarding.test.mjs tests/governance.test.mjs",
-    "test:security": "REVALE_MODE=demo node --test tests/security.test.mjs tests/redemption.test.mjs"
+    "test:security": "REVALE_MODE=demo node --test tests/security.test.mjs tests/redemption.test.mjs",
+    "test:settlements": "REVALE_MODE=demo node --test tests/settlements.test.mjs",
+    "test:restore": "node tests/restore-drill.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",

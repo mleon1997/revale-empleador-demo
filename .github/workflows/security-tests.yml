@@ -1,7 +1,7 @@
 name: Security and transaction integrity
 on:
   push:
-    branches: [main, fix/security-redemption-hardening]
+    branches: [main, fix/security-redemption-hardening, fix/operational-readiness]
   pull_request:
 permissions:
   contents: read
@@ -24,6 +24,7 @@ jobs:
     env:
       REVALE_MODE: demo
       REVALE_TEST_DATABASE_URL: postgres://postgres:local_test_only@127.0.0.1:5432/revale_test_security
+      REVALE_TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -33,4 +34,6 @@ jobs:
       - run: npm ci
       - run: npm run test:employer
       - run: npm run test:security
+      - run: npm run test:settlements
+      - run: npm run test:restore
       - run: npm run build

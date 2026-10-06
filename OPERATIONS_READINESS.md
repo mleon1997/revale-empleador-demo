@@ -26,7 +26,9 @@ No se han provisionado aquí las bases ni proveedores de identidad de preview/re
 
 ## Verificación reproducible
 
-`npm run test:employer`, `npm run test:security` y `npm run build`.
+`npm run test:employer`, `npm run test:security`, `npm run test:settlements` y `npm run build`.
+
+La suite adicional de liquidaciones comprueba reservas de comercio y tesorería, autorizaciones vigentes, banco aprobado, retenciones, reversos, redondeo, fallos contables y conciliación exacta. En PostgreSQL nativo se ejecutan cinco carreras adicionales con conexiones independientes. El workflow también restaura un `pg_dump` sintético en otra base y compara todas las filas y secuencias. Es un ensayo de la mecánica de recuperación, no una restauración del respaldo real de Neon.
 
 La suite de seguridad usa PGlite localmente y omite cuatro casos de concurrencia cuando no hay servidor PostgreSQL. El workflow `Security and transaction integrity` crea PostgreSQL 16 desechable, con conexiones independientes y datos sintéticos, y ejecuta también esos cuatro casos: doce confirmaciones del mismo QR, dos empleados compitiendo por un QR, dos consumos que excederían el límite diario y doce reversos simultáneos. Nunca apuntar la suite a una base de la aplicación: elimina su esquema de prueba. La conexión nativa está restringida a localhost y nombres `revale_test_*`.
 
@@ -39,12 +41,12 @@ Antes de publicar, exigir resultado verde del workflow sobre el commit exacto. D
 | Recuperación | Retención de backups confirmada; restauración ejecutada en una base aislada; tiempos y pérdida máxima de datos medidos y aceptados |
 | Acceso privilegiado | MFA de administradores y proveedores, inventario de permisos y revocación probada |
 | Vigilancia | Alertas de errores, desfases de conciliación, eventos contables pendientes y disponibilidad; responsable y procedimiento de incidente |
-| Dinero de extremo a extremo | Revisar carreras entre cierre/pago de liquidación y reverso, proyección contable de reversos, recargas y conciliación bancaria con fallos inyectados |
-| Transacciones heredadas | Sustituir usos de `BEGIN`/`COMMIT` en llamadas HTTP separadas de rutas Admin por transacciones soportadas o una sola sentencia atómica |
+| Dinero de extremo a extremo | Validar reglas comerciales y fiscales, datos heredados, extractos reales y capacidad con volúmenes acordados; la batería sintética no sustituye esta aceptación |
+| Transacciones administrativas | Ya utilizan una conexión PostgreSQL y una transacción Serializable para cada mutación, incluyendo contabilidad y auditoría; medir capacidad del cierre por lote antes de escalar |
 | Infraestructura real | Base e identidad separadas, migraciones completas y reproducibles, secretos propios y prueba de carga sobre ese entorno |
 | Seguridad externa | Revisar dependencias, rate limiting y realizar pruebas de autorización entre empresas/comercios con cuentas reales de prueba |
 
-El registro durable agregado aquí cubre la aprobación del consumo; no demuestra que todos los procesos contables y de liquidación toleren interrupciones. Tampoco se ha realizado un simulacro de restauración ni una auditoría externa.
+Las mutaciones financieras administrativas y los reversos ahora incluyen su contabilización en la misma transacción. La confirmación del consumo conserva su evento durable y recuperación posterior; una cola pendiente bloquea la programación de pagos del comercio afectado. No se ha restaurado un respaldo real ni realizado una auditoría externa. El detalle de la segunda revisión consta en `OPERATIONS_HARDENING_20261006.md`.
 
 ## Procedimiento de recuperación por validar
 

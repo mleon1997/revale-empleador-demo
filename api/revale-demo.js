@@ -1,4 +1,5 @@
 import { assertSameOrigin } from '../lib/revale-security.js';
+import { financialResponse } from '../lib/revale-financial-transaction.js';
 import {
   getSql,
   createCharge,
@@ -20,6 +21,12 @@ import {
 
 
 async function postReversalAccounting(sql, tx, result) {
+  // A retry after a later settlement close must not reinterpret the original
+  // reversal as a second, post-close accounting event.
+  if(result.idempotent){
+    const [posted]=await sql.query("SELECT id FROM revale.accounting_events WHERE source_type='transaction' AND source_id=$1 AND event_key IN ('reversed','reversed_post_close') AND status='posted' LIMIT 1",[tx]);
+    if(posted)return {posting:{code:'ok',idempotent:true}};
+  }
   const [ctx] = await sql.query(
     `SELECT
        t.merchant_id,t.location_id,t.person_id,t.account_id,t.program_id,t.amount::float8 AS amount,
@@ -46,8 +53,17 @@ async function postReversalAccounting(sql, tx, result) {
   if(isPostClose){
     const discountRate=Number(ctx.settlement_metadata?.discount_rate||0);
     const taxRate=Number(ctx.settlement_metadata?.tax_rate||0);
-    const feeReversal=Math.round((amount*discountRate+Number.EPSILON)*100)/100;
-    const taxReversal=Math.round((feeReversal*taxRate+Number.EPSILON)*100)/100;
+    const [refundable]=await sql.query(`SELECT
+      (s.gross_amount-s.adjustment_amount-COALESCE(SUM(e.amount),0))::float8 AS principal,
+      (s.fee_amount-COALESCE(SUM((e.payload->>'fee_reversal')::numeric),0))::float8 AS fee,
+      (s.tax_amount-COALESCE(SUM((e.payload->>'tax_reversal')::numeric),0))::float8 AS tax
+      FROM revale.settlements s LEFT JOIN revale.accounting_events e ON e.settlement_id=s.id
+        AND e.event_type='settled_redemption_reversed' AND e.status='posted'
+      WHERE s.id=$1 GROUP BY s.id`,[ctx.settlement_id]);
+    const round=value=>Math.round((Number(value)+Number.EPSILON)*100)/100;
+    const last=round(amount)>=round(refundable.principal);
+    const feeReversal=round(Math.max(0,Math.min(refundable.fee,last?refundable.fee:round(amount*discountRate))));
+    const taxReversal=round(Math.max(0,Math.min(refundable.tax,last?refundable.tax:round(feeReversal*taxRate))));
     const merchantRecovery=Math.round((amount-feeReversal-taxReversal+Number.EPSILON)*100)/100;
     const posting=await emitAndPostAccountingEvent(sql,{
       eventType:"settled_redemption_reversed",
@@ -111,9 +127,9 @@ async function postReversalAccounting(sql, tx, result) {
          jsonb_build_object(
            'post_close',true,
            'processed_at',now(),
-           'merchant_recovery',$4,
-           'fee_reversal',$5,
-           'tax_reversal',$6
+           'merchant_recovery',$4::numeric,
+           'fee_reversal',$5::numeric,
+           'tax_reversal',$6::numeric
          )
        )
        ON CONFLICT (transaction_id,item_type) WHERE transaction_id IS NOT NULL DO NOTHING`,
@@ -129,7 +145,7 @@ async function postReversalAccounting(sql, tx, result) {
          ) VALUES (
            $1,$2,$3,'post_close_reversal','transaction',$4,$5,'USD',
            'Reverso posterior al cierre antes del pago',
-           jsonb_build_object('gross_amount',$6,'fee_reversal',$7,'tax_reversal',$8),
+           jsonb_build_object('gross_amount',$6::numeric,'fee_reversal',$7::numeric,'tax_reversal',$8::numeric),
            $9
          )
          ON CONFLICT (settlement_id,source_type,source_id,adjustment_type) DO NOTHING`,
@@ -161,7 +177,7 @@ async function postReversalAccounting(sql, tx, result) {
         );
         await sql.query(
           `INSERT INTO revale.settlement_events (settlement_id,event_type,actor_id,payload)
-           VALUES ($1,'cancelled',$2,jsonb_build_object('reason','post_close_reversal','transaction_id',$3))
+           VALUES ($1,'cancelled',$2,jsonb_build_object('reason','post_close_reversal','transaction_id',$3::text))
           `,
           [ctx.settlement_id,"merchant_reversal",tx]
         );
@@ -245,7 +261,7 @@ function json(res, code, body) {
 }
 
 export function createRedemptionHandler({ database = getSql, merchantSession = getMerchantPrincipal, employeeSession = getEmployeePrincipal } = {}) {
-return async function handler(req, res) {
+return async function handler(req, res, transaction) {
   const action = (req.query && req.query.action) || "";
 
   try {
@@ -253,7 +269,7 @@ return async function handler(req, res) {
       return json(res, 410, { ok: false, error: 'Consulta retirada. Utiliza el portal autenticado de ReVale.' });
     }
     assertSameOrigin(req);
-    const sql = await database();
+    const sql = transaction || await database();
 
     const protectedActions = new Set([
       "branch-requests","request-branch",
@@ -289,6 +305,9 @@ return async function handler(req, res) {
 
     if (["merchant-settlements","settlement-detail","report-withholding","reverse","resolve-reversal"].includes(action)) {
       await ensureSettlementTaxSchema(sql);
+    }
+    if(req.method==='POST'&&['reverse','resolve-reversal','report-withholding'].includes(action)&&!sql.inTransaction){
+      return await financialResponse(sql,res,(tx,buffer)=>handler(req,buffer,tx));
     }
 
     if (req.method === "GET" && action === "merchant-config") {
@@ -1124,6 +1143,7 @@ return async function handler(req, res) {
       error: "Acción no soportada"
     });
   } catch (error) {
+    if(transaction)throw error;
     if(error.status)return json(res,error.status,{ok:false,error:error.message});
     console.error('ReVale API error', {code:error.code || 'API_ERROR',action});
     return json(res, 500, {

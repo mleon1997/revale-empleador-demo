@@ -1,5 +1,7 @@
 import { getSql } from "../lib/revale-db.js";
 import { assertSameOrigin } from '../lib/revale-security.js';
+import { financialResponse } from '../lib/revale-financial-transaction.js';
+import { operationalHealth } from '../lib/revale-operational-health.js';
 import { ensureEmployerGovernanceSchema, companyApprovalGuard, companyFundingApproved } from '../lib/revale-employer-governance.js';
 import { getAdminPrincipal, roleAllowed } from "../lib/revale-auth.js";
 import {
@@ -118,7 +120,7 @@ async function executeApprovedFinancialAction(sql,request,actorId){
 
   if(request.action_type==="merchant_payout"){
     const result=await scheduleSettlementPayout(
-      sql,request.entity_id,actorId,{maxApprovedAmount:Number(request.amount||0)}
+      sql,request.entity_id,actorId,{maxApprovedAmount:Number(request.amount||0),expectedBankAccountId:payload.bank_account_id}
     );
     if(result.code!=="ok")return result;
     return {code:"ok",result};
@@ -299,25 +301,32 @@ async function auditFinancialRequest(sql,{principal,request,action,metadata={}})
   );
 }
 
-export default async function handler(req,res){
+export default async function handler(req,res,transaction){
   const action=String(req.query?.action||"");
   try{
     assertSameOrigin(req);
-    const sql=await getSql();
+    const sql=transaction||await getSql();
+    if(!sql.inTransaction){
     await ensureSettlementTaxSchema(sql);
     await ensureFundingTreasurySchema(sql);
     await ensureSafeguardingSchema(sql);
     await ensureBankReconciliationSchema(sql);
     await ensureFinancialApprovalSchema(sql);
     await ensureEmployerGovernanceSchema(sql);
+    }
     const principal=await getAdminPrincipal(sql,req);
     if(!principal)return json(res,401,{ok:false,error:"Sesión requerida"});
+    if(req.method==='POST'&&!sql.inTransaction)return await financialResponse(sql,res,(tx,buffer)=>handler(req,buffer,tx));
 
     const requireRoles=(roles)=>{
       if(!roleAllowed(principal,roles)){json(res,403,{ok:false,error:"No tienes permisos para esta acción"});return false}
       return true;
     };
 
+    if(req.method==='GET'&&action==='operational-health'){
+      if(!requireRoles(['superadmin','finance']))return;
+      return json(res,200,await operationalHealth(sql));
+    }
     if(req.method==="GET" && action==="financial-approvals"){
       if(!requireRoles(["superadmin","finance"]))return;
       const [requests,policies,summary]=await Promise.all([
@@ -612,6 +621,7 @@ export default async function handler(req,res){
       const id=String(req.body?.id||"");
       const [row]=await sql.query(
         `SELECT s.id,s.merchant_id,s.status,s.currency,
+                (SELECT id FROM revale.merchant_bank_accounts WHERE merchant_id=s.merchant_id AND status='verified' ORDER BY verified_at DESC NULLS LAST,id DESC LIMIT 1) AS bank_account_id,
                 s.net_amount::float8 AS net_amount,
                 COALESCE((
                   SELECT SUM(sa.amount) FROM revale.settlement_adjustments sa
@@ -647,7 +657,7 @@ export default async function handler(req,res){
         entityId:id,
         amount:payable,
         currency:String(row.currency||"USD").trim(),
-        payload:{merchant_id:row.merchant_id,calculated_payout:calculated},
+        payload:{merchant_id:row.merchant_id,calculated_payout:calculated,bank_account_id:row.bank_account_id},
         requestNote:req.body?.note||null,
         requestedBy:principal.adminUserId,
         requestedByName:principal.displayName
@@ -1829,8 +1839,7 @@ export default async function handler(req,res){
 
       const locationId=safeLocationId(request.merchant_id,request.name);
       const baseSlug=slugify(request.name);
-      await sql.query("BEGIN");
-      try{
+      {
         const [loc]=await sql.query(
           `INSERT INTO revale.merchant_locations (id,merchant_id,name,active,slug,metadata)
            VALUES ($1,$2,$3,true,$4,jsonb_build_object('demo_terminal','Caja 01','address',$5,'requested_terminals',$6))
@@ -1843,9 +1852,8 @@ export default async function handler(req,res){
            VALUES ($1,'revale_admin',$2,'branch.approved','merchant_location',$3,$4::jsonb)`,
           [request.merchant_id,principal.adminUserId,locationId,JSON.stringify({requestId:id})]
         );
-        await sql.query("COMMIT");
         return json(res,200,{ok:true,location:loc});
-      }catch(error){await sql.query("ROLLBACK");throw error}
+      }
     }
 
     if(req.method==="POST" && action==="resolve-bank"){
@@ -1870,8 +1878,7 @@ export default async function handler(req,res){
         return json(res,200,{ok:true,item:row});
       }
 
-      await sql.query("BEGIN");
-      try{
+      {
         await sql.query("UPDATE revale.merchant_bank_accounts SET status='superseded',updated_at=now() WHERE merchant_id=$1 AND status IN ('verified','pending')",[request.merchant_id]);
         const [account]=await sql.query(
           `INSERT INTO revale.merchant_bank_accounts (
@@ -1892,14 +1899,14 @@ export default async function handler(req,res){
            VALUES ($1,'revale_admin',$2,'bank_account.verified','merchant_bank_account',$3,$4::jsonb)`,
           [request.merchant_id,principal.adminUserId,String(account.id),JSON.stringify({requestId:id})]
         );
-        await sql.query("COMMIT");
         return json(res,200,{ok:true,account});
-      }catch(error){await sql.query("ROLLBACK");throw error}
+      }
     }
 
     return json(res,405,{ok:false,error:"Acción no soportada"});
   }catch(error){
-    if (error.status === 403) return json(res,403,{ok:false,error:error.message});
+    if(transaction)throw error;
+    if ([403,409].includes(error.status)) return json(res,error.status,{ok:false,error:error.message});
     console.error("ReVale admin API error",{code:error.code||'INTERNAL',action});
     return json(res,500,{ok:false,error:"Error interno del servicio"});
   }

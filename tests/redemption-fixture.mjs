@@ -1,5 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
 import pg from 'pg';
+import {transactionSql} from '../lib/revale-financial-transaction.js';
 
 export async function redemptionFixture() {
   const connectionString=process.env.REVALE_TEST_DATABASE_URL;
@@ -21,6 +22,14 @@ export async function redemptionFixture() {
       await client.query('COMMIT');return results;
     }catch(e){await client.query('ROLLBACK');throw e;}finally{client.release();}}
     return db.transaction(async client=>{const results=[];for(const q of queries)results.push((await client.query(q.text,q.args)).rows);return results;});
+  };
+  sql.withTransaction=async work=>{
+    if(pool){const client=await pool.connect();let tx;try{
+      await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');tx=transactionSql((text,args)=>client.query(text,args));
+      const result=await work(tx);if(tx.lastError)throw tx.lastError;
+      await client.query('COMMIT');return result;
+    }catch(error){await client.query('ROLLBACK');throw tx?.lastError||error;}finally{client.release();}}
+    return db.transaction(async client=>work(transactionSql((text,args)=>client.query(text,args)))).catch(error=>{sql.lastTransactionError=error;throw error;});
   };
   await exec(`DROP SCHEMA IF EXISTS revale CASCADE; CREATE SCHEMA revale;
     CREATE TABLE revale.persons(id text PRIMARY KEY,first_name text,last_name text,person_identification text,email text,active boolean DEFAULT true);

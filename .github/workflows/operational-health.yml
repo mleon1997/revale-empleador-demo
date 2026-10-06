@@ -1,0 +1,23 @@
+name: ReVale operational health
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: revale-operational-health
+  cancel-in-progress: false
+jobs:
+  availability-and-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check database and financial invariants
+        run: |
+          curl --fail --silent --show-error --retry 2 --retry-delay 10 --max-time 20 https://comercios.revale.app/api/operational-health
+      - name: Check portals
+        run: |
+          for host in comercios.revale.app empresas.revale.app mi.revale.app; do
+            curl --fail --silent --show-error --max-time 20 "https://$host/" --output /dev/null
+          done
