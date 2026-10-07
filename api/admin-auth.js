@@ -1,12 +1,15 @@
 import { assertSameOrigin, identityAllowed } from '../lib/revale-security.js';
 import { getSql } from "../lib/revale-db.js";
 import {
+  loginResult,
   neonAuthRequest,
   forwardAuthCookies,
   getAdminPrincipal,
   getNeonSession
 } from "../lib/revale-auth.js";
 import { ensureFinancialApprovalSchema } from "../lib/revale-financial-approvals.js";
+import { adminInvitationInfo } from '../lib/revale-admin-onboarding.js';
+import { activateAdmin, activationResult } from '../lib/revale-activation.js';
 
 function json(res,code,body){
   res.status(code).setHeader("Content-Type","application/json; charset=utf-8").setHeader("Cache-Control","no-store").json(body);
@@ -20,6 +23,14 @@ export default async function handler(req,res){
     assertSameOrigin(req);
     if(req.method === 'POST' && action === 'login' && !identityAllowed(req.body?.email)) return json(res,403,{ok:false,error:'Este acceso de demostración no está habilitado aquí.'});
     const sql=await getSql();
+
+    if(req.method==='POST'&&['invitation','activate'].includes(action)){
+      if(process.env.REVALE_AUTH_PROVIDER!=='better-auth-mfa'||process.env.VERCEL_ENV!=='preview')return json(res,404,{ok:false,error:'Acción no disponible.'});
+      if(action==='invitation')return json(res,200,{ok:true,invitation:await adminInvitationInfo(sql,req.body?.token)});
+      const upstream=await activateAdmin(sql,req,req.body||{});
+      forwardAuthCookies(upstream,res);
+      return json(res,200,req.body?.mode==='session'?{ok:true,next:'/admin/'}:await activationResult(upstream,'admin',req.body?.token));
+    }
 
     if(req.method==="GET" && action==="session"){
       const session=await getNeonSession(req);
@@ -45,7 +56,7 @@ export default async function handler(req,res){
         const err=await upstreamJson(upstream);
         return json(res,401,{ok:false,error:err?.message||err?.error?.message||"Correo o contraseña incorrectos"});
       }
-      forwardAuthCookies(upstream,res);return json(res,200,{ok:true});
+      forwardAuthCookies(upstream,res);return json(res,200,loginResult("admin"));
     }
 
     if(req.method==="POST" && action==="logout"){

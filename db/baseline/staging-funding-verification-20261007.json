@@ -1,0 +1,116 @@
+{
+  "date": "2026-10-07T14:44:27.175608+00:00",
+  "deployment": "dpl_DFZw3vBcXAcaRqMfAfcFvfj5ZLKd",
+  "commit": "5336d34b0c195641e05324484264f76b9aee3000",
+  "environment": "staging",
+  "synthetic": true,
+  "transport": "HTTP API; no browser UI verification",
+  "passed": true,
+  "checks": [
+    {
+      "check": "MFA",
+      "role": "companyMaker"
+    },
+    {
+      "check": "MFA",
+      "role": "companyChecker"
+    },
+    {
+      "check": "MFA",
+      "role": "maker"
+    },
+    {
+      "check": "MFA",
+      "role": "checker"
+    },
+    {
+      "check": "MFA",
+      "role": "employee"
+    },
+    {
+      "check": "company-request",
+      "amount": 100,
+      "batchId": "fund_ad0cf2eb295341ad002a592ebaaa54b3",
+      "balance": 0,
+      "idempotent": true,
+      "selfApprovalRejected": true,
+      "allocationWithoutReceiptRejected": true
+    },
+    {
+      "check": "receipt",
+      "received": 100,
+      "employeeBalanceBeforeApproval": 0,
+      "realBankTransfer": false
+    },
+    {
+      "check": "funding-complete",
+      "balance": 100,
+      "employeeHistoryCredits": 1,
+      "credits": 1,
+      "receipts": 1,
+      "approvals": 1,
+      "retries": 3,
+      "retryStatuses": [
+        409,
+        409,
+        409
+      ],
+      "companyProgress": "credited",
+      "gl": [
+        {
+          "account_id": "gl_cash_client_funds",
+          "net": "100.00"
+        },
+        {
+          "account_id": "gl_employee_benefit_liability",
+          "net": "-100.00"
+        },
+        {
+          "account_id": "gl_employer_prefund_liability",
+          "net": "0.00"
+        }
+      ],
+      "realFunds": false
+    }
+  ],
+  "ci": {
+    "run": 37638154079,
+    "passed": 89,
+    "failed": 0,
+    "skipped": 0,
+    "build": true,
+    "syntheticRestoreTables": 50
+  },
+  "cleanup": {
+    "testIdentityUsers": 0,
+    "activeTestAdmins": 0,
+    "humanAdminsRetained": 2,
+    "temporaryLinksRevoked": true,
+    "syntheticBusinessMembershipsDisabled": true,
+    "syntheticPolicyDisabled": true
+  },
+  "diagnosticReceipt": {
+    "status": "voided",
+    "reason": "Isolated diagnostic invocation of registerFundingReceipt inserted a synthetic receipt before reproducing the metadata SQL error; no accounting event or allocation was produced. Retained as voided; one confirmed receipt remains."
+  },
+  "humanTest": {
+    "primary": "mateo@revale.app",
+    "primaryFinancialMakerPermission": "granted after explicit user confirmation on 2026-10-07; can_make=true, can_approve=false, active=true, staging only",
+    "checker": "mateo.leon@iwgplc.com",
+    "checkerApprovalLimit": 100,
+    "samePersonTwoAccounts": true,
+    "verifiedAfterGrant": {
+      "bothMFAEnabled": true,
+      "primaryCanMake": true,
+      "primaryCanApprove": false,
+      "checkerCanMake": false,
+      "checkerCanApprove": true,
+      "checkerApprovalLimit": 100
+    }
+  },
+  "scope": {
+    "realBankTransfers": false,
+    "demoChanged": false,
+    "liveChanged": false
+  }
+}

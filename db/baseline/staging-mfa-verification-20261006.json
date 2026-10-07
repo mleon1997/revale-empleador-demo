@@ -1,0 +1,94 @@
+{
+  "verifiedAt": "2026-10-06T17:03:00Z",
+  "scope": "revale-staging / Preview only",
+  "commit": "ffe1a2d8c8a840c8634ae0145d80cc40a112cf90",
+  "deploymentId": "dpl_6sjmLTH2jyNBXsw4JaeD8UTfcfrs",
+  "ci": {
+    "runId": 37499858099,
+    "tests": 84,
+    "failed": 0,
+    "skipped": 0,
+    "concurrentPostgres": true
+  },
+  "httpChecks": [
+    {
+      "check": "portal-TOTP",
+      "portal": "employee",
+      "qrDecoded": false,
+      "passwordBlocked": true,
+      "totp": true,
+      "crossPortalBlocked": true,
+      "logout": true
+    },
+    {
+      "check": "portal-TOTP",
+      "portal": "admin",
+      "qrDecoded": false,
+      "passwordBlocked": true,
+      "totp": true,
+      "crossPortalBlocked": true,
+      "logout": true
+    },
+    {
+      "check": "portal-TOTP",
+      "portal": "merchant",
+      "qrDecoded": false,
+      "passwordBlocked": true,
+      "totp": true,
+      "crossPortalBlocked": true,
+      "logout": true
+    },
+    {
+      "check": "portal-TOTP",
+      "portal": "employer",
+      "qrDecoded": false,
+      "passwordBlocked": true,
+      "totp": true,
+      "crossPortalBlocked": true,
+      "logout": true
+    },
+    {
+      "check": "portal-recovery",
+      "portal": "merchant",
+      "recoverySingleUse": true,
+      "crossOriginBlocked": true
+    },
+    {
+      "check": "portal-recovery",
+      "portal": "admin",
+      "recoverySingleUse": true,
+      "crossOriginBlocked": true
+    },
+    {
+      "check": "portal-recovery",
+      "portal": "employer",
+      "recoverySingleUse": true,
+      "crossOriginBlocked": true
+    },
+    {
+      "check": "portal-recovery",
+      "portal": "employee",
+      "recoverySingleUse": true,
+      "crossOriginBlocked": true
+    }
+  ],
+  "cleanup": {
+    "identity_users": "0",
+    "identity_sessions": "0",
+    "identity_accounts": "0",
+    "identity_factors": "0",
+    "pending_challenges": "0",
+    "active_test_memberships": "0",
+    "identity_forbidden_table_access": "0",
+    "business_identity_table_access": "0",
+    "identity_schema_create": false,
+    "database_create": false
+  },
+  "shareLinksRevoked": true,
+  "productionPromoted": false,
+  "limitations": [
+    "Browser inspected challenge screen; human authenticator enrollment not completed.",
+    "Financial operations with MFA not exercised in staging.",
+    "Identity backup restoration, key rotation and assisted recovery remain pending."
+  ]
+}
