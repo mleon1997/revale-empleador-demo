@@ -95,10 +95,18 @@
   },
   "humanTest": {
     "primary": "mateo@revale.app",
-    "primaryFinancialMakerPermission": "missing; attempted provisioning rejected by automatic approval review; no grant executed",
+    "primaryFinancialMakerPermission": "granted after explicit user confirmation on 2026-10-07; can_make=true, can_approve=false, active=true, staging only",
     "checker": "mateo.leon@iwgplc.com",
     "checkerApprovalLimit": 100,
-    "samePersonTwoAccounts": true
+    "samePersonTwoAccounts": true,
+    "verifiedAfterGrant": {
+      "bothMFAEnabled": true,
+      "primaryCanMake": true,
+      "primaryCanApprove": false,
+      "checkerCanMake": false,
+      "checkerCanApprove": true,
+      "checkerApprovalLimit": 100
+    }
   },
   "scope": {
     "realBankTransfers": false,

@@ -54,16 +54,18 @@ eliminaron, sus membresías se desactivaron y se conservaron los registros
 financieros. También se desactivó la política sintética de asignación. Los dos
 usuarios humanos mantienen sus accesos y MFA.
 
-Se detectó que `mateo@revale.app`, aunque es superadministrador, no tiene fila de
-permisos financieros y por tanto no puede crear solicitudes bajo el modo estricto.
-La revisión automática rechazó conceder `can_make=true`; **no se ejecutó ese cambio**.
-Se necesita autorización concreta para habilitar creación de solicitudes solo en
-staging, sin conceder aprobación a esa cuenta. El segundo correo mantiene
-`can_make=false`, `can_approve=true` y límite de USD 100. Ambos pertenecen a la misma
-persona; este esquema separa cuentas, no personas.
+Después de la autorización explícita del usuario, el 7 de octubre de 2026 se
+habilitó `mateo@revale.app` con `can_make=true`, `can_approve=false` y permiso
+activo únicamente en staging. Se registró el alta en auditoría. La verificación
+posterior confirmó que ambas cuentas conservan MFA activo.
 
-Para el ensayo personal habrá que habilitar ese permiso y preparar un nuevo caso
-ficticio con política activa. La revisión de recuperación real y la preparación
-de producción continúan fuera del alcance de esta prueba.
+El segundo correo mantiene `can_make=false`, `can_approve=true` y límite de
+USD 100. Ambos pertenecen a la misma persona; este esquema separa cuentas, no
+personas. El límite numérico del solicitante no limita la creación de solicitudes;
+la aprobación depende de la política y del límite del aprobador.
+
+Para el ensayo personal queda preparar un nuevo caso ficticio con política activa.
+La revisión de recuperación real y la preparación de producción continúan fuera
+del alcance de esta prueba.
 
 Evidencia: `db/baseline/staging-funding-verification-20261007.json`.
